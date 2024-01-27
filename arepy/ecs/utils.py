@@ -9,6 +9,7 @@ load_dotenv(find_dotenv())
 logger_level = int(getenv("LOG_LEVEL", "INFO"))
 
 log_color = {
+    0: "\033[0m",
     10: "\033[33m",
     20: "\033[32m",
     30: "\033[33m",
@@ -18,7 +19,7 @@ log_color = {
 logging.basicConfig(
     # [2024-01-25T17:57:04Z INFO  arepita::systems::camera_movement_system] camera x: 798
     format=f"[%(asctime)s [{log_color[logger_level]}%(levelname)s{log_color[logger_level].split('[')[0]}[0m] %(name)s::%(funcName)s] %(message)s",
-    level=logger_level,
+    level=None,
     handlers=[
         logging.StreamHandler(stdout),
         logging.StreamHandler(

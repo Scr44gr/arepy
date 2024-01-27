@@ -18,10 +18,18 @@ class Entity:
     def get_id(self) -> int:
         return self._id
 
-    def get_component(self, component_type: Type[TComponent]) -> Optional[TComponent]:
+    def get_component(self, component_type: Type[TComponent]) -> TComponent:
         if self._registry is None:
             raise RuntimeError("Registry is not set.")
-        return self._registry.get_component(self, component_type)
+        component = self._registry.get_component(self, component_type)
+        if component is None:
+            raise RuntimeError(f"Component {component_type} does not exist.")
+        return component
+
+    def remove_component(self, component_type: Type[TComponent]) -> None:
+        if self._registry is None:
+            raise RuntimeError("Registry is not set.")
+        self._registry.remove_component(self, component_type)
 
     def __repr__(self) -> str:
         return f"Entity(id={self._id})"
@@ -46,8 +54,8 @@ class Registry:
     entities_to_be_removed: List[Entity] = field(default_factory=list)
 
     def create_entity(self) -> Entity:
-        self.number_of_entities += 1
         entity_id = self.number_of_entities
+        self.number_of_entities += 1
         entity = Entity(entity_id, self)
         self.entities_to_be_added.append(entity)
         return entity
@@ -86,7 +94,7 @@ class Registry:
         component_pool.set(entity_id, component)
 
         # Extend the entity component signatures if necessary
-        if component_id > len(self.entity_component_signatures):
+        if entity_id >= len(self.entity_component_signatures):
             self.entity_component_signatures.extend(
                 [Signature(MAX_COMPONENTS)] * (component_id + 1)
             )
@@ -133,8 +141,8 @@ class Registry:
         return self.entity_component_signatures[entity_id].test(component_id)
 
     # System management
-    def add_system(self, system: Type[TSystem], **kwargs) -> None:
-        system_name: str = type(system).__name__
+    def add_system(self, system: Type[System], **kwargs) -> None:
+        system_name: str = str(system.__name__)
         self.systems[system_name] = system(**kwargs)
 
     def add_entity_to_systems(self, entity: Entity) -> None:
@@ -164,7 +172,7 @@ class Registry:
         return system_name in self.systems
 
     def get_system(self, system: Type[TSystem]) -> Optional[TSystem]:
-        system_name = type(system).__name__
+        system_name: str = system.__name__
         return cast(Optional[TSystem], self.systems.get(system_name))
 
     # Update

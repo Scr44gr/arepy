@@ -55,6 +55,14 @@ class System:
                 self.entities.pop(i)
                 break
 
+    def get_system_entities(self) -> List["Entity"]:
+        """Get the entities of the system.
+
+        Returns:
+            The entities of the system.
+        """
+        return self.entities
+
     def update(self, *args, **kwargs) -> None:
         """Update the system."""
         raise NotImplementedError

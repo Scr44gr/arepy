@@ -1,8 +1,12 @@
+from typing import Type
+
 import sdl2
 from sdl2.ext import Renderer, Resources, Window, get_events
 
+from .asset_store import AssetStore
 from .builders import EntityBuilder
 from .ecs.registry import Registry
+from .ecs.systems import System, TSystem
 
 
 class Engine:
@@ -11,21 +15,29 @@ class Engine:
     screen_height: int = 480
     max_frame_rate: int = 60
     debug: bool = True
+    fullscreen: bool = False
 
     def __init__(self):
         self._is_running = False
         self._ms_prev_frame = 0
         self._ms_per_frame = 1000 / self.max_frame_rate
         self._registry = Registry()
+        self._asset_store = AssetStore()
 
     def init(self):
         sdl2.SDL_Init(sdl2.SDL_INIT_EVERYTHING)
+        full_screen_flag = sdl2.SDL_WINDOW_FULLSCREEN if self.fullscreen else 0
         self.window = Window(
             self.title,
             size=(self.screen_width, self.screen_height),
-            flags=sdl2.SDL_WINDOW_SHOWN | sdl2.SDL_WINDOW_OPENGL,
+            flags=sdl2.SDL_WINDOW_SHOWN | sdl2.SDL_WINDOW_OPENGL | full_screen_flag,
         )
-        self.renderer = Renderer(self.window)
+        self.renderer = Renderer(
+            self.window,
+            flags=sdl2.SDL_RENDERER_ACCELERATED
+            | sdl2.SDL_RENDERER_PRESENTVSYNC
+            | sdl2.SDL_RENDERER_TARGETTEXTURE,
+        )
 
     def run(self):
         self._is_running = True
@@ -49,12 +61,13 @@ class Engine:
         self.delta_time = (sdl2.SDL_GetTicks() - self._ms_prev_frame) / 1000.0
         self._ms_prev_frame = sdl2.SDL_GetTicks()
         self.on_update()
+        self._registry.update()
 
     def __render_process(self):
         self.renderer.clear()
         if self.debug:
             self.window.title = f"[DEBUG] {self.title} - FPS: {1 / self.delta_time:.2f}"
-
+        self.on_render()
         self.renderer.present()
 
     def __del__(self):
@@ -69,14 +82,46 @@ class Engine:
         entity = self._registry.create_entity()
         return EntityBuilder(entity, self._registry)
 
+    def add_system(self, system: Type[TSystem]) -> None:
+        """Create a new system.
+
+        Args:
+            system: A system.
+        """
+        self._registry.add_system(system)
+
+    def get_system(self, system_type: Type[TSystem]) -> TSystem:
+        """Get a system.
+
+        Args:
+            system_type: The system type.
+
+        Returns:
+            The system.
+        """
+        system = self._registry.get_system(system_type)
+        if not system:
+            raise RuntimeError(f"System {system_type} does not exist.")
+        return system
+
+    def get_asset_store(self) -> AssetStore:
+        """Get the asset store.
+
+        Returns:
+            The asset store.
+        """
+        return self._asset_store
+
     def on_startup(self):
-        # create imgui window
         pass
 
     def on_update(self):
         pass
 
     def on_shutdown(self):
+        pass
+
+    def on_render(self):
         pass
 
 
