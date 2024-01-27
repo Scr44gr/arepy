@@ -16,8 +16,9 @@ TSystem = TypeVar("TSystem", bound="System")
 class System:
     """Base class for all systems."""
 
-    entity_component_signature: Signature = Signature(MAX_COMPONENTS)
-    entities: List["Entity"] = list()
+    def __init__(self) -> None:
+        self.entity_component_signature = Signature(MAX_COMPONENTS)
+        self.entities: List["Entity"] = list()
 
     def add_entity_to_system(self, entity: "Entity") -> None:
         """Add an entity to the system.

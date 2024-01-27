@@ -31,6 +31,11 @@ class Entity:
             raise RuntimeError("Registry is not set.")
         self._registry.remove_component(self, component_type)
 
+    def has_component(self, component_type: Type[TComponent]) -> bool:
+        if self._registry is None:
+            raise RuntimeError("Registry is not set.")
+        return self._registry.has_component(self, component_type)
+
     def __repr__(self) -> str:
         return f"Entity(id={self._id})"
 
@@ -54,8 +59,12 @@ class Registry:
     entities_to_be_removed: List[Entity] = field(default_factory=list)
 
     def create_entity(self) -> Entity:
-        entity_id = self.number_of_entities
         self.number_of_entities += 1
+        entity_id = self.number_of_entities
+        if entity_id >= len(self.entity_component_signatures):
+            # add a new signature for the new entity
+            self.entity_component_signatures.extend([Signature(MAX_COMPONENTS)])
+
         entity = Entity(entity_id, self)
         self.entities_to_be_added.append(entity)
         return entity
@@ -71,35 +80,31 @@ class Registry:
         entity_id = entity.get_id()
 
         component_id = ComponentIndex.get_id(component_type.__name__)
-        if component_id > len(self.component_pools):
+
+        if component_id >= len(self.component_pools):
             if component_id >= MAX_COMPONENTS:
                 # Raise an error if the maximum number of components is exceeded
                 # TODO: Add a custom exception
                 raise RuntimeError(
                     f"Maximum number of components ({MAX_COMPONENTS}) exceeded."
                 )
-            self.component_pools.extend([None] * (component_id + 1))
-        if self.component_pools[component_id - 1] is None:
-            self.component_pools[component_id - 1] = ComponentPool(component_type)
+            self.component_pools.extend(
+                [None] * (component_id - len(self.component_pools) + 1)
+            )
+        if self.component_pools[component_id] is None:
+            self.component_pools[component_id] = ComponentPool(component_type)
 
         component_pool = cast(
-            ComponentPool[TComponent], self.component_pools[component_id - 1]
+            ComponentPool[TComponent], self.component_pools[component_id]
         )
         component = component_type(**kwargs)
-
         # Resize the component pool if necessary
         if entity_id >= len(component_pool):
-            component_pool.extend([None] * (self.number_of_entities + 1))
+            component_pool.extend([None] * (entity_id - len(component_pool) + 1))
         # Set the component to the pool
-        component_pool.set(entity_id, component)
+        component_pool.set(entity_id - 1, component)
 
-        # Extend the entity component signatures if necessary
-        if entity_id >= len(self.entity_component_signatures):
-            self.entity_component_signatures.extend(
-                [Signature(MAX_COMPONENTS)] * (component_id + 1)
-            )
-        # Set the component signature
-        self.entity_component_signatures[entity_id].set(component_id, True)
+        self.entity_component_signatures[entity_id - 1].set(component_id, True)
 
     def get_component(
         self,
@@ -110,16 +115,13 @@ class Registry:
         component_id: int = ComponentIndex.get_id(component_type.__name__)
         if component_id > len(self.component_pools):
             return None
-        if self.component_pools[component_id - 1] is None:
+        if self.component_pools[component_id] is None:
             return None
 
         component_pool: ComponentPool[TComponent] = cast(
-            ComponentPool[TComponent], self.component_pools[component_id - 1]
+            ComponentPool[TComponent], self.component_pools[component_id]
         )
-        if entity_id > len(component_pool):
-            return None
-
-        return component_pool.get(entity_id)
+        return component_pool.get(entity_id - 1)
 
     def remove_component(
         self,
@@ -128,7 +130,7 @@ class Registry:
     ) -> None:
         entity_id: int = entity.get_id()
         component_id: int = ComponentIndex.get_id(component_type.__name__)
-        self.entity_component_signatures[entity_id].clear_bit(component_id)
+        self.entity_component_signatures[entity_id - 1].clear_bit(component_id)
 
     def has_component(
         self,
@@ -138,7 +140,7 @@ class Registry:
         entity_id: int = entity.get_id()
         component_id: int = ComponentIndex.get_id(component_type.__name__)
 
-        return self.entity_component_signatures[entity_id].test(component_id)
+        return self.entity_component_signatures[entity_id - 1].test(component_id)
 
     # System management
     def add_system(self, system: Type[System], **kwargs) -> None:
@@ -147,15 +149,16 @@ class Registry:
 
     def add_entity_to_systems(self, entity: Entity) -> None:
         entity_id: int = entity.get_id()
+        entity_component_signature: Signature = self.entity_component_signatures[
+            entity_id - 1
+        ]
 
         for system in self.systems.values():
             if system is None:
                 continue
-            if not system.get_component_signature().matches(
-                self.entity_component_signatures[entity_id]
-            ):
-                continue
-            system.add_entity_to_system(entity)
+
+            if system.get_component_signature().matches(entity_component_signature):
+                system.add_entity_to_system(entity)
 
     def remove_entity_from_systems(self, entity: Entity) -> None:
         for system in self.systems.values():
@@ -177,10 +180,12 @@ class Registry:
 
     # Update
     def update(self) -> None:
-        for entity in self.entities_to_be_added:
-            self.add_entity_to_systems(entity)
-        for entity in self.entities_to_be_removed:
-            self.remove_entity_from_systems(entity)
+        if len(self.entities_to_be_added) > 0:
+            for entity in self.entities_to_be_added:
+                self.add_entity_to_systems(entity)
+            self.entities_to_be_added.clear()
 
-        self.entities_to_be_added.clear()
-        self.entities_to_be_removed.clear()
+        if len(self.entities_to_be_removed) > 0:
+            for entity in self.entities_to_be_removed:
+                self.remove_entity_from_systems(entity)
+            self.entities_to_be_removed.clear()

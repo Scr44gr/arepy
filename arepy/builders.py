@@ -11,7 +11,6 @@ class EntityBuilder:
     """
 
     _registry: Registry
-    _entity: Entity
 
     def __init__(self, entity: Entity, registry: Registry):
         self._entity = entity

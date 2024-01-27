@@ -66,7 +66,8 @@ class Engine:
     def __render_process(self):
         self.renderer.clear()
         if self.debug:
-            self.window.title = f"[DEBUG] {self.title} - FPS: {1 / self.delta_time:.2f}"
+            current_fps = 1 // self.delta_time
+            self.window.title = f"[DEBUG] {self.title} - FPS: {current_fps:.2f}"
         self.on_render()
         self.renderer.present()
 

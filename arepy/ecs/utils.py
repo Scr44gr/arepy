@@ -31,22 +31,26 @@ logging.basicConfig(
     ],
 )
 
+from bitarray import bitarray
+
 
 class Signature:
     def __init__(self, size: int):
-        self.__bits = size * 0
+        self.__bits = bitarray(size)
+        self.__bits.setall(False)  # Inicializar todos los bits a False
 
     def set(self, index, value: bool):
-        assert value in (0, 1)
-        self.__bits |= value << index
+        self.__bits[index] = value
 
     def clear_bit(self, index: int):
-        assert index >= 0
-        self.__bits &= ~(1 << index)
+        self.__bits[index] = False
 
     def test(self, index: int):
-        assert index >= 0
-        return (self.__bits & (1 << index)) != 0
+        return self.__bits[index] == True
+
+    def get_bits(self):
+        return self.__bits
 
     def matches(self, signature: "Signature"):
-        return self.__bits & signature.__bits == self.__bits
+        matches = (signature.get_bits() & self.get_bits()) == self.get_bits()
+        return matches
