@@ -1,0 +1,14 @@
+{
+    "[python]": {
+        "editor.formatOnType": true,
+        "editor.wordBasedSuggestions": "matchingDocuments",
+        "editor.formatOnSave": true,
+        "editor.suggestSelection": "recentlyUsedByPrefix",
+        "editor.defaultFormatter": "ms-python.black-formatter",
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        },
+    },
+    "python.languageServer": "Pylance",
+    "python.analysis.typeCheckingMode": "basic",
+}
