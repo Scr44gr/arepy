@@ -20,7 +20,7 @@ setup(
     long_description=LONG_DESCRIPTION,
     long_description_content_type="text/markdown",
     packages=find_packages(),
-    install_requires=["PyGLM", "pysdl2", "pysdl2dll"],
+    install_requires=["PyGLM", "pysdl2", "pysdl2-dll"],
     keywords=["ecs", "game-engine", "sdl2-wrapper", "python-game-engine"],
     classifiers=[
         "Development Status :: 3 - Alpha",
