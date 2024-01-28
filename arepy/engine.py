@@ -7,15 +7,26 @@ from .asset_store import AssetStore
 from .builders import EntityBuilder
 from .ecs.registry import Registry
 from .ecs.systems import System, TSystem
+from .event_manager import EventManager
+
+# Default events
+from .event_manager.events.keyboard_event import (
+    KeyboardPressedEvent,
+    KeyboardReleasedEvent,
+)
+from .event_manager.handlers.keyboard_event_handler import KeyboardEventHandler
 
 
 class Engine:
     title: str = "Arepy Engine"
     screen_width: int = 640
     screen_height: int = 480
+    # Logical size
+    screen_size = (screen_width, screen_height)
     max_frame_rate: int = 60
-    debug: bool = True
+    debug: bool = False
     fullscreen: bool = False
+    fake_fullscreen: bool = False
 
     def __init__(self):
         self._is_running = False
@@ -23,20 +34,26 @@ class Engine:
         self._ms_per_frame = 1000 / self.max_frame_rate
         self._registry = Registry()
         self._asset_store = AssetStore()
+        self._event_manager = EventManager()
+        self._keyboard_event_handler = KeyboardEventHandler(self._event_manager)
 
     def init(self):
         sdl2.SDL_Init(sdl2.SDL_INIT_EVERYTHING)
         full_screen_flag = sdl2.SDL_WINDOW_FULLSCREEN if self.fullscreen else 0
+        fake_full_screen_flag = (
+            sdl2.SDL_WINDOW_FULLSCREEN_DESKTOP if self.fake_fullscreen else 0
+        )
         self.window = Window(
             self.title,
-            size=(self.screen_width, self.screen_height),
-            flags=sdl2.SDL_WINDOW_SHOWN | sdl2.SDL_WINDOW_OPENGL | full_screen_flag,
+            size=self.screen_size,
+            flags=sdl2.SDL_WINDOW_SHOWN | (full_screen_flag | fake_full_screen_flag),
         )
         self.renderer = Renderer(
             self.window,
             flags=sdl2.SDL_RENDERER_ACCELERATED
             | sdl2.SDL_RENDERER_PRESENTVSYNC
             | sdl2.SDL_RENDERER_TARGETTEXTURE,
+            logical_size=(self.screen_width, self.screen_height),
         )
 
     def run(self):
@@ -52,6 +69,14 @@ class Engine:
         for event in get_events():
             if event.type == sdl2.SDL_QUIT:
                 self._is_running = False
+            elif event.type == sdl2.SDL_KEYDOWN:
+                if event.key.keysym.sym == sdl2.SDLK_ESCAPE:
+                    self._is_running = False
+                key_pressed_event = KeyboardPressedEvent((event.key.keysym.sym))
+                self._event_manager.emit(key_pressed_event)
+            elif event.type == sdl2.SDL_KEYUP:
+                key_released_event = KeyboardReleasedEvent((event.key.keysym.sym))
+                self._event_manager.emit(key_released_event)
 
     def __update_process(self):
         time_to_wait = self._ms_per_frame - (sdl2.SDL_GetTicks() - self._ms_prev_frame)
@@ -112,6 +137,22 @@ class Engine:
             The asset store.
         """
         return self._asset_store
+
+    def get_event_manager(self) -> EventManager:
+        """Get the event manager.
+
+        Returns:
+            The event manager.
+        """
+        return self._event_manager
+
+    def get_keyboard_event_handler(self) -> KeyboardEventHandler:
+        """Get the keyboard event handler.
+
+        Returns:
+            The keyboard event handler.
+        """
+        return self._keyboard_event_handler
 
     def on_startup(self):
         pass
