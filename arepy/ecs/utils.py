@@ -6,7 +6,7 @@ from sys import stdout
 from dotenv import find_dotenv, load_dotenv
 
 load_dotenv(find_dotenv())
-logger_level = int(getenv("LOG_LEVEL", "INFO"))
+logger_level = int(getenv("LOG_LEVEL", 0))
 
 log_color = {
     0: "\033[0m",
