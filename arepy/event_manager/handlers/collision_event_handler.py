@@ -1,6 +1,7 @@
 from typing import Dict
 
-from arepy.ecs.registry import Entity
+from ...ecs.registry import Entity
+from ..events.collision_event import CollisionEvent
 
 
 class CollisionEventHandler:
@@ -26,3 +27,7 @@ class CollisionEventHandler:
     def get_colliding_entity(self, entity: Entity) -> Entity:
         """Return the entity that the entity is colliding with"""
         return self.current_collisions[entity]
+
+    def on_collision(self, event: CollisionEvent):
+        """Collision handler function"""
+        self.add_collision(event.entity_a, event.entity_b)
