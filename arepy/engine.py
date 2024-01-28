@@ -2,6 +2,7 @@ from typing import Type
 
 import sdl2
 from sdl2.ext import Renderer, Resources, Window, get_events
+from sdl2.sdlttf import TTF_Init, TTF_Quit
 
 from .asset_store import AssetStore
 from .builders import EntityBuilder
@@ -39,6 +40,7 @@ class Engine:
 
     def init(self):
         sdl2.SDL_Init(sdl2.SDL_INIT_EVERYTHING)
+        TTF_Init()
         full_screen_flag = sdl2.SDL_WINDOW_FULLSCREEN if self.fullscreen else 0
         fake_full_screen_flag = (
             sdl2.SDL_WINDOW_FULLSCREEN_DESKTOP if self.fake_fullscreen else 0
@@ -98,6 +100,7 @@ class Engine:
 
     def __del__(self):
         sdl2.SDL_Quit()
+        TTF_Quit()
 
     def create_entity(self) -> EntityBuilder:
         """Create an entity builder.
