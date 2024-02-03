@@ -10,13 +10,12 @@ class MovementSystem(System):
 
     def __init__(self) -> None:
         super().__init__()
-        self.require_component(Transform)
-        self.require_component(Rigidbody)
+        self.require_components([Transform, Rigidbody])
 
     def update(self, delta_time: float):
         self.logger.info("Updating MovementSystem")
 
-        for entity in self.get_system_entities():
+        for entity in self.get_entities():
             transform = entity.get_component(Transform)
             velocity = entity.get_component(Rigidbody).velocity
 

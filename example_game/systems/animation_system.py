@@ -10,12 +10,11 @@ class AnimationSystem(System):
 
     def __init__(self) -> None:
         super().__init__()
-        self.require_component(Animation)
-        self.require_component(Sprite)
+        self.require_components([Animation, Sprite])
 
     def update(self, delta_time: float) -> None:
         """Update the animation component of all entities that have one."""
-        for entity in self.get_system_entities():
+        for entity in self.get_entities():
             animation = entity.get_component(Animation)
             sprite = entity.get_component(Sprite)
             current_time = SDL_GetTicks64()

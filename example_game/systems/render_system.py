@@ -13,8 +13,7 @@ from ..components import Sprite, Transform
 class RenderSystem(System):
     def __init__(self) -> None:
         super().__init__()
-        self.require_component(Transform)
-        self.require_component(Sprite)
+        self.require_components([Transform, Sprite])
 
     def update(self, renderer: Renderer, asset_store: AssetStore):
         # RENDER BY Z-INDEX
@@ -31,7 +30,7 @@ class RenderSystem(System):
                 entity.get_component(Sprite),
                 entity.get_component(Transform),
             )
-            for entity in self.get_system_entities()
+            for entity in self.get_entities()
         ]
 
         renderable_entities.sort(key=lambda entity: entity.sprite_component.z_index)

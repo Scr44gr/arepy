@@ -9,12 +9,16 @@ from ..components import KeyboardControlled, Rigidbody, Sprite
 class PlayerMovementSystem(System):
     def __init__(self) -> None:
         super().__init__()
-        self.require_component(Sprite)
-        self.require_component(Rigidbody)
-        self.require_component(KeyboardControlled)
+        self.require_components(
+            [
+                Sprite,
+                Rigidbody,
+                KeyboardControlled,
+            ]
+        )
 
     def update(self, keyboard_handler: KeyboardEventHandler, delta_time: float):
-        for entity in self.get_system_entities():
+        for entity in self.get_entities():
             rigidbody = entity.get_component(Rigidbody)
             keyboard_controlled = entity.get_component(KeyboardControlled)
             sprite = entity.get_component(Sprite)
