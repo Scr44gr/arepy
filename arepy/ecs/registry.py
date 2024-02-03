@@ -4,6 +4,11 @@ from typing import Dict, List, Optional, Type, cast
 
 from .components import ComponentIndex, ComponentPool, IComponentPool, TComponent
 from .constants import MAX_COMPONENTS
+from .exceptions import (
+    ComponentNotFoundError,
+    MaximumComponentsExceededError,
+    RegistryNotSetError,
+)
 from .systems import System, TSystem
 from .utils import Signature
 
@@ -20,21 +25,27 @@ class Entity:
 
     def get_component(self, component_type: Type[TComponent]) -> TComponent:
         if self._registry is None:
-            raise RuntimeError("Registry is not set.")
+            raise RegistryNotSetError
+
         component = self._registry.get_component(self, component_type)
         if component is None:
-            raise RuntimeError(f"Component {component_type} does not exist.")
+            raise ComponentNotFoundError(component_type)
         return component
 
     def remove_component(self, component_type: Type[TComponent]) -> None:
         if self._registry is None:
-            raise RuntimeError("Registry is not set.")
+            raise RegistryNotSetError
         self._registry.remove_component(self, component_type)
 
     def has_component(self, component_type: Type[TComponent]) -> bool:
         if self._registry is None:
-            raise RuntimeError("Registry is not set.")
+            raise RegistryNotSetError
         return self._registry.has_component(self, component_type)
+
+    def kill(self) -> None:
+        if self._registry is None:
+            raise RegistryNotSetError
+        self._registry.entities_to_be_removed.append(self)
 
     def __repr__(self) -> str:
         return f"Entity(id={self._id})"
@@ -83,11 +94,7 @@ class Registry:
 
         if component_id >= len(self.component_pools):
             if component_id >= MAX_COMPONENTS:
-                # Raise an error if the maximum number of components is exceeded
-                # TODO: Add a custom exception
-                raise RuntimeError(
-                    f"Maximum number of components ({MAX_COMPONENTS}) exceeded."
-                )
+                raise MaximumComponentsExceededError(MAX_COMPONENTS)
             self.component_pools.extend(
                 [None] * (component_id - len(self.component_pools))
             )
@@ -158,13 +165,13 @@ class Registry:
                 continue
 
             if system.get_component_signature().matches(entity_component_signature):
-                system.add_entity_to_system(entity)
+                system._remove_entity(entity)
 
     def remove_entity_from_systems(self, entity: Entity) -> None:
         for system in self.systems.values():
             if system is None:
                 continue
-            system.remove_entity_from_system(entity)
+            system._remove_entity(entity)
 
     def remove_system(self, system: Type[TSystem]) -> None:
         system_name = type(system).__name__
