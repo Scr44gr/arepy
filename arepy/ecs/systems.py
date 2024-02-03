@@ -1,3 +1,4 @@
+import logging
 from typing import List, Type, TypeVar
 
 from arepy.ecs.constants import MAX_COMPONENTS
@@ -11,6 +12,7 @@ except ImportError:
 from .utils import Signature
 
 TSystem = TypeVar("TSystem", bound="System")
+logger = logging.getLogger(__name__)
 
 
 class System:
@@ -20,22 +22,23 @@ class System:
         self.entity_component_signature = Signature(MAX_COMPONENTS)
         self.entities: List["Entity"] = list()
 
-    def add_entity_to_system(self, entity: "Entity") -> None:
-        """Add an entity to the system.
+    def require_components(self, component_types: List[Type[TComponent]]) -> None:
+        """Require components for the system.
 
         Args:
-            entity: The entity to add.
+            component_types: The component types to require.
         """
-        self.entities.append(entity)
+        for component_type in component_types:
+            component_id = ComponentIndex.get_id(component_type.__name__)
+            self.entity_component_signature.set(component_id, True)
 
-    def require_component(self, component_type: Type[TComponent]) -> None:
-        """Require a component type for the system.
+    def get_entities(self) -> List["Entity"]:
+        """Get the entities of the system.
 
-        Args:
-            component_type: The component type to require.
+        Returns:
+            The entities of the current system.
         """
-        component_id = ComponentIndex.get_id(component_type.__name__)
-        self.entity_component_signature.set(component_id, True)
+        return self.entities
 
     def get_component_signature(self) -> Signature:
         """Get the component signature of the system.
@@ -45,24 +48,24 @@ class System:
         """
         return self.entity_component_signature
 
-    def remove_entity_from_system(self, entity: "Entity") -> None:
+    def _remove_entity(self, entity: "Entity") -> None:
         """Remove an entity from the system.
 
         Args:
             entity: The entity to remove.
         """
-        for i, system_entity in enumerate(self.entities):
-            if system_entity == entity:
-                self.entities.pop(i)
-                break
+        if entity in self.entities:
+            self.entities.remove(entity)
+            return
+        logger.warning(f"Entity {entity} not found in system {self}.")
 
-    def get_system_entities(self) -> List["Entity"]:
-        """Get the entities of the system.
+    def _add_entity(self, entity: "Entity") -> None:
+        """Add an entity to the current system.
 
-        Returns:
-            The entities of the system.
+        Args:
+            entity: The entity to add.
         """
-        return self.entities
+        self.entities.append(entity)
 
     def update(self, *args, **kwargs) -> None:
         """Update the system."""
