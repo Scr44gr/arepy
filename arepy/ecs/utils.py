@@ -3,9 +3,14 @@ import logging
 from os import getenv
 from sys import stdout
 
-from dotenv import find_dotenv, load_dotenv
+try:
+    from dotenv import find_dotenv, load_dotenv
 
-load_dotenv(find_dotenv())
+    # load environment variables from .env file
+    load_dotenv(find_dotenv())
+except ImportError:
+    pass
+
 logger_level = int(getenv("LOG_LEVEL", 0))
 
 log_color = {
@@ -19,7 +24,7 @@ log_color = {
 logging.basicConfig(
     # [2024-01-25T17:57:04Z INFO  arepita::systems::camera_movement_system] camera x: 798
     format=f"[%(asctime)s [{log_color[logger_level]}%(levelname)s{log_color[logger_level].split('[')[0]}[0m] %(name)s::%(funcName)s] %(message)s",
-    level=None,
+    level=logger_level,
     handlers=[
         logging.StreamHandler(stdout),
         logging.StreamHandler(

@@ -7,8 +7,8 @@ from sdl2 import (
     SDL_Texture,
 )
 from sdl2.ext import Renderer, load_image
-from sdl2.sdlimage import IMG_Load, IMG_LoadTexture
-from sdl2.sdlttf import TTF_Font, TTF_OpenFont
+from sdl2.sdlimage import IMG_Load
+from sdl2.sdlttf import TTF_CloseFont, TTF_Font, TTF_OpenFont
 
 
 class AssetStore:
@@ -37,3 +37,6 @@ class AssetStore:
     def __del__(self):
         for texture in self.textures.values():
             SDL_DestroyTexture(texture)
+
+        for font in self.fonts.values():
+            TTF_CloseFont(font)

@@ -7,7 +7,8 @@ from .ecs.registry import Entity, Registry
 class EntityBuilder:
     """A builder for entities.
 
-    This class is used to build entities with components.
+    This is a wrapped class for the entity class.
+    It allows for the creation of entities with components without having to touch the registry.
     """
 
     _registry: Registry
@@ -38,6 +39,7 @@ class EntityBuilder:
         return self
 
     def build(self) -> Entity:
+        """Build the entity with the components, the components are built and added to the registry."""
         for component in self._components:
             component_args = component.__dict__.copy()
             self._registry.add_component(
