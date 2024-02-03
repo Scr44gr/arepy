@@ -1,6 +1,5 @@
 # Arepy 🎮
-A ECS python game engine using sdl2. (WIP) 
-
+An ECS python game engine using sdl2 (WIP).
 
 ## Installation 📖
 ```bash
