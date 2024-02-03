@@ -89,13 +89,13 @@ class Registry:
                     f"Maximum number of components ({MAX_COMPONENTS}) exceeded."
                 )
             self.component_pools.extend(
-                [None] * (component_id - len(self.component_pools) + 1)
+                [None] * (component_id - len(self.component_pools))
             )
-        if self.component_pools[component_id] is None:
-            self.component_pools[component_id] = ComponentPool(component_type)
+        if self.component_pools[component_id - 1] is None:
+            self.component_pools[component_id - 1] = ComponentPool(component_type)
 
         component_pool = cast(
-            ComponentPool[TComponent], self.component_pools[component_id]
+            ComponentPool[TComponent], self.component_pools[component_id - 1]
         )
         component = component_type(**kwargs)
         # Resize the component pool if necessary
@@ -115,11 +115,11 @@ class Registry:
         component_id: int = ComponentIndex.get_id(component_type.__name__)
         if component_id > len(self.component_pools):
             return None
-        if self.component_pools[component_id] is None:
+        if self.component_pools[component_id - 1] is None:
             return None
 
         component_pool: ComponentPool[TComponent] = cast(
-            ComponentPool[TComponent], self.component_pools[component_id]
+            ComponentPool[TComponent], self.component_pools[component_id - 1]
         )
         return component_pool.get(entity_id - 1)
 

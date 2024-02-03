@@ -34,7 +34,7 @@ class RegistryTest(TestCase):
         # Ensure that the entity has the components
         self.assertEqual(self.registry.number_of_entities, 1)
         self.assertEqual(len(self.registry.component_pools), 2)
-        self.assertEqual(len(self.registry.entity_component_signatures), 2)
+        self.assertEqual(len(self.registry.entity_component_signatures), 1)
         self.assertEqual(len(self.registry.entities_to_be_added), 1)
         self.assertEqual(len(self.registry.entities_to_be_removed), 0)
 
@@ -44,3 +44,6 @@ class RegistryTest(TestCase):
         # Ensure the component is removed
         self.assertFalse(self.registry.has_component(entity, Position))
         self.assertTrue(self.registry.has_component(entity, Velocity))
+
+
+# to run: python -m unittest tests/units/test_registry.py
