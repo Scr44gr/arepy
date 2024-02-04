@@ -165,7 +165,7 @@ class Registry:
                 continue
 
             if system.get_component_signature().matches(entity_component_signature):
-                system._remove_entity(entity)
+                system._add_entity(entity)
 
     def remove_entity_from_systems(self, entity: Entity) -> None:
         for system in self.systems.values():

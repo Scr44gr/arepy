@@ -17,11 +17,10 @@ class Velocity(Component):
 class MovementSystem(System):
     def __init__(self):
         super().__init__()
-        self.require_component(Position)
-        self.require_component(Velocity)
+        self.require_components([Position, Velocity])
 
     def update(self, dt: float):
-        for entity in self.get_system_entities():
+        for entity in self.get_entities():
             position = entity.get_component(Position)
             velocity = entity.get_component(Velocity)
             position.x += velocity.x * dt
