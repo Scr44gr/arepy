@@ -1,29 +1,41 @@
 from typing import Type
 
+import OpenGL.GL as gl
 import sdl2
-from sdl2.ext import Renderer, Resources, Window, get_events
+from imgui.integrations.sdl2 import SDL2Renderer
+from sdl2 import (
+    SDL_DestroyWindow,
+    SDL_GL_DeleteContext,
+    SDL_GL_SwapWindow,
+    SDL_RenderPresent,
+)
+from sdl2.ext import Renderer, get_events
 from sdl2.sdlttf import TTF_Init, TTF_Quit
 
-from .asset_store import AssetStore
-from .builders import EntityBuilder
-from .ecs.registry import Registry
-from .ecs.systems import System, TSystem
-from .event_manager import EventManager
+from ..arepy_imgui import imgui
+from ..asset_store import AssetStore
+from ..builders import EntityBuilder
+from ..ecs.registry import Registry
+from ..ecs.systems import TSystem
+from ..event_manager import EventManager
 
 # Default events
-from .event_manager.events.keyboard_event import (
+from ..event_manager.events.keyboard_event import (
     KeyboardPressedEvent,
     KeyboardReleasedEvent,
 )
-from .event_manager.handlers.keyboard_event_handler import KeyboardEventHandler
+from ..event_manager.events.sdl_event import SDLEvent
+from ..event_manager.handlers.keyboard_event_handler import KeyboardEventHandler
+from .display import initialize_sdl_opengl
+from .renderer.opengl import OpenGLRenderer
 
 
 class Engine:
     title: str = "Arepy Engine"
-    screen_width: int = 640
-    screen_height: int = 480
+    window_width: int = 640
+    window_height: int = 480
     # Logical size
-    screen_size = (screen_width, screen_height)
+    screen_size = (window_width, window_height)
     max_frame_rate: int = 60
     debug: bool = False
     fullscreen: bool = False
@@ -39,24 +51,25 @@ class Engine:
         self._keyboard_event_handler = KeyboardEventHandler(self._event_manager)
 
     def init(self):
-        sdl2.SDL_Init(sdl2.SDL_INIT_EVERYTHING)
-        TTF_Init()
         full_screen_flag = sdl2.SDL_WINDOW_FULLSCREEN if self.fullscreen else 0
         fake_full_screen_flag = (
             sdl2.SDL_WINDOW_FULLSCREEN_DESKTOP if self.fake_fullscreen else 0
         )
-        self.window = Window(
+        flags = (
+            sdl2.SDL_WINDOW_SHOWN
+            | full_screen_flag
+            | fake_full_screen_flag
+            | sdl2.SDL_WINDOW_OPENGL
+        )
+        TTF_Init()
+        self.window, self.gl_context = initialize_sdl_opengl(
             self.title,
-            size=self.screen_size,
-            flags=sdl2.SDL_WINDOW_SHOWN | (full_screen_flag | fake_full_screen_flag),
+            window_size=(self.window_width, self.window_height),
+            flags=flags,
         )
-        self.renderer = Renderer(
-            self.window,
-            flags=sdl2.SDL_RENDERER_ACCELERATED
-            | sdl2.SDL_RENDERER_PRESENTVSYNC
-            | sdl2.SDL_RENDERER_TARGETTEXTURE,
-            logical_size=(self.screen_width, self.screen_height),
-        )
+        imgui.create_context()
+        self.impl = SDL2Renderer(self.window.window)
+        self.renderer = OpenGLRenderer()
 
     def run(self):
         self._is_running = True
@@ -79,6 +92,9 @@ class Engine:
             elif event.type == sdl2.SDL_KEYUP:
                 key_released_event = KeyboardReleasedEvent((event.key.keysym.sym))
                 self._event_manager.emit(key_released_event)
+            self._event_manager.emit(SDLEvent(event))
+            self.impl.process_event(event)
+            self.impl.process_inputs()
 
     def __update_process(self):
         time_to_wait = self._ms_per_frame - (sdl2.SDL_GetTicks() - self._ms_prev_frame)
@@ -91,14 +107,27 @@ class Engine:
         self._registry.update()
 
     def __render_process(self):
-        self.renderer.clear()
+        # Set render target to null
+
+        gl.glClear(gl.GL_COLOR_BUFFER_BIT)
+
         if self.debug:
             current_fps = 1 // self.delta_time
             self.window.title = f"[DEBUG] {self.title} - FPS: {current_fps:.2f}"
+        # 32x32
         self.on_render()
-        self.renderer.present()
+        imgui.new_frame()
+        imgui.show_demo_window()  # type: ignore
+        imgui.end_frame()  # type: ignore
+
+        imgui.render()
+
+        self.impl.render(imgui.get_draw_data())  # type: ignore
+        SDL_GL_SwapWindow(self.window.window)
 
     def __del__(self):
+        SDL_GL_DeleteContext(self.gl_context)
+        SDL_DestroyWindow(self.window.window)
         sdl2.SDL_Quit()
         TTF_Quit()
 
@@ -157,20 +186,8 @@ class Engine:
         """
         return self._keyboard_event_handler
 
-    def on_startup(self):
-        pass
-
-    def on_update(self):
-        pass
-
-    def on_shutdown(self):
-        pass
-
-    def on_render(self):
-        pass
-
-
-if __name__ == "__main__":
-    engine = Engine()
-    engine.init()
-    engine.run()
+    # Engine func Events
+    def on_startup(self): ...
+    def on_update(self): ...
+    def on_shutdown(self): ...
+    def on_render(self): ...
