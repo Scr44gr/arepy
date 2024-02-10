@@ -3,7 +3,7 @@ from pathlib import Path
 from setuptools import find_packages, setup
 
 this_directory = Path(__file__).parent
-long_description = (this_directory / "README.md").read_text()
+long_description = (this_directory / "README.md").read_bytes().decode("utf-8")
 
 VERSION = "0.1.1"
 DESCRIPTION = "An ECS game engine library created with SDL2 and Python."
