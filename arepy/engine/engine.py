@@ -3,12 +3,7 @@ from typing import Type
 import OpenGL.GL as gl
 import sdl2
 from imgui.integrations.sdl2 import SDL2Renderer
-from sdl2 import (
-    SDL_DestroyWindow,
-    SDL_GL_DeleteContext,
-    SDL_GL_SwapWindow,
-    SDL_RenderPresent,
-)
+from sdl2 import SDL_DestroyWindow, SDL_GL_DeleteContext, SDL_GL_SwapWindow
 from sdl2.ext import Renderer, get_events
 from sdl2.sdlttf import TTF_Init, TTF_Quit
 
@@ -69,7 +64,9 @@ class Engine:
         )
         imgui.create_context()
         self.impl = SDL2Renderer(self.window.window)
-        self.renderer = OpenGLRenderer()
+        self.renderer = OpenGLRenderer(
+            self.screen_size, (self.window_width, self.window_height)
+        )
 
     def run(self):
         self._is_running = True

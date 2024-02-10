@@ -1,4 +1,5 @@
 import OpenGL.GL as gl
+import sdl2
 
 from arepy import Arepy
 from arepy.asset_store import AssetStore
@@ -45,7 +46,6 @@ class MovementSystem(System):
             velocity = entity.get_component(Velocity)
             position.x += velocity.x * dt
             position.y += velocity.y * dt
-            print(f"Entity {entity.get_id()} position: {position.x}, {position.y}")
 
 
 class RenderSystem(System):
@@ -54,12 +54,27 @@ class RenderSystem(System):
         self.require_components([Position, Sprite])
 
     def update(self, dt: float, renderer: BaseRenderer, asset_store: AssetStore):
-        # Asegúrate de estar en el correcto espacio de nombres de texturas
-
+        tick = sdl2.SDL_GetTicks()
         for entity in self.get_entities():
             position = entity.get_component(Position)
             sprite = entity.get_component(Sprite)
-            # texture_id = asset_store.get_texture(sprite.asset_id)
+            texture_id = asset_store.get_texture(sprite.asset_id)
+            # testing animation
+            src_rect = (
+                32 if tick // 50 % 4 == 0 else 0,
+                sprite.src_rect[1],
+                sprite.width,
+                sprite.height,
+            )
+            dest_rect = (position.x, position.y, sprite.width, sprite.height)
+            renderer.render(texture_id, src_rect, dest_rect)
+            renderer.draw_rect(
+                position.x - sprite.width // 2,
+                position.y - sprite.height // 2,
+                sprite.width,
+                sprite.height,
+                (255, 0, 0, 255),
+            )
 
 
 if __name__ == "__main__":
@@ -69,15 +84,20 @@ if __name__ == "__main__":
     game.debug = True
     # load assets
     asset_store = game.get_asset_store()
-    # asset_store.load_texture("tank", "./assets/tank.png")
+    asset_store.load_texture(game.renderer, "tank", "./assets/chopper-spritesheet.png")
 
     # Create a entity builder
     entity_builder = game.create_entity()
-    entity_builder.with_component(Position(0, 0))
-    entity_builder.with_component(Velocity(1, 1))
+    entity_builder.with_component(Position(100, 25))
+    entity_builder.with_component(Velocity(10, 0))
     entity_builder.with_component(Sprite(32, 32, "tank"))
-    # Build the entity
+
+    entity_builder2 = game.create_entity()
+    entity_builder2.with_component(Position(100, 50))
+    entity_builder2.with_component(Velocity(23, 0))
+    entity_builder2.with_component(Sprite(32, 32, "tank"))
     player = entity_builder.build()
+    player2 = entity_builder2.build()
     game.add_system(MovementSystem)
     game.add_system(RenderSystem)
 
