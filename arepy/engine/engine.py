@@ -4,7 +4,7 @@ import OpenGL.GL as gl
 import sdl2
 from imgui.integrations.sdl2 import SDL2Renderer
 from sdl2 import SDL_DestroyWindow, SDL_GL_DeleteContext, SDL_GL_SwapWindow
-from sdl2.ext import Renderer, get_events
+from sdl2.ext import get_events
 from sdl2.sdlttf import TTF_Init, TTF_Quit
 
 from ..arepy_imgui import imgui
@@ -22,7 +22,7 @@ from ..event_manager.events.keyboard_event import (
 from ..event_manager.events.sdl_event import SDLEvent
 from ..event_manager.handlers.keyboard_event_handler import KeyboardEventHandler
 from .display import initialize_sdl_opengl
-from .renderer.opengl import OpenGLRenderer
+from .renderer.opengl.opengl import OpenGLRenderer
 
 
 class Engine:
@@ -55,6 +55,7 @@ class Engine:
             | full_screen_flag
             | fake_full_screen_flag
             | sdl2.SDL_WINDOW_OPENGL
+            | sdl2.SDL_WINDOW_RESIZABLE
         )
         TTF_Init()
         self.window, self.gl_context = initialize_sdl_opengl(
@@ -89,6 +90,24 @@ class Engine:
             elif event.type == sdl2.SDL_KEYUP:
                 key_released_event = KeyboardReleasedEvent((event.key.keysym.sym))
                 self._event_manager.emit(key_released_event)
+            # on resize
+            elif event.type == sdl2.SDL_WINDOWEVENT:
+                if (
+                    event.window.event == sdl2.SDL_WINDOWEVENT_RESIZED
+                    or event.window.event == sdl2.SDL_WINDOWEVENT_SIZE_CHANGED
+                    or event.window.event == sdl2.SDL_WINDOWEVENT_MAXIMIZED
+                    or event.window.event == sdl2.SDL_WINDOWEVENT_RESTORED
+                    or event.window.event == sdl2.SDL_WINDOWEVENT_MINIMIZED
+                    or event.window.event == sdl2.SDL_WINDOWEVENT_EXPOSED
+                    or event.window.event == sdl2.SDL_WINDOWEVENT_ENTER
+                ):
+                    self.window_width = event.window.data1
+                    self.window_height = event.window.data2
+                    if self.window_width < 1 or self.window_height < 1:
+                        return
+                    self.screen_size = (self.window_width, self.window_height)
+                    self.renderer.set_window_size(self.screen_size)
+                    gl.glViewport(0, 0, self.window_width, self.window_height)
             self._event_manager.emit(SDLEvent(event))
             self.impl.process_event(event)
             self.impl.process_inputs()
@@ -111,14 +130,13 @@ class Engine:
         if self.debug:
             current_fps = 1 // self.delta_time
             self.window.title = f"[DEBUG] {self.title} - FPS: {current_fps:.2f}"
-        # 32x32
-        self.on_render()
         imgui.new_frame()
-        imgui.show_demo_window()  # type: ignore
+        self.renderer.start_frame()
+        self.on_render()
         imgui.end_frame()  # type: ignore
-
         imgui.render()
-
+        self.renderer.end_frame()
+        self.renderer.flush()
         self.impl.render(imgui.get_draw_data())  # type: ignore
         SDL_GL_SwapWindow(self.window.window)
 

@@ -28,11 +28,54 @@ class BaseRenderer(ABC):
         self._window_size = window_size
 
     @abstractmethod
-    def render(self, *args, **kwargs):
+    def start_frame(self, *args, **kwargs):
+        """Start a frame"""
+        pass
+
+    @abstractmethod
+    def end_frame(self, *args, **kwargs):
+        """
+        End the frame and swap the buffers
+        """
+        pass
+
+    @abstractmethod
+    def draw_sprite(
+        self,
+        texture: ArepyTexture,
+        position: tuple[float, float],
+        size: tuple[int, int],
+        color: tuple[int, int, int, int],
+    ):
+        pass
+
+    @abstractmethod
+    def flush(self, *args, **kwargs):
+        """
+        Flush the renderer
+        """
         pass
 
     @abstractmethod
     def clear(self):
+        pass
+
+    @abstractmethod
+    def draw_rect(
+        self, x: int, y: int, width: int, height: int, color: tuple[int, int, int, int]
+    ):
+        pass
+
+    @abstractmethod
+    def draw_circle(
+        self, x: int, y: int, radius: int, color: tuple[int, int, int, int]
+    ):
+        pass
+
+    @abstractmethod
+    def draw_line(
+        self, x1: int, y1: int, x2: int, y2: int, color: tuple[int, int, int, int]
+    ):
         pass
 
     @abstractmethod
@@ -41,12 +84,6 @@ class BaseRenderer(ABC):
 
     @abstractmethod
     def remove_texture(self, texture: ArepyTexture):
-        pass
-
-    @abstractmethod
-    def draw_rect(
-        self, x: int, y: int, width: int, height: int, color: tuple[int, int, int, int]
-    ):
         pass
 
     def set_window_size(self, new_size: tuple[int, int]):

@@ -24,7 +24,7 @@ setup(
     keywords=["ecs", "game-engine", "sdl2-wrapper", "python-game-engine"],
     classifiers=[
         "Development Status :: 3 - Alpha",
-        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.10",
         "Operating System :: MacOS :: MacOS X",
         "Operating System :: Microsoft :: Windows",
     ],
