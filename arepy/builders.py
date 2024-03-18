@@ -41,9 +41,10 @@ class EntityBuilder:
     def build(self) -> Entity:
         """Build the entity with the components, the components are built and added to the registry."""
         for component in self._components:
-            component_args = component.__dict__.copy()
             self._registry.add_component(
-                self._entity, type(component), **component_args
+                self._entity,
+                type(component),
+                component,
             )
 
         return self._entity

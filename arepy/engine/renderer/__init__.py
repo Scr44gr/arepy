@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from enum import Enum
+from typing import Optional
 
 
 class RendererType(Enum):
@@ -43,8 +44,8 @@ class BaseRenderer(ABC):
     def draw_sprite(
         self,
         texture: ArepyTexture,
-        position: tuple[float, float],
-        size: tuple[int, int],
+        src_rect: Optional[tuple[float, float, float, float]],
+        src_dest: Optional[tuple[float, float, float, float]],
         color: tuple[int, int, int, int],
     ):
         pass

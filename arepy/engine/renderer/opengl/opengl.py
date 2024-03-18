@@ -1,5 +1,6 @@
 from ctypes import c_uint32
 from dataclasses import dataclass, field
+from time import time
 from typing import Optional
 
 import numpy as np
@@ -8,22 +9,26 @@ from PIL import Image
 
 from .. import ArepyTexture, BaseRenderer
 from .shaders import compile_default_shader
-from .utils import is_outside_screen
+from .utils import (DEFAULT_TEXTURE_COORDS, get_line_rgba_data,
+                    get_texture_coordinates, is_outside_screen)
 
 
 class Vertex:
     def __init__(
         self,
         position: tuple[float, float],
+        color: tuple[float, float, float, float],
         texture_coords: tuple[float, float],
-        text_id: float,
+        texture_id: float,
     ):
         self.position = position
+        self.color = color
         self.texture_coords = texture_coords
-        self.text_id = text_id
+        self.texture_id = texture_id
 
         self.data = np.array(
-            [*self.position, *self.texture_coords, self.text_id], dtype=np.float32
+            [*self.position, *self.color, *self.texture_coords, self.texture_id],
+            dtype=np.float32,
         )
 
 
@@ -31,11 +36,11 @@ class Vertex:
 class RendererData:
     index_data: np.ndarray
     index_count: int = field(default=0, init=False)
-    t_VBO: Optional[int]
-    t_VAO: Optional[int]
-    t_IBO: Optional[int]
-    t_Buffer: Optional[np.ndarray]
-    t_Buffer_ptr: Optional[int]
+    texture_vbo: Optional[int]
+    texture_vao: Optional[int]
+    texture_ibo: Optional[int]
+    texture_buffer: Optional[np.ndarray]
+    texture_buffer_index: Optional[int]
     # Textures
     white_texture: int = field(default=0, init=False)
     white_texture_slot: int = field(default=0, init=False)
@@ -60,25 +65,55 @@ class OpenGLRenderer(BaseRenderer):
 
         gl.glBufferData(
             gl.GL_ARRAY_BUFFER,
-            self.MAX_VERTEX_COUNT * Vertex((0.0, 0.0), (0.0, 0.0), 0.0).data.nbytes,
+            self.MAX_VERTEX_COUNT
+            * Vertex((0.0, 0.0), (1.0, 1.0, 1.0, 1.0), (0.0, 0.0), 0.0).data.nbytes,
             None,
             gl.GL_DYNAMIC_DRAW,
         )
 
         self.VAO = gl.glGenVertexArrays(1)
         gl.glBindVertexArray(self.VAO)
-        gl.glEnableVertexAttribArray(0)  # position
-        gl.glVertexAttribPointer(0, 2, gl.GL_FLOAT, gl.GL_FALSE, 20, None)
-        gl.glEnableVertexAttribArray(1)  # texture coords
+        gl.glEnableVertexAttribArray(0)  # position is vec2
+        stride = Vertex((0.0, 0.0), (1.0, 1.0, 1.0, 1.0), (0.0, 0.0), 0.0).data.nbytes
         gl.glVertexAttribPointer(
-            1, 2, gl.GL_FLOAT, gl.GL_FALSE, 20, gl.ctypes.c_void_p(8)
+            0,
+            2,
+            gl.GL_FLOAT,
+            gl.GL_FALSE,
+            stride,
+            gl.ctypes.c_void_p(0),
         )
-        gl.glEnableVertexAttribArray(2)  # text id
+        # Color is 4 floats
+        gl.glEnableVertexAttribArray(1)
         gl.glVertexAttribPointer(
-            2, 1, gl.GL_FLOAT, gl.GL_FALSE, 20, gl.ctypes.c_void_p(16)
+            1,
+            4,
+            gl.GL_FLOAT,
+            gl.GL_FALSE,
+            stride,
+            gl.ctypes.c_void_p(2 * 4),
+        )
+        # Texture coords is vec2
+        gl.glEnableVertexAttribArray(2)
+        gl.glVertexAttribPointer(
+            2,
+            2,
+            gl.GL_FLOAT,
+            gl.GL_FALSE,
+            stride,
+            gl.ctypes.c_void_p(6 * 4),
+        )
+        # Texture index is a float
+        gl.glEnableVertexAttribArray(3)
+        gl.glVertexAttribPointer(
+            3,
+            1,
+            gl.GL_FLOAT,
+            gl.GL_FALSE,
+            stride,
+            gl.ctypes.c_void_p(8 * 4),
         )
         gl.glBindVertexArray(0)
-
         indices = np.zeros(self.MAX_INDEX_COUNT, dtype=np.uint32)
         offset = 0
         for i in range(0, self.MAX_INDEX_COUNT, 6):
@@ -106,17 +141,18 @@ class OpenGLRenderer(BaseRenderer):
         gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 
         self.renderer_data = RendererData(
-            t_VBO=self.VBO,
-            t_VAO=self.VAO,
-            t_IBO=self.IBO,
-            t_Buffer_ptr=0,
+            texture_vbo=self.VBO,
+            texture_vao=self.VAO,
+            texture_ibo=self.IBO,
+            texture_buffer_index=0,
             index_data=indices,
-            t_Buffer=np.array(
-                [Vertex((0.0, 0.0), (0.0, 0.0), 0.0).data] * self.MAX_VERTEX_COUNT,
+            texture_buffer=np.array(
+                [Vertex((0.0, 0.0), (0.0, 0.0, 0.0, 1.0), (0.0, 0.0), 0.0).data]
+                * self.MAX_VERTEX_COUNT,
                 dtype=np.float32,
             ),
         )
-        assert self.renderer_data.t_Buffer is not None
+        assert self.renderer_data.texture_buffer is not None
 
         self.renderer_data.white_texture = gl.glGenTextures(1)
         gl.glBindTexture(gl.GL_TEXTURE_2D, self.renderer_data.white_texture)
@@ -139,46 +175,24 @@ class OpenGLRenderer(BaseRenderer):
         gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER, 0)
         gl.glBindVertexArray(0)
 
-    def setup_vao(self, vbo):
-        vao = gl.glGenVertexArrays(1)
-        gl.glBindVertexArray(vao)
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, vbo)
-        gl.glEnableVertexAttribArray(0)
-        # Position
-        gl.glVertexAttribPointer(0, 2, gl.GL_FLOAT, gl.GL_FALSE, 20, None)
-        gl.glEnableVertexAttribArray(1)
-        # Texture coords
-        gl.glVertexAttribPointer(
-            1, 2, gl.GL_FLOAT, gl.GL_FALSE, 20, gl.ctypes.c_void_p(8)
-        )
-        # TextureId
-        gl.glEnableVertexAttribArray(2)
-        gl.glVertexAttribPointer(
-            2, 1, gl.GL_FLOAT, gl.GL_FALSE, 20, gl.ctypes.c_void_p(16)
-        )
-
-        gl.glBindVertexArray(0)
-
-        return vao
-
     def start_frame(self):
-        self.renderer_data.t_Buffer_ptr = 0
+        self.renderer_data.texture_buffer_index = 0
 
     def end_frame(self):
-        assert self.renderer_data.t_Buffer_ptr is not None
-        assert self.renderer_data.t_Buffer is not None
+        assert self.renderer_data.texture_buffer_index is not None
+        assert self.renderer_data.texture_buffer is not None
 
-        # size = 80000
         size = (
-            self.renderer_data.t_Buffer_ptr
-            * Vertex((0.0, 0.0), (0.0, 0.0), 0.0).data.nbytes
+            self.renderer_data.texture_buffer_index
+            * Vertex((0.0, 0.0), (1.0, 1.0, 1.0, 1.0), (0.0, 0.0), 0.0).data.nbytes
         )
+
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.VBO)
         gl.glBufferSubData(
             gl.GL_ARRAY_BUFFER,
             0,
             size,
-            self.renderer_data.t_Buffer,
+            self.renderer_data.texture_buffer,
         )
 
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
@@ -186,31 +200,41 @@ class OpenGLRenderer(BaseRenderer):
     def draw_sprite(
         self,
         texture: ArepyTexture,
-        position: tuple[int, int],
-        size: tuple[int, int],
-        color: tuple[int, int, int, int],
+        src_rect: Optional[tuple[float, float, float, float]] = None,
+        src_dest: Optional[tuple[float, float, float, float]] = None,
+        color: tuple[int, int, int, int] = (255, 255, 255, 255),
     ):
         """Draw a texture to the screen.
 
         Args:
             texture (ArepyTexture): The texture to draw.
-            position (tuple[int, int]): The position to draw the texture.
-            size (tuple[int, int]): The size to draw the texture.
-            color (tuple[int, int, int, int]): The color of the texture.
+            src_rect (tuple[w, h, x, y], optional): The source rectangle to draw from the texture.
+            src_dest (tuple[w, h, x, y], optional): The destination rectangle to draw to the screen.
+            color (tuple[r, g, b, a]): The color of the texture.
         """
+        position = src_dest[2:] if src_dest is not None else (0.0, 0.0)
+        size = src_rect[:2] if src_rect is not None else texture.get_size()
+
         if is_outside_screen(position, size, self.get_window_size()):
             return
-        self.submit_texture(texture, position, size, color)
+        texture_coords = get_texture_coordinates(
+            src_rect if src_rect is not None else (0, 0, *texture.get_size()),
+            src_dest if src_dest is not None else (0, 0, *texture.get_size()),
+        )
+        self.submit_texture(texture, position, size, color, texture_coords)
 
     def submit_texture(
         self,
         texture: ArepyTexture,
-        position: tuple[int, int],
-        size: tuple[int, int],
-        color: tuple[int, int, int, int],
+        position: tuple[float, float],
+        size: tuple[float, float],
+        color: tuple[float, float, float, float],
+        coords: Optional[
+            tuple[float, float, float, float, float, float, float, float]
+        ] = None,
     ):
-        assert self.renderer_data.t_Buffer_ptr is not None
-        assert self.renderer_data.t_Buffer is not None
+        assert self.renderer_data.texture_buffer_index is not None
+        assert self.renderer_data.texture_buffer is not None
         if self.renderer_data.index_count >= self.MAX_INDEX_COUNT or (
             self.renderer_data.texture_slot_index >= self.MAX_TEXTURE_SLOTS - 1
         ):
@@ -221,47 +245,43 @@ class OpenGLRenderer(BaseRenderer):
         x, y = position
         width, height = size
 
-        gl_x = 2 * x / self._window_size[0] - 1
-        gl_y = 1 - 2 * y / self._window_size[1]
-        gl_width = 2 * width / self._window_size[0]
-        gl_height = 2 * height / self._window_size[1]
+        # Normalize the position
+        window_width, window_height = self.get_window_size()
+        gl_x = 2 * x / window_width - 1
+        gl_y = 1 - 2 * y / window_height
+        gl_width = 2 * width / window_width
+        gl_height = 2 * height / window_height
 
         texture_slot = self.get_texture_slot(texture.texture_id)
-        """
-                    indices[i + 0] = offset + 0
-            indices[i + 1] = offset + 1
-            indices[i + 2] = offset + 2
 
-            indices[i + 3] = offset + 0
-            indices[i + 4] = offset + 2
-            indices[i + 5] = offset + 3
-            glTriangles
-        
-        """
-        #    text_coords = [
-        #        src_x / tex_width,
-        #        src_y / tex_height,
-        #        (src_x + src_w) / tex_width,
-        #        src_y / tex_height,
-        #        src_x / tex_width,
-        #        (src_y + src_h) / tex_height,
-        #        (src_x + src_w) / tex_width,
-        #        (src_y + src_h) / tex_height,
-        #    ]
+        color = (color[0] / 255, color[1] / 255, color[2] / 255, color[3] / 255)
+        coords = coords if coords is not None else DEFAULT_TEXTURE_COORDS
 
-        self.renderer_data.t_Buffer[self.renderer_data.t_Buffer_ptr] = Vertex(
-            (gl_x, gl_y), (0.0, 1.0), texture_slot
+        self.renderer_data.texture_buffer[self.renderer_data.texture_buffer_index] = (
+            Vertex((gl_x, gl_y), color, (coords[0], coords[1]), texture_slot).data
+        )
+        self.renderer_data.texture_buffer[
+            self.renderer_data.texture_buffer_index + 1
+        ] = Vertex(
+            (gl_x + gl_width, gl_y),
+            color,
+            (coords[2], coords[3]),
+            texture_slot,
         ).data
-        self.renderer_data.t_Buffer[self.renderer_data.t_Buffer_ptr + 1] = Vertex(
-            (gl_x + gl_width, gl_y), (1.0, 1.0), texture_slot
+        self.renderer_data.texture_buffer[
+            self.renderer_data.texture_buffer_index + 2
+        ] = Vertex(
+            (gl_x + gl_width, gl_y - gl_height),
+            color,
+            (coords[4], coords[5]),
+            texture_slot,
         ).data
-        self.renderer_data.t_Buffer[self.renderer_data.t_Buffer_ptr + 2] = Vertex(
-            (gl_x + gl_width, gl_y - gl_height), (1.0, 0.0), texture_slot
+        self.renderer_data.texture_buffer[
+            self.renderer_data.texture_buffer_index + 3
+        ] = Vertex(
+            (gl_x, gl_y - gl_height), color, (coords[6], coords[7]), texture_slot
         ).data
-        self.renderer_data.t_Buffer[self.renderer_data.t_Buffer_ptr + 3] = Vertex(
-            (gl_x, gl_y - gl_height), (0.0, 0.0), texture_slot
-        ).data
-        self.renderer_data.t_Buffer_ptr += 4
+        self.renderer_data.texture_buffer_index += 4
         self.renderer_data.index_count += 6
 
     def get_texture_slot(self, texture_id):
@@ -274,17 +294,19 @@ class OpenGLRenderer(BaseRenderer):
         return texture_slot
 
     def flush(self):
-        assert self.renderer_data.t_Buffer_ptr is not None
-
+        # assert self.renderer_data.texture_buffer_index is not None
         gl.glUseProgram(self.shader_program)
         gl.glBindVertexArray(self.VAO)
         gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER, self.IBO)
         gl.glEnableVertexAttribArray(0)
         gl.glEnableVertexAttribArray(1)
         gl.glEnableVertexAttribArray(2)
+        gl.glEnableVertexAttribArray(3)
 
-        for i in range(self.renderer_data.texture_slot_index):
+        _ = [
             gl.glBindTextureUnit(i, self.renderer_data.texture_slots[i])
+            for i in range(self.renderer_data.texture_slot_index)
+        ]
 
         gl.glUniformMatrix4fv(
             self.model_location,
@@ -295,17 +317,19 @@ class OpenGLRenderer(BaseRenderer):
             ),
         )
 
-        gl.glDrawElements(
+        gl.glDrawElementsInstanced(
             gl.GL_TRIANGLES,
             self.renderer_data.index_count,
             gl.GL_UNSIGNED_INT,
             None,
+            1,
         )
 
         gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
         gl.glDisableVertexArrayAttrib(self.VAO, 0)
         gl.glDisableVertexArrayAttrib(self.VAO, 1)
         gl.glDisableVertexArrayAttrib(self.VAO, 2)
+        gl.glDisableVertexArrayAttrib(self.VAO, 3)
         gl.glBindVertexArray(0)
         gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER, 0)
         gl.glUseProgram(0)
@@ -369,7 +393,13 @@ class OpenGLRenderer(BaseRenderer):
         gl.glEnd()
 
     def draw_line(
-        self, x1: int, y1: int, x2: int, y2: int, color: tuple[int, int, int, int]
+        self,
+        x1: int,
+        y1: int,
+        x2: int,
+        y2: int,
+        color: tuple[int, int, int, int],
+        size: int = 1,
     ):
         """Draw a line to the screen.
 
@@ -382,11 +412,15 @@ class OpenGLRenderer(BaseRenderer):
         """
         window_width, window_height = self.get_window_size()
 
+        # opengl +4
+
         gl_x1 = 2 * x1 / window_width - 1
         gl_y1 = 1 - 2 * y1 / window_height
+
         gl_x2 = 2 * x2 / window_width - 1
         gl_y2 = 1 - 2 * y2 / window_height
 
+        gl.glLineWidth(size)
         gl.glBegin(gl.GL_LINES)
         gl.glColor4f(*color)
         gl.glVertex2f(gl_x1, gl_y1)
@@ -413,6 +447,7 @@ class OpenGLRenderer(BaseRenderer):
         gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_REPEAT)
         gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST)
         gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_NEAREST)
+
         gl.glTexImage2D(
             gl.GL_TEXTURE_2D,
             0,
@@ -440,16 +475,6 @@ class OpenGLRenderer(BaseRenderer):
     def setup_shader(self):
 
         self.shader_program: int = compile_default_shader()
-
-        self.texture_offset_location = gl.glGetUniformLocation(
-            self.shader_program, "textOffset"
-        )
-        self.texture_scale_location = gl.glGetUniformLocation(
-            self.shader_program, "textScale"
-        )
-        self.texture_color_location = gl.glGetUniformLocation(
-            self.shader_program, "ourColor"
-        )
         self.model_location = gl.glGetUniformLocation(self.shader_program, "model")
         self.texture_location = gl.glGetUniformLocation(self.shader_program, "textures")
         gl.glUseProgram(self.shader_program)

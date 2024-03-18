@@ -1,17 +1,20 @@
 DEFAULT_VERTEX_SHADER = """
 #version 330 core
 layout (location = 0) in vec2 aPos;
-layout (location = 1) in vec2 aTexCoord;
-layout (location = 2) in float aTextId;
+layout (location = 1) in vec4 aColor;
+layout (location = 2) in vec2 aTexCoord;
+layout (location = 3) in float aTextId;
 
 out vec2 TexCoord;
 out float TextIndex;
+out vec4 ourColor;
 uniform mat4 model;
 
 void main() {
     gl_Position = model * vec4(aPos, 1.0, 1.0);
     TexCoord = aTexCoord;
     TextIndex = aTextId;
+    ourColor = aColor;
 }
 """
 DEFAULT_FRAGMENT_SHADER = """
@@ -20,18 +23,17 @@ out vec4 FragColor;
 
 in vec2 TexCoord;
 in float TextIndex;
+in vec4 ourColor;
 
 uniform sampler2D textures[32];
 uniform vec2 textOffset;
 uniform vec2 textScale;
-uniform vec4 ourColor = vec4(1.0, 1.0, 1.0, 1.0);
 
 
 void main() {
     int index = int(TextIndex);
-    FragColor = texture(textures[index], TexCoord );
+    FragColor = texture(textures[index], TexCoord);
     FragColor = FragColor * ourColor;
-    
 }
 """
 from typing import cast

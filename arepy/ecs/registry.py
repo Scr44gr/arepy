@@ -85,7 +85,7 @@ class Registry:
         self,
         entity: Entity,
         component_type: Type[TComponent],
-        **kwargs,
+        component: TComponent,
     ) -> None:
         logger.debug(f"Adding component {component_type.__name__} to entity {entity}.")
         entity_id = entity.get_id()
@@ -104,7 +104,6 @@ class Registry:
         component_pool = cast(
             ComponentPool[TComponent], self.component_pools[component_id - 1]
         )
-        component = component_type(**kwargs)
         # Resize the component pool if necessary
         if entity_id >= len(component_pool):
             component_pool.extend([None] * (entity_id - len(component_pool) + 1))
