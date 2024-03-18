@@ -13,12 +13,14 @@ from ..builders import EntityBuilder
 from ..ecs.registry import Registry
 from ..ecs.systems import TSystem
 from ..event_manager import EventManager
+
 # Default events
-from ..event_manager.events.keyboard_event import (KeyboardPressedEvent,
-                                                   KeyboardReleasedEvent)
+from ..event_manager.events.keyboard_event import (
+    KeyboardPressedEvent,
+    KeyboardReleasedEvent,
+)
 from ..event_manager.events.sdl_event import SDLEvent
-from ..event_manager.handlers.keyboard_event_handler import \
-    KeyboardEventHandler
+from ..event_manager.handlers.keyboard_event_handler import KeyboardEventHandler
 from .display import initialize_sdl_opengl
 from .renderer.opengl.opengl import OpenGLRenderer
 

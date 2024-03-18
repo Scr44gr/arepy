@@ -9,8 +9,12 @@ from PIL import Image
 
 from .. import ArepyTexture, BaseRenderer
 from .shaders import compile_default_shader
-from .utils import (DEFAULT_TEXTURE_COORDS, get_line_rgba_data,
-                    get_texture_coordinates, is_outside_screen)
+from .utils import (
+    DEFAULT_TEXTURE_COORDS,
+    get_line_rgba_data,
+    get_texture_coordinates,
+    is_outside_screen,
+)
 
 
 class Vertex:
@@ -215,7 +219,7 @@ class OpenGLRenderer(BaseRenderer):
         position = src_dest[2:] if src_dest is not None else (0.0, 0.0)
         size = src_rect[:2] if src_rect is not None else texture.get_size()
 
-        if is_outside_screen(position, size, self.get_window_size()):
+        if is_outside_screen(position, size, self.get_screen_size()):
             return
         texture_coords = get_texture_coordinates(
             src_rect if src_rect is not None else (0, 0, *texture.get_size()),
@@ -246,11 +250,12 @@ class OpenGLRenderer(BaseRenderer):
         width, height = size
 
         # Normalize the position
-        window_width, window_height = self.get_window_size()
-        gl_x = 2 * x / window_width - 1
-        gl_y = 1 - 2 * y / window_height
-        gl_width = 2 * width / window_width
-        gl_height = 2 * height / window_height
+        screen_width, screen_height = self.get_screen_size()
+
+        gl_x = 2 * x / screen_width - 1
+        gl_y = 1 - 2 * y / screen_height
+        gl_width = 2 * width / screen_width
+        gl_height = 2 * height / screen_height
 
         texture_slot = self.get_texture_slot(texture.texture_id)
 
@@ -349,12 +354,12 @@ class OpenGLRenderer(BaseRenderer):
             color (tuple[int, int, int, int]): The color of the rectangle.
         """
 
-        window_width, window_height = self.get_window_size()
+        screen_width, screen_height = self.get_screen_size()
 
-        gl_x = 2 * x / window_width - 1
-        gl_y = 1 - 2 * y / window_height
-        gl_width = 2 * width / window_width
-        gl_height = 2 * height / window_height
+        gl_x = 2 * x / screen_width - 1
+        gl_y = 1 - 2 * y / screen_height
+        gl_width = 2 * width / screen_width
+        gl_height = 2 * height / screen_height
 
         gl.glBegin(gl.GL_LINE_LOOP)
         gl.glColor4f(*color)
