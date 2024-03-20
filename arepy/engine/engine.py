@@ -2,12 +2,10 @@ from typing import Type
 
 import OpenGL.GL as gl
 import sdl2
-from imgui.integrations.sdl2 import SDL2Renderer
 from sdl2 import SDL_DestroyWindow, SDL_GL_DeleteContext, SDL_GL_SwapWindow
 from sdl2.ext import get_events
-from sdl2.sdlttf import TTF_Init, TTF_Quit
 
-from ..arepy_imgui import imgui
+from ..arepy_imgui import ImguiRenderer, imgui
 from ..asset_store import AssetStore
 from ..builders import EntityBuilder
 from ..ecs.registry import Registry
@@ -57,25 +55,26 @@ class Engine:
             | sdl2.SDL_WINDOW_OPENGL
             | sdl2.SDL_WINDOW_RESIZABLE
         )
-        TTF_Init()
         self.window, self.gl_context = initialize_sdl_opengl(
             self.title,
             window_size=(self.window_width, self.window_height),
             flags=flags,
         )
         imgui.create_context()
-        self.impl = SDL2Renderer(self.window.window)
+        self.impl = ImguiRenderer(self.window.window)  # type: ignore
         self.renderer = OpenGLRenderer(
             self.screen_size, (self.window_width, self.window_height)
         )
 
     def run(self):
+
         self._is_running = True
         self.on_startup()
         while self._is_running:
             self.__input_process()
             self.__update_process()
             self.__render_process()
+
         self.on_shutdown()
 
     def __input_process(self):
@@ -107,7 +106,6 @@ class Engine:
                         return
                     self.screen_size = (self.window_width, self.window_height)
                     self.renderer.set_window_size(self.screen_size)
-                    gl.glViewport(0, 0, self.window_width, self.window_height)
             self._event_manager.emit(SDLEvent(event))
             self.impl.process_event(event)
             self.impl.process_inputs()
@@ -123,13 +121,8 @@ class Engine:
         self._registry.update()
 
     def __render_process(self):
-        # Set render target to null
 
-        gl.glClear(gl.GL_COLOR_BUFFER_BIT)
-
-        if self.debug:
-            current_fps = 1 // self.delta_time
-            self.window.title = f"[DEBUG] {self.title} - FPS: {current_fps:.2f}"
+        self.renderer.clear()
         imgui.new_frame()
         self.renderer.start_frame()
         self.on_render()
@@ -144,7 +137,6 @@ class Engine:
         SDL_GL_DeleteContext(self.gl_context)
         SDL_DestroyWindow(self.window.window)
         sdl2.SDL_Quit()
-        TTF_Quit()
 
     def create_entity(self) -> EntityBuilder:
         """Create an entity builder.

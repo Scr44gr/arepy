@@ -9,12 +9,10 @@ from PIL import Image
 
 from .. import ArepyTexture, BaseRenderer
 from .shaders import compile_default_shader
-from .utils import (
-    DEFAULT_TEXTURE_COORDS,
-    get_line_rgba_data,
-    get_texture_coordinates,
-    is_outside_screen,
-)
+from .utils import (DEFAULT_TEXTURE_COORDS, get_line_rgba_data,
+                    get_texture_coordinates, is_outside_screen)
+
+MODEL = np.array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], dtype=np.float32)
 
 
 class Vertex:
@@ -317,9 +315,7 @@ class OpenGLRenderer(BaseRenderer):
             self.model_location,
             1,
             gl.GL_FALSE,
-            np.array(
-                [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], dtype=np.float32
-            ),
+            MODEL,
         )
 
         gl.glDrawElementsInstanced(
@@ -494,3 +490,8 @@ class OpenGLRenderer(BaseRenderer):
     def clear(self):
         """Clear the screen."""
         gl.glClear(gl.GL_COLOR_BUFFER_BIT)
+
+    def set_window_size(self, new_size: tuple[int, int]):
+        window_width, window_height = new_size
+        super().set_window_size(new_size)
+        gl.glViewport(0, 0, window_width, window_height)
