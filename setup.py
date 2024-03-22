@@ -21,10 +21,11 @@ setup(
     long_description_content_type="text/markdown",
     packages=find_packages(),
     install_requires=["PyGLM", "pysdl2", "pysdl2-dll", "bitarray", "python-dotenv"],
+    extras_require={"imgui": ["imgui"]},
     keywords=["ecs", "game-engine", "sdl2-wrapper", "python-game-engine"],
     classifiers=[
         "Development Status :: 3 - Alpha",
-        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.10",
         "Operating System :: MacOS :: MacOS X",
         "Operating System :: Microsoft :: Windows",
     ],
