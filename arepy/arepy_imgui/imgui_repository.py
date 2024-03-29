@@ -1,5 +1,5 @@
 from abc import ABC
-from typing import Protocol
+from typing import Optional, Protocol
 
 
 class ImguiRendererRepository(Protocol):
@@ -9,6 +9,17 @@ class ImguiRendererRepository(Protocol):
     def end_frame(self): ...
     def process_event(self, event: int): ...
     def process_inputs(self): ...
+
+
+class Default:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def __getattr__(self, item):
+        return self
+
+    def __call__(self, *args, **kwargs):
+        return self
 
 
 class ImGuiRepository(Protocol):
@@ -69,6 +80,10 @@ class ImGuiRepository(Protocol):
         """
         ...
 
+    def end_child(self):
+        """End the current child window"""
+        ...
+
     def begin_combo(self, label: str, preview_value: str, flags: int):
         """Begin a new combo box
 
@@ -87,6 +102,58 @@ class ImGuiRepository(Protocol):
 
         Args:
             flags: The flags of the drag and drop source
+        """
+        ...
+
+    def begin_tab_item(self, label: str, open: bool, flags: int) -> Default:
+        """Begin a new tab item
+
+        Args:
+            label: The label of the tab item
+            open: Whether the tab item is open
+            flags: The flags of the tab item
+        """
+        ...
+
+    def begin_tab_bar(self, id: str, flags: int) -> Default:
+        """Begin a new tab bar
+
+        Args:
+            id: The id of the tab bar
+            flags: The flags of the tab bar
+        """
+        ...
+
+    def begin_main_menu_bar(self):
+        """Begin a new main menu bar"""
+        ...
+
+    def begin_menu(self, label: str, enabled: bool) -> bool:
+        """Begin a new menu
+
+        Args:
+            label: The label of the menu
+            enabled: Whether the menu is enabled
+
+        Returns:
+            bool: True if the menu was clicked
+        """
+        ...
+
+    def get_window_draw_list(self) -> Default:
+        """Get the window draw list"""
+        ...
+
+    def get_content_region_available(self) -> tuple[float, float]:
+        """Get the content region available"""
+        ...
+
+    def same_line(self, offset_from_start_x: float = 0.0, spacing: float = -1.0):
+        """Move the cursor to the same line
+
+        Args:
+            offset_from_start_x: The offset from the start x
+            spacing: The spacing
         """
         ...
 
@@ -113,7 +180,7 @@ class ImGuiRepository(Protocol):
         """
         ...
 
-    def begin(self, name: str, open: bool = True):
+    def begin(self, name: str, open: bool = True, flags: int = 0):
         """Begin a new window
 
         Args:
@@ -126,6 +193,42 @@ class ImGuiRepository(Protocol):
         """End the current window"""
         ...
 
+    def end_tab_item(self):
+        """End the current tab item"""
+        ...
+
+    def end_tab_bar(self):
+        """End the current tab bar"""
+        ...
+
+    def end_main_menu_bar(self):
+        """End the current main menu bar"""
+        ...
+
+    def end_menu(self):
+        """End the current menu"""
+        ...
+
+    def open_popup(self, id: str):
+        """Open a popup
+
+        Args:
+            id: The id of the popup
+        """
+        ...
+
+    def begin_popup(self, id: str):
+        """Begin a new popup
+
+        Args:
+            id: The id of the popup
+        """
+        ...
+
+    def end_popup(self):
+        """End the current popup"""
+        ...
+
     def input_text(self, label: str, value: str, buffer_length: int):
         """Create an input text field
 
@@ -134,6 +237,44 @@ class ImGuiRepository(Protocol):
             value: The value of the input field
             buffer_length: The length of the buffer
         """
+        ...
+
+    def input_text_multiline(
+        self,
+        label: str,
+        value: str,
+        buffer_length: int,
+        width: float,
+        height: float,
+        flags: int = 0,
+        callback: Optional[Default] = None,
+    ):
+        """Create a multiline input text field
+
+        Args:
+            label: The label of the input field
+            value: The value of the input field
+            buffer_length: The length of the buffer
+            width: The width of the input field
+            height: The height of the input field
+            flags: The flags of the input field
+            callback: The callback of the input field
+        """
+        ...
+
+    def input_float(self, label: str, value: float, step: float, step_fast: float):
+        """Create a float input field
+
+        Args:
+            label: The label of the input field
+            value: The value of the input field
+            step: The step of the input field
+            step_fast: The fast step of the input field
+        """
+        ...
+
+    def get_cursor_screen_pos(self) -> tuple[float, float]:
+        """Get the cursor screen position"""
         ...
 
     def slider_int(
@@ -168,6 +309,22 @@ class ImGuiRepository(Protocol):
             max_value: The maximum value of the slider
             format: The format of the slider
             power: The power of the slider
+        """
+        ...
+
+    def menu_item(
+        self, label: str, shortcut: str, selected: bool, enabled: bool
+    ) -> tuple[bool, bool]:
+        """Create a menu item
+
+        Args:
+            label: The label of the menu item
+            shortcut: The shortcut of the menu item
+            selected: Whether the menu item is selected
+            enabled: Whether the menu item is enabled
+
+        Returns:
+            bool: True if the menu item was clicked
         """
         ...
 
