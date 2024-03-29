@@ -1,4 +1,5 @@
 import logging
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Type, cast
 
@@ -45,7 +46,7 @@ class Entity:
     def kill(self) -> None:
         if self._registry is None:
             raise RegistryNotSetError
-        self._registry.entities_to_be_removed.append(self)
+        self._registry.kill_entity(self)
 
     def __repr__(self) -> str:
         return f"Entity(id={self._id})"
@@ -68,13 +69,18 @@ class Registry:
 
     entities_to_be_added: List[Entity] = field(default_factory=list)
     entities_to_be_removed: List[Entity] = field(default_factory=list)
+    free_entity_ids: deque[int] = field(default_factory=deque)
 
     def create_entity(self) -> Entity:
-        self.number_of_entities += 1
-        entity_id = self.number_of_entities
-        if entity_id >= len(self.entity_component_signatures):
-            # add a new signature for the new entity
-            self.entity_component_signatures.extend([Signature(MAX_COMPONENTS)])
+
+        if len(self.free_entity_ids) == 0:
+            self.number_of_entities += 1
+            entity_id = self.number_of_entities
+            if entity_id >= len(self.entity_component_signatures):
+                # add a new signature for the new entity
+                self.entity_component_signatures.extend([Signature(MAX_COMPONENTS)])
+        else:
+            entity_id = self.free_entity_ids.popleft()
 
         entity = Entity(entity_id, self)
         self.entities_to_be_added.append(entity)
@@ -172,6 +178,9 @@ class Registry:
                 continue
             system._remove_entity(entity)
 
+    def kill_entity(self, entity: Entity) -> None:
+        self.entities_to_be_removed.append(entity)
+
     def remove_system(self, system: Type[TSystem]) -> None:
         system_name = type(system).__name__
         self.systems.pop(system_name)
@@ -194,4 +203,6 @@ class Registry:
         if len(self.entities_to_be_removed) > 0:
             for entity in self.entities_to_be_removed:
                 self.remove_entity_from_systems(entity)
+                self.entity_component_signatures[entity.get_id() - 1].clear()
+                self.free_entity_ids.append(entity.get_id())
             self.entities_to_be_removed.clear()

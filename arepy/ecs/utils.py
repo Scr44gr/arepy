@@ -59,3 +59,6 @@ class Signature:
     def matches(self, signature: "Signature"):
         matches = (signature.get_bits() & self.get_bits()) == self.get_bits()
         return matches
+
+    def clear(self):
+        self.__bits.setall(False)
