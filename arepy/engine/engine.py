@@ -34,7 +34,9 @@ class Engine:
     fullscreen: bool = False
     fake_fullscreen: bool = False
 
-    def __init__(self):
+    def __init__(self): ...
+
+    def _initialize_engine(self):
         self._is_running = False
         self._ms_prev_frame = 0
         self._ms_per_frame = 1000 / self.max_frame_rate
@@ -44,6 +46,7 @@ class Engine:
         self._keyboard_event_handler = KeyboardEventHandler(self._event_manager)
 
     def init(self):
+        self._initialize_engine()
         full_screen_flag = sdl2.SDL_WINDOW_FULLSCREEN if self.fullscreen else 0
         fake_full_screen_flag = (
             sdl2.SDL_WINDOW_FULLSCREEN_DESKTOP if self.fake_fullscreen else 0
@@ -108,7 +111,7 @@ class Engine:
                     self.renderer.set_window_size(self.screen_size)
             self._event_manager.emit(SDLEvent(event))
             self.impl.process_event(event)
-            self.impl.process_inputs()
+        self.impl.process_inputs()
 
     def __update_process(self):
         time_to_wait = self._ms_per_frame - (sdl2.SDL_GetTicks() - self._ms_prev_frame)
