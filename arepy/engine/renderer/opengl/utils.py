@@ -67,21 +67,14 @@ def enable_renderdoc():
     """Enable RenderDoc."""
     import ctypes
 
-    # Load RenderDoc library
     try:
-        # Change the path to the RenderDoc library based on your system
         renderdoc = ctypes.cdll.LoadLibrary(
             r"C:\Program Files\RenderDoc\renderdoc.dll"
         )  # Windows
-        # renderdoc = ctypes.cdll.LoadLibrary("path/to/librenderdoc.so")  # Linux
-        # renderdoc = ctypes.cdll.LoadLibrary("path/to/librenderdoc.dylib")  # macOS
 
-        # Check if RenderDoc is available
         if renderdoc:
-            # RenderDoc API version 1.1 is used here, adjust according to your version
             renderdoc.RDCInitGlobalHook.argtypes = [ctypes.c_char_p]
             renderdoc.RDCInitGlobalHook.restype = ctypes.c_bool
-            # Initialize RenderDoc global hook
             renderdoc.RDCInitGlobalHook(None)
     except:
         pass

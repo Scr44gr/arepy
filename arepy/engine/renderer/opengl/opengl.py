@@ -64,9 +64,9 @@ class RendererData:
     texture_vbo: Optional[int]
     texture_vao: Optional[int]
     texture_ibo: Optional[int]
-    triangles_buffer: Optional[np.ndarray]
-    triangles_buffer_index: Optional[int]
-    triangle_vertex_positions: list[glm.vec4] = field(
+    quads_buffer: Optional[np.ndarray]
+    quads_buffer_index: Optional[int]
+    quad_vertex_positions: list[glm.vec4] = field(
         default_factory=lambda: [
             glm.vec4(-0.5, 0.5, 0.0, 1.0),
             glm.vec4(0.5, 0.5, 0.0, 1.0),
@@ -210,14 +210,14 @@ class OpenGLRenderer(BaseRenderer):
             texture_vbo=self.VBO,
             texture_vao=self.VAO,
             texture_ibo=self.IBO,
-            triangles_buffer_index=0,
+            quads_buffer_index=0,
             index_data=indices,
-            triangles_buffer=np.array(
+            quads_buffer=np.array(
                 [VERTEX.data] * self.MAX_VERTEX_COUNT,
                 dtype=np.float32,
             ),
         )
-        assert self.renderer_data.triangles_buffer is not None
+        assert self.renderer_data.quads_buffer is not None
 
         self.renderer_data.white_texture = gl.glGenTextures(1)
         gl.glBindTexture(gl.GL_TEXTURE_2D, self.renderer_data.white_texture)
@@ -241,20 +241,20 @@ class OpenGLRenderer(BaseRenderer):
         gl.glBindVertexArray(0)
 
     def start_frame(self):
-        self.renderer_data.triangles_buffer_index = 0
+        self.renderer_data.quads_buffer_index = 0
 
     def end_frame(self):
-        assert self.renderer_data.triangles_buffer_index is not None
-        assert self.renderer_data.triangles_buffer is not None
+        assert self.renderer_data.quads_buffer_index is not None
+        assert self.renderer_data.quads_buffer is not None
 
-        size = self.renderer_data.triangles_buffer_index * VERTEX.data.nbytes
+        size = self.renderer_data.quads_buffer_index * VERTEX.data.nbytes
 
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.VBO)
         gl.glBufferSubData(
             gl.GL_ARRAY_BUFFER,
             0,
             size,
-            self.renderer_data.triangles_buffer,
+            self.renderer_data.quads_buffer,
         )
 
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
@@ -271,9 +271,9 @@ class OpenGLRenderer(BaseRenderer):
 
         Args:
             texture (ArepyTexture): The texture to draw.
-            src_rect (tuple[w, h, x, y], optional): The source rectangle to draw from the texture.
-            src_dest (tuple[w, h, x, y], optional): The destination rectangle to draw to the screen.
-            color (tuple[r, g, b, a]): The color of the texture.
+            src_rect (Rect[w, h, x, y], optional): The source rectangle to draw from the texture.
+            src_dest (Rect[w, h, x, y], optional): The destination rectangle to draw to the screen.
+            color (Color[r, g, b, a]): The color of the texture.
         """
         position = (src_dest.x, src_dest.y) if src_dest is not None else (0, 0)
         size = (
@@ -297,8 +297,8 @@ class OpenGLRenderer(BaseRenderer):
         dest_rect: Rect,
         angle: float = 1.0,
     ):
-        assert self.renderer_data.triangles_buffer_index is not None
-        assert self.renderer_data.triangles_buffer is not None
+        assert self.renderer_data.quads_buffer_index is not None
+        assert self.renderer_data.quads_buffer is not None
         if self.renderer_data.index_count >= self.MAX_INDEX_COUNT or (
             self.renderer_data.texture_slot_index >= self.MAX_TEXTURE_SLOTS - 1
         ):
@@ -332,7 +332,7 @@ class OpenGLRenderer(BaseRenderer):
         vertex1 = Vertex(
             angle,
             position=(
-                transform * self.renderer_data.triangle_vertex_positions[0]
+                transform * self.renderer_data.quad_vertex_positions[0]
             ).to_tuple()[
                 :2
             ],  # Top left vertex
@@ -346,7 +346,7 @@ class OpenGLRenderer(BaseRenderer):
         vertex2 = Vertex(
             angle,
             position=(
-                transform * self.renderer_data.triangle_vertex_positions[1]
+                transform * self.renderer_data.quad_vertex_positions[1]
             ).to_tuple()[
                 :2
             ],  # Top right vertex
@@ -360,7 +360,7 @@ class OpenGLRenderer(BaseRenderer):
         vertex3 = Vertex(
             angle,
             position=(
-                transform * self.renderer_data.triangle_vertex_positions[2]
+                transform * self.renderer_data.quad_vertex_positions[2]
             ).to_tuple()[
                 :2
             ],  # Bottom right vertex
@@ -374,7 +374,7 @@ class OpenGLRenderer(BaseRenderer):
         vertex4 = Vertex(
             angle,
             position=(
-                transform * self.renderer_data.triangle_vertex_positions[3]
+                transform * self.renderer_data.quad_vertex_positions[3]
             ).to_tuple()[
                 :2
             ],  # Bottom left vertex
@@ -386,23 +386,15 @@ class OpenGLRenderer(BaseRenderer):
         ).data
 
         # Add triangle vertices to the buffer in the correct order for rendering
-        self.renderer_data.triangles_buffer[
-            self.renderer_data.triangles_buffer_index
-        ] = vertex1
-        self.renderer_data.triangles_buffer_index += 1
-        self.renderer_data.triangles_buffer[
-            self.renderer_data.triangles_buffer_index
-        ] = vertex2
-        self.renderer_data.triangles_buffer_index += 1
-        self.renderer_data.triangles_buffer[
-            self.renderer_data.triangles_buffer_index
-        ] = vertex3
-        self.renderer_data.triangles_buffer_index += 1
-        self.renderer_data.triangles_buffer[
-            self.renderer_data.triangles_buffer_index
-        ] = vertex4
+        self.renderer_data.quads_buffer[self.renderer_data.quads_buffer_index] = vertex1
+        self.renderer_data.quads_buffer_index += 1
+        self.renderer_data.quads_buffer[self.renderer_data.quads_buffer_index] = vertex2
+        self.renderer_data.quads_buffer_index += 1
+        self.renderer_data.quads_buffer[self.renderer_data.quads_buffer_index] = vertex3
+        self.renderer_data.quads_buffer_index += 1
+        self.renderer_data.quads_buffer[self.renderer_data.quads_buffer_index] = vertex4
 
-        self.renderer_data.triangles_buffer_index += 1
+        self.renderer_data.quads_buffer_index += 1
         self.renderer_data.index_count += 6  # Update index count for 3 vertices
 
     def get_texture_slot(self, texture_id):
@@ -416,8 +408,8 @@ class OpenGLRenderer(BaseRenderer):
 
     def flush(self):
 
-        if self.renderer_data.triangles_buffer_index:
-            self.__flush_triangles()
+        if self.renderer_data.quads_buffer_index:
+            self.__flush_quads()
 
     def draw_rect(
         self,
@@ -428,8 +420,8 @@ class OpenGLRenderer(BaseRenderer):
         """Draw a rectangle to the screen.
 
         Args:
-            src_rect (tuple[width, height, x, y]): The source rectangle.
-            color (tuple[int, int, int, int]): The color of the rectangle.
+            src_rect (Rect[width, height, x, y]): The source rectangle.
+            color (Color[int, int, int, int]): The color of the rectangle.
         """
         texture = ArepyTexture(
             self.renderer_data.white_texture, size=(src_rect.width, src_rect.height)
@@ -567,7 +559,7 @@ class OpenGLRenderer(BaseRenderer):
         super().set_window_size(new_size)
         gl.glViewport(0, 0, window_width, window_height)
 
-    def __flush_triangles(self):
+    def __flush_quads(self):
         gl.glUseProgram(self.shader_program)
         gl.glBindVertexArray(self.VAO)
         gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER, self.IBO)
