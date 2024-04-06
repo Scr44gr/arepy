@@ -110,22 +110,12 @@ class RenderCollisionBoxSystem(System):
 
     def update(self, dt: float, renderer: BaseRenderer):
         for entity in self.get_entities():
-            # position = entity.get_component(Transform).position
+            position = entity.get_component(Transform).position
             collision_box = entity.get_component(Collider)
 
-            # colliding_color = (
-            #    (0, 255, 0, 255) if collision_box.is_colliding else (255, 0, 0, 255)
-            # )
-
-            # renderer.draw_rect(
-            #    position.x,
-            #    position.y,
-            #    collision_box.width,
-            #    collision_box.height,
-            #    colliding_color,
-            # )
-            ## draw a circle
-            # renderer.draw_circle(position.x, position.y, 32, (255, 255, 255, 255))
+            colliding_color = (
+                (0, 255, 0, 255) if collision_box.is_colliding else (255, 0, 0, 255)
+            )
 
 
 class AnimationSystem(System):
@@ -167,7 +157,7 @@ class RenderSystem(System):
         renderer: BaseRenderer,
         asset_store: AssetStore,
     ):
-        # tick = sdl2.SDL_GetTicks()
+        tick = sdl2.SDL_GetTicks()
         imgui.begin("Debug1 ")
         imgui.text("FPS: " + str(1 // dt))
 
@@ -178,8 +168,8 @@ class RenderSystem(System):
             texture = asset_store.get_texture(sprite.asset_id)
             texture_size = texture.get_size()
             dst_rect = (
-                float(texture_size[0]),
-                float(texture_size[1]),
+                texture_size[0],
+                texture_size[1],
                 position.x,
                 position.y,
             )
@@ -196,13 +186,15 @@ class RenderSystem(System):
                 src_rect,
                 dst_rect,
                 (255, 255, 255, 255),
+                # rotate the sprite by tick
+                angle=(tick / 1000) * 3.14 / 2 % 360,
             )
 
 
-def stress_entities(game: Arepy):
+def spawn_entities(game: Arepy, number_of_entities: int):
     from random import randint
 
-    for i in range(1):
+    for i in range(number_of_entities):
         entity_builder = game.create_entity()
         entity_builder.with_component(
             Transform(position=vec2(randint(0, 640), randint(0, 480)))
@@ -220,12 +212,10 @@ if __name__ == "__main__":
     game.debug = True
     # load assets
     asset_store = game.get_asset_store()
-    asset_store.load_texture(
-        game.renderer, "chopper", "./assets/chopper-spritesheet.png"
-    )
+    asset_store.load_texture(game.renderer, "chopper", "./assets/chopper.png")
 
     # Create a entity builder
-    stress_entities(game)
+    spawn_entities(game, 100)
     game.add_system(MovementSystem)
     game.add_system(RenderSystem)
     game.add_system(RenderCollisionBoxSystem)
@@ -239,8 +229,6 @@ if __name__ == "__main__":
             game.get_asset_store(),
         )
         game.get_system(AnimationSystem).update(game.delta_time)
-
-        # game.get_system(RenderCollisionBoxSystem).update(game.delta_time, game.renderer)
 
     def on_update():
         game.get_system(MovementSystem).update(game.delta_time)

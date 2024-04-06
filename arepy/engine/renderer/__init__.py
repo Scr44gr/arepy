@@ -47,6 +47,7 @@ class BaseRenderer(ABC):
         src_rect: Optional[tuple[float, float, float, float]],
         src_dest: Optional[tuple[float, float, float, float]],
         color: tuple[int, int, int, int],
+        angle: float = 0.0,
     ):
         pass
 

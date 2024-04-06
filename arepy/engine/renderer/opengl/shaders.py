@@ -1,40 +1,67 @@
 DEFAULT_VERTEX_SHADER = """
+// Vertex Shader
 #version 330 core
-layout (location = 0) in vec2 aPos;
-layout (location = 1) in vec4 aColor;
-layout (location = 2) in vec2 aTexCoord;
-layout (location = 3) in float aTextId;
+layout (location = 0) in vec2 in_position;  // Vertex position
+layout (location = 1) in vec4 in_color;  // Vertex color
+layout (location = 2) in vec4 in_srcRect;  // Source rectangle (x=w, y=h, w=x, z=y)
+layout (location = 3) in vec4 in_dstRect;  // Destination rectangle (x=w, y=h, w=x, z=y)
+layout (location = 4) in vec2 in_texSize; // texture size
+layout (location = 5) in float in_textId;  // Texture ID
+layout (location = 6) in float in_angle;  // Rotation angle
 
-out vec2 TexCoord;
-out float TextIndex;
-out vec4 ourColor;
-uniform mat4 model;
+out vec4 out_color;
+out float out_textId;
+out vec2 out_texCoord;
+out vec2 out_texSize;
+out float out_angle;
+
+uniform mat4 u_view = mat4(1.0);
+uniform mat4 u_projection = mat4(1.0);
+uniform int u_verticesPerPrimitive = 4;
+
+vec2 calculateTextureCoordinates(float x, float y, float w, float h, float texture_width, float texture_height) {
+    if (gl_VertexID % u_verticesPerPrimitive == 0) {
+        return vec2(x / texture_width, (y + h) / texture_height);
+    } else if (gl_VertexID % u_verticesPerPrimitive == 1) {
+        return vec2((x + w) / texture_width, (y + h) / texture_height);
+    } else if (gl_VertexID % u_verticesPerPrimitive == 2) {
+        return vec2((x + w) / texture_width, y / texture_height);
+    } else {
+        return vec2(x / texture_width, y / texture_height);
+    }
+}
+
 
 void main() {
-    gl_Position = model * vec4(aPos, 1.0, 1.0);
-    TexCoord = aTexCoord;
-    TextIndex = aTextId;
-    ourColor = aColor;
+    float texture_width = in_dstRect.x;
+    float texture_height = in_dstRect.y;
+    float w = in_srcRect.x;
+    float h = in_srcRect.y;
+    float x = in_srcRect.z;
+    float y = in_srcRect.w;
+    out_texCoord = calculateTextureCoordinates(x, y, w, h, texture_width, texture_height);
+
+    gl_Position = u_projection * u_view * vec4(in_position, 0.0, 1.0);
+    out_textId = in_textId;
+    out_color = in_color;
 }
 """
+
 DEFAULT_FRAGMENT_SHADER = """
 #version 330 core
 out vec4 FragColor;
 
-in vec2 TexCoord;
-in float TextIndex;
-in vec4 ourColor;
+in vec2 out_texCoord;
+in float out_textId;
+in vec4 out_color;
+
 
 uniform sampler2D textures[32];
-uniform vec2 textOffset;
-uniform vec2 textScale;
-
 
 void main() {
-    int index = int(TextIndex);
-    FragColor = texture(textures[index], TexCoord);
-    FragColor = FragColor * ourColor;
-}
+    int index = int(out_textId);
+    FragColor = texture(textures[index], out_texCoord) * out_color;
+    }
 """
 from typing import cast
 
