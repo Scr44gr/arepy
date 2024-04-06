@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
@@ -14,6 +15,28 @@ class ArepyTexture:
 
     def get_size(self) -> tuple[int, int]:
         return self._texture_size
+
+
+@dataclass
+class Rect:
+    width: int
+    height: int
+    x: float
+    y: float
+
+    def to_tuple(self) -> tuple[int, int, float, float]:
+        return (self.width, self.height, self.x, self.y)
+
+
+@dataclass
+class Color:
+    r: int
+    g: int
+    b: int
+    a: int
+
+    def normalize(self) -> tuple[float, float, float, float]:
+        return (self.r / 255, self.g / 255, self.b / 255, self.a / 255)
 
 
 class BaseRenderer(ABC):
@@ -44,9 +67,9 @@ class BaseRenderer(ABC):
     def draw_sprite(
         self,
         texture: ArepyTexture,
-        src_rect: Optional[tuple[float, float, float, float]],
-        src_dest: Optional[tuple[float, float, float, float]],
-        color: tuple[int, int, int, int],
+        src_rect: Optional[Rect],
+        src_dest: Optional[Rect],
+        color: Color = Color(255, 255, 255, 255),
         angle: float = 0.0,
     ):
         pass
@@ -64,7 +87,10 @@ class BaseRenderer(ABC):
 
     @abstractmethod
     def draw_rect(
-        self, x: int, y: int, width: int, height: int, color: tuple[int, int, int, int]
+        self,
+        src_rect: Rect,
+        color: Color = Color(255, 255, 255, 255),
+        angle: float = 0.0,
     ):
         pass
 

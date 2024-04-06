@@ -6,7 +6,7 @@ import numpy as np
 import OpenGL.GL as gl
 from PIL import Image
 
-from .. import ArepyTexture, BaseRenderer
+from .. import ArepyTexture, BaseRenderer, Color, Rect
 from .shaders import compile_default_shader
 from .utils import enable_renderdoc, is_outside_screen
 
@@ -80,7 +80,6 @@ class RendererData:
     white_texture_slot: int = field(default=0, init=False)
     texture_slots: list[int] = field(default_factory=lambda: [0] * 32, init=False)
     texture_slot_index: int = field(default=1, init=False)
-
 
 
 class OpenGLRenderer(BaseRenderer):
@@ -263,9 +262,9 @@ class OpenGLRenderer(BaseRenderer):
     def draw_sprite(
         self,
         texture: ArepyTexture,
-        src_rect: tuple[float, float, float, float],
-        src_dest: tuple[float, float, float, float],
-        color: tuple[int, int, int, int] = (255, 255, 255, 255),
+        src_rect: Rect,
+        src_dest: Rect,
+        color: Color = Color(255, 255, 255, 255),
         angle: float = 0.0,
     ):
         """Draw a texture to the screen.
@@ -276,8 +275,12 @@ class OpenGLRenderer(BaseRenderer):
             src_dest (tuple[w, h, x, y], optional): The destination rectangle to draw to the screen.
             color (tuple[r, g, b, a]): The color of the texture.
         """
-        position = src_dest[2:] if src_dest is not None else (0.0, 0.0)
-        size = src_rect[:2] if src_rect is not None else texture.get_size()
+        position = (src_dest.x, src_dest.y) if src_dest is not None else (0, 0)
+        size = (
+            (src_rect.width, src_rect.height)
+            if src_rect is not None
+            else texture.get_size()
+        )
 
         if is_outside_screen(position, size, self.get_screen_size()):
             return
@@ -288,11 +291,11 @@ class OpenGLRenderer(BaseRenderer):
         self,
         texture: ArepyTexture,
         position: tuple[float, float],
-        color: tuple[float, float, float, float],
+        color: Color,
         size: tuple[float, float],
-        src_rect: tuple[float, float, float, float],
-        dest_rect: tuple[float, float, float, float],
-        angle: float = 01.0,
+        src_rect: Rect,
+        dest_rect: Rect,
+        angle: float = 1.0,
     ):
         assert self.renderer_data.triangles_buffer_index is not None
         assert self.renderer_data.triangles_buffer is not None
@@ -315,13 +318,15 @@ class OpenGLRenderer(BaseRenderer):
         texture_slot = self.get_texture_slot(texture.texture_id)
         texture_size = texture.get_size()
 
-        color = (color[0] / 255, color[1] / 255, color[2] / 255, color[3] / 255)
+        color_data = color.normalize()
 
         transform = (
             glm.translate(glm.mat4(1.0), glm.vec3(x, y, 0.0))
             * glm.rotate(glm.mat4(1.0), angle, glm.vec3(0.0, 0.0, 1.0))
             * glm.scale(glm.mat4(1.0), glm.vec3(gl_width, gl_height, 1.0))
         )
+        src_rect_data = src_rect.to_tuple()
+        dest_rect_data = dest_rect.to_tuple()
 
         # transform *
         vertex1 = Vertex(
@@ -331,9 +336,9 @@ class OpenGLRenderer(BaseRenderer):
             ).to_tuple()[
                 :2
             ],  # Top left vertex
-            color=color,
-            src_rect=src_rect,
-            src_dest=dest_rect,
+            color=color_data,
+            src_rect=src_rect_data,
+            src_dest=dest_rect_data,
             texture_size=texture_size,
             texture_id=texture_slot,
         ).data
@@ -345,9 +350,9 @@ class OpenGLRenderer(BaseRenderer):
             ).to_tuple()[
                 :2
             ],  # Top right vertex
-            color=color,
-            src_rect=src_rect,
-            src_dest=dest_rect,
+            color=color_data,
+            src_rect=src_rect_data,
+            src_dest=dest_rect_data,
             texture_size=texture_size,
             texture_id=texture_slot,
         ).data
@@ -359,9 +364,9 @@ class OpenGLRenderer(BaseRenderer):
             ).to_tuple()[
                 :2
             ],  # Bottom right vertex
-            color=color,
-            src_rect=src_rect,
-            src_dest=dest_rect,
+            color=color_data,
+            src_rect=src_rect_data,
+            src_dest=dest_rect_data,
             texture_size=texture_size,
             texture_id=texture_slot,
         ).data
@@ -373,9 +378,9 @@ class OpenGLRenderer(BaseRenderer):
             ).to_tuple()[
                 :2
             ],  # Bottom left vertex
-            color=color,
-            src_rect=src_rect,
-            src_dest=dest_rect,
+            color=color_data,
+            src_rect=src_rect_data,
+            src_dest=dest_rect_data,
             texture_size=texture_size,
             texture_id=texture_slot,
         ).data
@@ -410,38 +415,26 @@ class OpenGLRenderer(BaseRenderer):
         return texture_slot
 
     def flush(self):
-        # self.renderer_data.triangles_buffer_index is not None
 
         if self.renderer_data.triangles_buffer_index:
             self.__flush_triangles()
 
     def draw_rect(
-        self, x: int, y: int, width: int, height: int, color: tuple[int, int, int, int]
+        self,
+        src_rect: Rect,
+        color: Color,
+        angle: float = 0.0,
     ):
         """Draw a rectangle to the screen.
 
         Args:
-            x (int): The x position of the rectangle.
-            y (int): The y position of the rectangle.
-            width (int): The width of the rectangle.
-            height (int): The height of the rectangle.
+            src_rect (tuple[width, height, x, y]): The source rectangle.
             color (tuple[int, int, int, int]): The color of the rectangle.
         """
-
-        screen_width, screen_height = self.get_screen_size()
-
-        gl_x = 2 * x / screen_width - 1
-        gl_y = 1 - 2 * y / screen_height
-        gl_width = 2 * width / screen_width
-        gl_height = 2 * height / screen_height
-
-        gl.glBegin(gl.GL_LINE_LOOP)
-        gl.glColor4f(*color)
-        gl.glVertex2f(gl_x, gl_y)
-        gl.glVertex2f(gl_x + gl_width, gl_y)
-        gl.glVertex2f(gl_x + gl_width, gl_y - gl_height)
-        gl.glVertex2f(gl_x, gl_y - gl_height)
-        gl.glEnd()
+        texture = ArepyTexture(
+            self.renderer_data.white_texture, size=(src_rect.width, src_rect.height)
+        )
+        self.draw_sprite(texture, src_rect, src_rect, color, angle)
 
     def draw_circle(
         self, x: int, y: int, radius: int, color: tuple[int, int, int, int]

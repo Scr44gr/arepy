@@ -6,7 +6,7 @@ from arepy import Arepy
 from arepy.arepy_imgui import imgui
 from arepy.asset_store import AssetStore
 from arepy.ecs import Component, System
-from arepy.engine.renderer import BaseRenderer
+from arepy.engine.renderer import BaseRenderer, Color, Rect
 
 
 class Animation(Component):
@@ -167,15 +167,15 @@ class RenderSystem(System):
             sprite = entity.get_component(Sprite)
             texture = asset_store.get_texture(sprite.asset_id)
             texture_size = texture.get_size()
-            dst_rect = (
+            dst_rect = Rect(
                 texture_size[0],
                 texture_size[1],
                 position.x,
                 position.y,
             )
-            src_rect = (
-                float(sprite.src_rect[0]),
-                float(sprite.src_rect[1]),
+            src_rect = Rect(
+                int(sprite.src_rect[0]),
+                int(sprite.src_rect[1]),
                 float(sprite.src_rect[2]),
                 float(sprite.src_rect[3]),
             )
@@ -185,7 +185,7 @@ class RenderSystem(System):
                 texture,
                 src_rect,
                 dst_rect,
-                (255, 255, 255, 255),
+                Color(255, 255, 255, 255),
                 # rotate the sprite by tick
                 angle=(tick / 1000) * 3.14 / 2 % 360,
             )
