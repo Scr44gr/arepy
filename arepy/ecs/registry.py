@@ -198,11 +198,11 @@ class Registry:
         if len(self.entities_to_be_added) > 0:
             for entity in self.entities_to_be_added:
                 self.add_entity_to_systems(entity)
-            self.entities_to_be_added.clear()
+            self.entities_to_be_added = []
 
         if len(self.entities_to_be_removed) > 0:
             for entity in self.entities_to_be_removed:
                 self.remove_entity_from_systems(entity)
                 self.entity_component_signatures[entity.get_id() - 1].clear()
                 self.free_entity_ids.append(entity.get_id())
-            self.entities_to_be_removed.clear()
+            self.entities_to_be_removed = []

@@ -1,6 +1,8 @@
 from pathlib import Path
 
-from setuptools import find_packages, setup
+import numpy
+from Cython.Build import cythonize
+from setuptools import Extension, find_packages, setup
 
 this_directory = Path(__file__).parent
 long_description = (this_directory / "README.md").read_bytes().decode("utf-8")
@@ -10,6 +12,15 @@ DESCRIPTION = "An ECS game engine library created with SDL2 and Python."
 LONG_DESCRIPTION = long_description
 
 # Setting up
+extensions = [
+    Extension(
+        "arepy.engine.renderer.opengl.utils",
+        ["arepy/engine/renderer/opengl/utils.pyx"],
+        include_dirs=[numpy.get_include()],
+    )
+]
+
+# Cythonize the extensions
 
 setup(
     name="arepy",
@@ -39,4 +50,6 @@ setup(
         "Operating System :: MacOS :: MacOS X",
         "Operating System :: Microsoft :: Windows",
     ],
+    ext_modules=cythonize(extensions, compiler_directives={"language_level": "3"}),
+    include_dirs=[numpy.get_include()],
 )

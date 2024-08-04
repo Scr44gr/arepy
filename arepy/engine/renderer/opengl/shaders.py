@@ -15,9 +15,18 @@ out vec2 out_texCoord;
 out vec2 out_texSize;
 out float out_angle;
 
+
 uniform mat4 u_view = mat4(1.0);
 uniform mat4 u_projection = mat4(1.0);
 uniform int u_verticesPerPrimitive = 4;
+uniform vec2 u_screenSize = vec2(640, 480);
+
+uniform mat4 u_quadVertexPositions = mat4(
+    vec4(-0.5, 0.5, 0.0, 1.0),
+    vec4(0.5, 0.5, 0.0, 1.0),
+    vec4(0.5, -0.5, 0.0, 1.0),
+    vec4(-0.5, -0.5, 0.0, 1.0)
+);
 
 vec2 calculateTextureCoordinates(float x, float y, float w, float h, float texture_width, float texture_height) {
     if (gl_VertexID % u_verticesPerPrimitive == 0) {
@@ -31,6 +40,68 @@ vec2 calculateTextureCoordinates(float x, float y, float w, float h, float textu
     }
 }
 
+mat4 rotate(mat4 matrix, float angle, vec3 axis) {
+    float c = cos(angle);
+    float s = sin(angle);
+    float oc = 1.0 - c;
+    vec3 as = axis * s;
+    float xy = axis.x * axis.y;
+    float yz = axis.y * axis.z;
+    float xz = axis.x * axis.z;
+    float xs = axis.x * s;
+    float ys = axis.y * s;
+    float zs = axis.z * s;
+    float f00 = axis.x * axis.x * oc + c;
+    float f01 = xy * oc + zs;
+    float f02 = xz * oc - ys;
+    float f10 = xy * oc - zs;
+    float f11 = axis.y * axis.y * oc + c;
+    float f12 = yz * oc + xs;
+    float f20 = xz * oc + ys;
+    float f21 = yz * oc - xs;
+    float f22 = axis.z * axis.z * oc + c;
+    mat4 rotateMatrix = mat4(
+        vec4(f00, f01, f02, 0.0),
+        vec4(f10, f11, f12, 0.0),
+        vec4(f20, f21, f22, 0.0),
+        vec4(0.0, 0.0, 0.0, 1.0)
+    );
+    return matrix * rotateMatrix;
+}
+
+mat4 translate(mat4 matrix, vec3 translation) {
+    mat4 translateMatrix = mat4(
+        vec4(1.0, 0.0, 0.0, 0.0),
+        vec4(0.0, 1.0, 0.0, 0.0),
+        vec4(0.0, 0.0, 1.0, 0.0),
+        vec4(translation, 1.0)
+    );
+    return matrix * translateMatrix;
+}
+
+mat4 scale(mat4 matrix, vec3 scale) {
+    mat4 scaleMatrix = mat4(
+        vec4(scale.x, 0.0, 0.0, 0.0),
+        vec4(0.0, scale.y, 0.0, 0.0),
+        vec4(0.0, 0.0, scale.z, 0.0),
+        vec4(0.0, 0.0, 0.0, 1.0)
+    );
+    return matrix * scaleMatrix;
+}
+
+
+
+vec2 getTransformedPosition() {
+    mat4 transform = mat4(1.0);
+    vec2 position = vec2(2.0 * (in_position.x / u_screenSize.x) - 1.0, 1.0 - 2.0 * (in_position.y / u_screenSize.y));
+    vec2 normalized_scale = vec2(2 * in_srcRect.x / u_screenSize.x, 2 * in_srcRect.y / u_screenSize.y);
+
+    transform = translate(mat4(1.0), vec3(position.x, position.y, 0.0));
+    transform = rotate(transform, in_angle, vec3(0.0, 0.0, 1.0));
+    transform = scale(transform, vec3(normalized_scale.x, normalized_scale.y, 1.0));
+
+    return (transform * u_quadVertexPositions[gl_VertexID % u_verticesPerPrimitive]).xy;
+}
 
 void main() {
     float texture_width = in_dstRect.x;
@@ -41,7 +112,7 @@ void main() {
     float y = in_srcRect.w;
     out_texCoord = calculateTextureCoordinates(x, y, w, h, texture_width, texture_height);
 
-    gl_Position = u_projection * u_view * vec4(in_position, 0.0, 1.0);
+    gl_Position =  vec4(getTransformedPosition(), 0.0, 1.0);
     out_textId = in_textId;
     out_color = in_color;
 }

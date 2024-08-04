@@ -1,3 +1,4 @@
+import time
 from typing import Type
 
 import OpenGL.GL as gl
@@ -67,11 +68,12 @@ class Engine:
         self.impl = ImguiRenderer(self.window.window)  # type: ignore
         self.renderer = OpenGLRenderer(
             self.screen_size, (self.window_width, self.window_height)
-        )
+        )  # type: ignore
 
     def run(self):
 
         self._is_running = True
+        self._registry.update()
         self.on_startup()
         while self._is_running:
             self.__input_process()
@@ -124,14 +126,15 @@ class Engine:
         self._registry.update()
 
     def __render_process(self):
-
         self.renderer.clear()
         imgui.new_frame()
         self.renderer.start_frame()
         self.on_render()
+
         imgui.end_frame()  # type: ignore
         imgui.render()
         self.renderer.end_frame()
+
         self.renderer.flush()
         self.impl.render(imgui.get_draw_data())  # type: ignore
         SDL_GL_SwapWindow(self.window.window)

@@ -1,5 +1,6 @@
-from dataclasses import dataclass, field
-from typing import Optional
+# enable_renderdoc()
+import time
+from ctypes import c_void_p
 
 import glm
 import numpy as np
@@ -8,9 +9,19 @@ from PIL import Image
 
 from .. import ArepyTexture, BaseRenderer, Color, Rect
 from .shaders import compile_default_shader
-from .utils import enable_renderdoc, is_outside_screen
+from .utils import enable_renderdoc  # type: ignore
+from .utils import (
+    RendererData,
+    is_outside_screen,
+    set_vertex_data,
+    update_vertex_transforms,
+)
 
-# enable_renderdoc()
+enable_renderdoc()
+
+
+def onDebugMessage(*args, **kwargs):
+    print("args = {0}, kwargs = {1}".format(args, kwargs))
 
 
 class Vertex:
@@ -55,43 +66,23 @@ VERTEX = Vertex(
     (0.0, 0.0),
     0.0,
 )
-
-
-@dataclass
-class RendererData:
-    index_data: np.ndarray
-    index_count: int = field(default=0, init=False)
-    texture_vbo: Optional[int]
-    texture_vao: Optional[int]
-    texture_ibo: Optional[int]
-    quads_buffer: Optional[np.ndarray]
-    quads_buffer_index: Optional[int]
-    quad_vertex_positions: list[glm.vec4] = field(
-        default_factory=lambda: [
-            glm.vec4(-0.5, 0.5, 0.0, 1.0),
-            glm.vec4(0.5, 0.5, 0.0, 1.0),
-            glm.vec4(0.5, -0.5, 0.0, 1.0),
-            glm.vec4(-0.5, -0.5, 0.0, 1.0),
-        ],
-        init=False,
-    )
-    # Textures
-    white_texture: int = field(default=0, init=False)
-    white_texture_slot: int = field(default=0, init=False)
-    texture_slots: list[int] = field(default_factory=lambda: [0] * 32, init=False)
-    texture_slot_index: int = field(default=1, init=False)
+VERTEX_SIZE = VERTEX.data.nbytes
+print(VERTEX_SIZE)
 
 
 class OpenGLRenderer(BaseRenderer):
-    MAX_TRIANGLES = 5000
-    MAX_VERTEX_COUNT = MAX_TRIANGLES * 4
-    MAX_INDEX_COUNT = MAX_TRIANGLES * 6
+
+    MAX_QUADS = 20000
+    MAX_VERTEX_COUNT = MAX_QUADS * 4
+    MAX_INDEX_COUNT = MAX_QUADS * 6
     MAX_TEXTURE_SLOTS = 32
 
     def __init__(self, screen_size: tuple[int, int], window_size: tuple[int, int]):
         super().__init__(screen_size, window_size)
 
         self.gl_init()
+        self.to_be_transformed_data: list = []
+        self._is_transformed = False
 
     def gl_init(self):
         self.VBO = gl.glGenBuffers(1)
@@ -101,7 +92,7 @@ class OpenGLRenderer(BaseRenderer):
             gl.GL_ARRAY_BUFFER,
             self.MAX_VERTEX_COUNT * VERTEX.data.nbytes,
             None,
-            gl.GL_DYNAMIC_DRAW,
+            gl.GL_STREAM_DRAW,
         )
 
         self.VAO = gl.glGenVertexArrays(1)
@@ -199,7 +190,6 @@ class OpenGLRenderer(BaseRenderer):
             indices,
             gl.GL_STATIC_DRAW,
         )
-
         self.setup_shader()
 
         # Enable blending
@@ -207,19 +197,16 @@ class OpenGLRenderer(BaseRenderer):
         gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 
         self.renderer_data = RendererData(
-            texture_vbo=self.VBO,
-            texture_vao=self.VAO,
-            texture_ibo=self.IBO,
-            quads_buffer_index=0,
+            texture_vbo=int(self.VBO),
+            texture_vao=int(self.VAO),
+            texture_ibo=int(self.IBO),
             index_data=indices,
-            quads_buffer=np.array(
-                [VERTEX.data] * self.MAX_VERTEX_COUNT,
-                dtype=np.float32,
-            ),
+            quads_buffer=np.zeros((self.MAX_VERTEX_COUNT, 18), dtype=np.float32),
+            quads_buffer_index=0,
         )
         assert self.renderer_data.quads_buffer is not None
 
-        self.renderer_data.white_texture = gl.glGenTextures(1)
+        self.renderer_data.white_texture = int(gl.glGenTextures(1))
         gl.glBindTexture(gl.GL_TEXTURE_2D, self.renderer_data.white_texture)
         white_texture_data = np.array([255, 255, 255, 255], dtype=np.uint8)
         gl.glTexImage2D(
@@ -241,14 +228,19 @@ class OpenGLRenderer(BaseRenderer):
         gl.glBindVertexArray(0)
 
     def start_frame(self):
+        gl.glUseProgram(self.shader_program)
+        _ = [
+            gl.glBindTextureUnit(i, self.renderer_data.texture_slots[i])
+            for i in range(self.renderer_data.texture_slot_index)
+        ]
+        if self._is_transformed:
+            return
         self.renderer_data.quads_buffer_index = 0
 
     def end_frame(self):
         assert self.renderer_data.quads_buffer_index is not None
         assert self.renderer_data.quads_buffer is not None
-
-        size = self.renderer_data.quads_buffer_index * VERTEX.data.nbytes
-
+        size = self.renderer_data.quads_buffer_index * VERTEX_SIZE
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.VBO)
         gl.glBufferSubData(
             gl.GL_ARRAY_BUFFER,
@@ -256,7 +248,6 @@ class OpenGLRenderer(BaseRenderer):
             size,
             self.renderer_data.quads_buffer,
         )
-
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
 
     def draw_sprite(
@@ -276,126 +267,36 @@ class OpenGLRenderer(BaseRenderer):
             color (Color[r, g, b, a]): The color of the texture.
         """
         position = (src_dest.x, src_dest.y) if src_dest is not None else (0, 0)
-        size = (
-            (src_rect.width, src_rect.height)
-            if src_rect is not None
-            else texture.get_size()
+
+        # self.submit_texture(texture, position, color, size, src_rect, src_dest, angle)
+        self.to_be_transformed_data.append(
+            [
+                *position,
+                *color.normalize(),
+                *src_rect.to_tuple(),
+                *src_dest.to_tuple(),
+                *texture.get_size(),
+                self.get_texture_slot(texture.texture_id),
+                angle,
+            ]
         )
 
-        if is_outside_screen(position, size, self.get_screen_size()):
-            return
-
-        self.submit_texture(texture, position, color, size, src_rect, src_dest, angle)
-
-    def submit_texture(
-        self,
-        texture: ArepyTexture,
-        position: tuple[float, float],
-        color: Color,
-        size: tuple[float, float],
-        src_rect: Rect,
-        dest_rect: Rect,
-        angle: float = 1.0,
-    ):
-        assert self.renderer_data.quads_buffer_index is not None
-        assert self.renderer_data.quads_buffer is not None
-        if self.renderer_data.index_count >= self.MAX_INDEX_COUNT or (
-            self.renderer_data.texture_slot_index >= self.MAX_TEXTURE_SLOTS - 1
-        ):
-            self.end_frame()
-            self.flush()
-            self.start_frame()
-
-        x, y = position
-
-        screen_width, screen_height = self.get_screen_size()
-        x = 2 * x / screen_width - 1
-        y = 1 - 2 * y / screen_height
-
-        gl_width = 2 * size[0] / screen_width
-        gl_height = 2 * size[1] / screen_height
-
-        texture_slot = self.get_texture_slot(texture.texture_id)
-        texture_size = texture.get_size()
-
-        color_data = color.normalize()
-
-        transform = (
-            glm.translate(glm.mat4(1.0), glm.vec3(x, y, 0.0))
-            * glm.rotate(glm.mat4(1.0), angle, glm.vec3(0.0, 0.0, 1.0))
-            * glm.scale(glm.mat4(1.0), glm.vec3(gl_width, gl_height, 1.0))
+    def make_vertex_transforms(self):
+        assert len(self.to_be_transformed_data) >= 0
+        self._is_transformed = True
+        set_vertex_data(
+            np.array(self.to_be_transformed_data, dtype=np.float32, copy=False),
+            self.renderer_data,
         )
-        src_rect_data = src_rect.to_tuple()
-        dest_rect_data = dest_rect.to_tuple()
+        self.to_be_transformed_data.clear()
 
-        # transform *
-        vertex1 = Vertex(
-            angle,
-            position=(
-                transform * self.renderer_data.quad_vertex_positions[0]
-            ).to_tuple()[
-                :2
-            ],  # Top left vertex
-            color=color_data,
-            src_rect=src_rect_data,
-            src_dest=dest_rect_data,
-            texture_size=texture_size,
-            texture_id=texture_slot,
-        ).data
-
-        vertex2 = Vertex(
-            angle,
-            position=(
-                transform * self.renderer_data.quad_vertex_positions[1]
-            ).to_tuple()[
-                :2
-            ],  # Top right vertex
-            color=color_data,
-            src_rect=src_rect_data,
-            src_dest=dest_rect_data,
-            texture_size=texture_size,
-            texture_id=texture_slot,
-        ).data
-
-        vertex3 = Vertex(
-            angle,
-            position=(
-                transform * self.renderer_data.quad_vertex_positions[2]
-            ).to_tuple()[
-                :2
-            ],  # Bottom right vertex
-            color=color_data,
-            src_rect=src_rect_data,
-            src_dest=dest_rect_data,
-            texture_size=texture_size,
-            texture_id=texture_slot,
-        ).data
-
-        vertex4 = Vertex(
-            angle,
-            position=(
-                transform * self.renderer_data.quad_vertex_positions[3]
-            ).to_tuple()[
-                :2
-            ],  # Bottom left vertex
-            color=color_data,
-            src_rect=src_rect_data,
-            src_dest=dest_rect_data,
-            texture_size=texture_size,
-            texture_id=texture_slot,
-        ).data
-
-        # Add triangle vertices to the buffer in the correct order for rendering
-        self.renderer_data.quads_buffer[self.renderer_data.quads_buffer_index] = vertex1
-        self.renderer_data.quads_buffer_index += 1
-        self.renderer_data.quads_buffer[self.renderer_data.quads_buffer_index] = vertex2
-        self.renderer_data.quads_buffer_index += 1
-        self.renderer_data.quads_buffer[self.renderer_data.quads_buffer_index] = vertex3
-        self.renderer_data.quads_buffer_index += 1
-        self.renderer_data.quads_buffer[self.renderer_data.quads_buffer_index] = vertex4
-
-        self.renderer_data.quads_buffer_index += 1
-        self.renderer_data.index_count += 6  # Update index count for 3 vertices
+    def update_vertex_transforms(self):
+        assert len(self.to_be_transformed_data) >= 0
+        update_vertex_transforms(
+            np.array(self.to_be_transformed_data, dtype=np.float32, copy=False),
+            self.renderer_data,
+        )
+        self.to_be_transformed_data.clear()
 
     def get_texture_slot(self, texture_id):
         if texture_id in self.renderer_data.texture_slots:
@@ -560,40 +461,17 @@ class OpenGLRenderer(BaseRenderer):
         gl.glViewport(0, 0, window_width, window_height)
 
     def __flush_quads(self):
-        gl.glUseProgram(self.shader_program)
         gl.glBindVertexArray(self.VAO)
         gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER, self.IBO)
-        gl.glEnableVertexAttribArray(0)
-        gl.glEnableVertexAttribArray(1)
-        gl.glEnableVertexAttribArray(2)
-        gl.glEnableVertexAttribArray(3)
-        gl.glEnableVertexAttribArray(4)
-        gl.glEnableVertexAttribArray(5)
-        gl.glEnableVertexAttribArray(6)
-
-        _ = [
-            gl.glBindTextureUnit(i, self.renderer_data.texture_slots[i])
-            for i in range(self.renderer_data.texture_slot_index)
-        ]
+        gl.glUseProgram(self.shader_program)
 
         gl.glDrawElements(
             gl.GL_TRIANGLES,
             self.renderer_data.index_count,
             gl.GL_UNSIGNED_INT,
             None,
-            1,
+            c_void_p(0),
         )
-
-        gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
-        gl.glDisableVertexArrayAttrib(self.VAO, 0)
-        gl.glDisableVertexArrayAttrib(self.VAO, 1)
-        gl.glDisableVertexArrayAttrib(self.VAO, 2)
-        gl.glDisableVertexArrayAttrib(self.VAO, 3)
-        gl.glDisableVertexArrayAttrib(self.VAO, 4)
-        gl.glDisableVertexArrayAttrib(self.VAO, 5)
-        gl.glDisableVertexArrayAttrib(self.VAO, 6)
-        gl.glBindVertexArray(0)
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, 0)
-        gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER, 0)
-        gl.glUseProgram(0)
+        if self._is_transformed:
+            return
         self.renderer_data.index_count = 0

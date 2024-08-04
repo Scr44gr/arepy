@@ -1,3 +1,5 @@
+from multiprocessing.pool import ThreadPool
+
 import OpenGL.GL as gl
 import sdl2
 from glm import vec2
@@ -64,7 +66,8 @@ class MovementSystem(System):
         self.require_components([Transform, Rigidbody])
 
     def update(self, dt: float):
-        for entity in self.get_entities():
+        entities = self.get_entities()
+        for entity in entities:
             position = entity.get_component(Transform).position
             velocity = entity.get_component(Rigidbody).velocity
             position.x += velocity.x * dt
@@ -146,6 +149,11 @@ class AnimationSystem(System):
             sprite.src_rect[2] = animation.current_frame * sprite.width
 
 
+import time
+
+ALREADY_PASSED_RENDERING = False
+
+
 class RenderSystem(System):
     def __init__(self):
         super().__init__()
@@ -157,11 +165,6 @@ class RenderSystem(System):
         renderer: BaseRenderer,
         asset_store: AssetStore,
     ):
-        tick = sdl2.SDL_GetTicks()
-        imgui.begin("Debug1 ")
-        imgui.text("FPS: " + str(1 // dt))
-
-        imgui.end()
         for entity in self.get_entities():
             position = entity.get_component(Transform).position
             sprite = entity.get_component(Sprite)
@@ -179,7 +182,6 @@ class RenderSystem(System):
                 float(sprite.src_rect[2]),
                 float(sprite.src_rect[3]),
             )
-            # draw a line
 
             renderer.draw_sprite(
                 texture,
@@ -187,7 +189,7 @@ class RenderSystem(System):
                 dst_rect,
                 Color(255, 255, 255, 255),
                 # rotate the sprite by tick
-                angle=(tick / 1000) * 3.14 / 2 % 360,
+                angle=0.0,
             )
 
 
@@ -201,7 +203,7 @@ def spawn_entities(game: Arepy, number_of_entities: int):
         )
         entity_builder.with_component(Rigidbody(velocity=vec2(randint(0, 100), 0)))
         entity_builder.with_component(Sprite(32, 32, "chopper", (0, 64), 0))
-        entity_builder.with_component(Animation(2, 8))
+        # entity_builder.with_component(Animation(2, 8))
         e = entity_builder.build()
 
 
@@ -229,12 +231,18 @@ if __name__ == "__main__":
             game.get_asset_store(),
         )
         game.get_system(AnimationSystem).update(game.delta_time)
+        game.renderer.update_vertex_transforms()
 
     def on_update():
         game.get_system(MovementSystem).update(game.delta_time)
         game.get_system(CollisionSystem).update(game.delta_time)
 
+    def on_startup():
+        game.renderer.make_vertex_transforms()
+        game.renderer.to_be_transformed_data.clear()
+
     # We assign a lambda to the on_update event to call the update method of the MovementSystem
     game.on_update = on_update
     game.on_render = on_render
+    game.on_startup = on_startup
     game.run()
