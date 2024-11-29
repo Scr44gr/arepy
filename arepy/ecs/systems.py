@@ -1,5 +1,5 @@
 import logging
-from typing import List, Type, TypeVar
+from typing import List, Set, Type, TypeVar
 
 from arepy.ecs.constants import MAX_COMPONENTS
 
@@ -20,7 +20,7 @@ class System:
 
     def __init__(self) -> None:
         self.entity_component_signature = Signature(MAX_COMPONENTS)
-        self.entities: List["Entity"] = list()
+        self.entities: Set["Entity"] = set()
 
     def require_components(self, component_types: List[Type[TComponent]]) -> None:
         """Require components for the system.
@@ -32,7 +32,7 @@ class System:
             component_id = ComponentIndex.get_id(component_type.__name__)
             self.entity_component_signature.set(component_id, True)
 
-    def get_entities(self) -> List["Entity"]:
+    def get_entities(self) -> Set["Entity"]:
         """Get the entities of the system.
 
         Returns:
@@ -65,7 +65,7 @@ class System:
         Args:
             entity: The entity to add.
         """
-        self.entities.append(entity)
+        self.entities.add(entity)
 
     def update(self, *args, **kwargs) -> None:
         """Update the system."""

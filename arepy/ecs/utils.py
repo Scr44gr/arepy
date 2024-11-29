@@ -11,7 +11,7 @@ try:
 except ImportError:
     pass
 
-logger_level = int(getenv("LOG_LEVEL", 0))
+logger_level = int(getenv("LOG_LEVEL", 50))
 
 log_color = {
     0: "\033[0m",

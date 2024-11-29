@@ -1,9 +1,13 @@
+# For now we aren't using this because we have a better and simple
+# way to handle keyboard events by `Input` class.
+# maybe will be used in the future. so I will keep it here. :)
+from ...event_manager import EventManager
 from ..events.keyboard_event import KeyboardPressedEvent, KeyboardReleasedEvent
 from .utils import KEYS
 
 
 class KeyboardEventHandler:
-    def __init__(self, event_manager):
+    def __init__(self, event_manager: EventManager):
         self.event_manager = event_manager
         self.event_manager.subscribe(KeyboardPressedEvent, self._on_keyboard_pressed)
         self.event_manager.subscribe(KeyboardReleasedEvent, self._on_keyboard_released)

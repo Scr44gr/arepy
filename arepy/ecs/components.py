@@ -1,14 +1,24 @@
-from typing import Any, Callable, Generic, List, Optional, ParamSpec, Type, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Generic,
+    List,
+    Optional,
+    ParamSpec,
+    Protocol,
+    Type,
+    TypeVar,
+)
 
 
 class ComponentIndex:
     """A class to manage component IDs for classes with the same name."""
 
-    __id_counters: dict = {}
+    __id_counters: dict[str, int] = {}
     __last_insert: Optional[str] = None
 
     @classmethod
-    def get_id(cls, class_name):
+    def get_id(cls, class_name: str) -> int:
         internal_class_name = f"{class_name}_{id(cls)}"
         if not internal_class_name in cls.__id_counters:
             counter = 0

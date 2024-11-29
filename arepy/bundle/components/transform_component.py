@@ -1,11 +1,13 @@
-from glm import vec2
-
 from ...ecs import Component
+from ...math.vec2 import Vec2
 
 
 class Transform(Component):
     def __init__(
-        self, position: vec2 = vec2(0, 0), scale: vec2 = vec2(1, 1), rotation: float = 0
+        self,
+        position: Vec2 = Vec2(0, 0),
+        scale: Vec2 = Vec2(1, 1),
+        rotation: float = 0,
     ):
         self.position = position
         self.scale = scale

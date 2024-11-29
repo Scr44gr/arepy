@@ -1,6 +1,6 @@
 from ...asset_store import AssetStore
 from ...ecs import System
-from ...engine.renderer import BaseRenderer
+from ...engine.renderer.renderer_2d_repository import Color, Rect, Renderer2DRepository
 from ..components import Sprite, Transform
 
 
@@ -11,8 +11,7 @@ class RenderSystem(System):
 
     def update(
         self,
-        dt: float,
-        renderer: BaseRenderer,
+        renderer: Renderer2DRepository,
         asset_store: AssetStore,
     ):
 
@@ -21,22 +20,22 @@ class RenderSystem(System):
             sprite = entity.get_component(Sprite)
             texture = asset_store.get_texture(sprite.asset_id)
             texture_size = texture.get_size()
-            dst_rect = (
-                float(texture_size[0]),
-                float(texture_size[1]),
+            dst_rect = Rect(
                 position.x,
                 position.y,
+                int(texture_size[0]),
+                int(texture_size[1]),
             )
-            src_rect = (
+            src_rect = Rect(
                 float(sprite.src_rect[0]),
                 float(sprite.src_rect[1]),
-                float(sprite.src_rect[2]),
-                float(sprite.src_rect[3]),
+                int(sprite.src_rect[2]),
+                int(sprite.src_rect[3]),
             )
 
-            renderer.draw_sprite(
+            renderer.draw_texture(
                 texture,
                 src_rect,
                 dst_rect,
-                (255, 255, 255, 255),
+                Color(255, 255, 255, 255),
             )

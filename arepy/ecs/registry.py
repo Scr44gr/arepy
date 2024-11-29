@@ -1,7 +1,7 @@
 import logging
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Type, cast
+from typing import Dict, List, Optional, Set, Type, cast
 
 from .components import ComponentIndex, ComponentPool, IComponentPool, TComponent
 from .constants import MAX_COMPONENTS
@@ -17,9 +17,12 @@ logger = logging.getLogger(__name__)
 
 
 class Entity:
+    __slots__ = ["_id", "_registry", "_component_cache"]
+
     def __init__(self, id: int, registry: "Registry"):
         self._id = id
         self._registry = registry
+        self._component_cache = {}
 
     def get_id(self) -> int:
         return self._id
@@ -28,15 +31,23 @@ class Entity:
         if self._registry is None:
             raise RegistryNotSetError
 
+        if component := self._component_cache.get(component_type):
+            return component
+
         component = self._registry.get_component(self, component_type)
         if component is None:
             raise ComponentNotFoundError(component_type)
+
+        self._component_cache[component_type] = component
         return component
 
     def remove_component(self, component_type: Type[TComponent]) -> None:
         if self._registry is None:
             raise RegistryNotSetError
         self._registry.remove_component(self, component_type)
+
+        if component_type in self._component_cache:
+            del self._component_cache[component_type]
 
     def has_component(self, component_type: Type[TComponent]) -> bool:
         if self._registry is None:
@@ -46,6 +57,7 @@ class Entity:
     def kill(self) -> None:
         if self._registry is None:
             raise RegistryNotSetError
+        self._component_cache.clear()
         self._registry.kill_entity(self)
 
     def __repr__(self) -> str:
@@ -59,16 +71,19 @@ class Entity:
             return False
         return self._id == other._id
 
+    def __hash__(self) -> int:
+        return hash(self._id)
 
-@dataclass
+
+@dataclass(slots=True)
 class Registry:
     number_of_entities: int = 0
     component_pools: List[Optional[IComponentPool]] = field(default_factory=list)
     systems: Dict[str, Optional[System]] = field(default_factory=dict)
     entity_component_signatures: List[Signature] = field(default_factory=list)
 
-    entities_to_be_added: List[Entity] = field(default_factory=list)
-    entities_to_be_removed: List[Entity] = field(default_factory=list)
+    entities_to_be_added: Set[Entity] = field(default_factory=set)
+    entities_to_be_removed: Set[Entity] = field(default_factory=set)
     free_entity_ids: deque[int] = field(default_factory=deque)
 
     def create_entity(self) -> Entity:
@@ -77,13 +92,12 @@ class Registry:
             self.number_of_entities += 1
             entity_id = self.number_of_entities
             if entity_id >= len(self.entity_component_signatures):
-                # add a new signature for the new entity
                 self.entity_component_signatures.extend([Signature(MAX_COMPONENTS)])
         else:
             entity_id = self.free_entity_ids.popleft()
 
         entity = Entity(entity_id, self)
-        self.entities_to_be_added.append(entity)
+        self.entities_to_be_added.add(entity)
         return entity
 
     # Component management
@@ -125,9 +139,10 @@ class Registry:
     ) -> Optional[TComponent]:
         entity_id: int = entity.get_id()
         component_id: int = ComponentIndex.get_id(component_type.__name__)
-        if component_id > len(self.component_pools):
-            return None
-        if self.component_pools[component_id - 1] is None:
+        if (
+            component_id > len(self.component_pools)
+            or self.component_pools[component_id - 1] is None
+        ):
             return None
 
         component_pool: ComponentPool[TComponent] = cast(
@@ -179,7 +194,7 @@ class Registry:
             system._remove_entity(entity)
 
     def kill_entity(self, entity: Entity) -> None:
-        self.entities_to_be_removed.append(entity)
+        self.entities_to_be_removed.add(entity)
 
     def remove_system(self, system: Type[TSystem]) -> None:
         system_name = type(system).__name__
@@ -195,6 +210,7 @@ class Registry:
 
     # Update
     def update(self) -> None:
+
         if len(self.entities_to_be_added) > 0:
             for entity in self.entities_to_be_added:
                 self.add_entity_to_systems(entity)

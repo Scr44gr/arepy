@@ -1,9 +1,12 @@
 from enum import Enum
+from os.path import exists
+from pathlib import Path
 from typing import Dict
 
 from freetype import Face
 
-from ..engine.renderer import ArepyTexture, BaseRenderer
+from ..engine.renderer import ArepyTexture
+from ..engine.renderer.renderer_2d_repository import Renderer2DRepository
 
 
 class TextureFilter(Enum):
@@ -17,11 +20,14 @@ class AssetStore:
 
     def load_texture(
         self,
-        renderer: BaseRenderer,
+        renderer: Renderer2DRepository,
         name: str,
         path: str,
     ) -> None:
-        self.textures[name] = renderer.create_texture(path)
+        if not exists(path):
+            raise FileNotFoundError(f"Texture file not found: {path}")
+
+        self.textures[name] = renderer.create_texture(path=Path(path))
 
     def load_font(self, name: str, path: str, size: int) -> None:
         font = Face(path)

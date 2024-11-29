@@ -1,6 +1,5 @@
 from sdl2 import SDL_Event
 
-from ...ecs.registry import Entity
 from ..event_manager import Event
 
 
