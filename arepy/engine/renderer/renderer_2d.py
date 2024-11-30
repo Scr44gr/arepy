@@ -5,7 +5,7 @@ from ...bundle.components.camera_component import Camera2D
 from . import ArepyTexture, Color, Rect
 
 
-class Renderer2DRepository(Protocol):
+class Renderer2D(Protocol):
     # Texture methods
     def create_texture(self, path: PathLike[str]) -> ArepyTexture: ...
 

@@ -6,7 +6,7 @@ from typing import Dict
 from freetype import Face
 
 from ..engine.renderer import ArepyTexture
-from ..engine.renderer.renderer_2d_repository import Renderer2DRepository
+from ..engine.renderer.renderer_2d import Renderer2D
 
 
 class TextureFilter(Enum):
@@ -20,7 +20,7 @@ class AssetStore:
 
     def load_texture(
         self,
-        renderer: Renderer2DRepository,
+        renderer: Renderer2D,
         name: str,
         path: str,
     ) -> None:

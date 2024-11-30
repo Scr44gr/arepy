@@ -1,7 +1,7 @@
 import logging
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set, Type, cast
+from typing import Callable, Dict, List, Optional, Set, Type, cast
 
 from .components import ComponentIndex, ComponentPool, IComponentPool, TComponent
 from .constants import MAX_COMPONENTS
@@ -10,7 +10,8 @@ from .exceptions import (
     MaximumComponentsExceededError,
     RegistryNotSetError,
 )
-from .systems import System, TSystem
+from .query import get_query_from_args, make_query_signature
+from .systems import System, SystemPipeline
 from .utils import Signature
 
 logger = logging.getLogger(__name__)
@@ -79,12 +80,17 @@ class Entity:
 class Registry:
     number_of_entities: int = 0
     component_pools: List[Optional[IComponentPool]] = field(default_factory=list)
-    systems: Dict[str, Optional[System]] = field(default_factory=dict)
+    systems: Dict[SystemPipeline, Set[System]] = field(default_factory=dict)
+    # TODO: make the queries type hints more robust
+    queries: dict[System, dict] = field(default_factory=dict)
     entity_component_signatures: List[Signature] = field(default_factory=list)
 
     entities_to_be_added: Set[Entity] = field(default_factory=set)
     entities_to_be_removed: Set[Entity] = field(default_factory=set)
     free_entity_ids: deque[int] = field(default_factory=deque)
+
+    # resources
+    resources: dict[str, object] = field(default_factory=dict)
 
     def create_entity(self) -> Entity:
 
@@ -170,9 +176,32 @@ class Registry:
         return self.entity_component_signatures[entity_id - 1].test(component_id)
 
     # System management
-    def add_system(self, system: Type[System], **kwargs) -> None:
-        system_name: str = str(system.__name__)
-        self.systems[system_name] = system(**kwargs)
+    def add_system(self, pipeline: SystemPipeline, system: System, **kwargs) -> None:
+
+        if type(system) is tuple:
+            assert isinstance(system, tuple)
+            for callback in system:
+                arguments = make_query_signature(callback)
+                self.queries[callback] = arguments
+        else:
+            arguments = make_query_signature(system)  # type: ignore
+            # fill arguments with the resources
+            for argument in arguments.copy():
+                for resource in self.resources:
+                    try:
+
+                        if resource == argument.__name__:  # type: ignore
+                            arguments[self.resources[resource]] = arguments.pop(
+                                argument
+                            )
+                    except AttributeError:
+                        continue
+            self.queries[system] = arguments
+
+        if self.systems.get(pipeline) is None:
+            self.systems[pipeline] = set()
+
+        self.systems[pipeline].add(system)
 
     def add_entity_to_systems(self, entity: Entity) -> None:
         entity_id: int = entity.get_id()
@@ -180,33 +209,24 @@ class Registry:
             entity_id - 1
         ]
 
-        for system in self.systems.values():
-            if system is None:
-                continue
-
-            if system.get_component_signature().matches(entity_component_signature):
-                system._add_entity(entity)
+        for arguments in self.queries.values():
+            query = get_query_from_args(arguments)
+            if query.get_component_signature().matches(entity_component_signature):
+                query.add_entity(entity)
 
     def remove_entity_from_systems(self, entity: Entity) -> None:
-        for system in self.systems.values():
-            if system is None:
-                continue
-            system._remove_entity(entity)
+        for arguments in self.queries.values():
+            query = get_query_from_args(arguments)
+            query.remove_entity(entity)
 
     def kill_entity(self, entity: Entity) -> None:
         self.entities_to_be_removed.add(entity)
 
-    def remove_system(self, system: Type[TSystem]) -> None:
-        system_name = type(system).__name__
-        self.systems.pop(system_name)
+    def remove_system(self, pipeline: SystemPipeline, system: System) -> None:
+        self.systems[pipeline].remove(system)
 
-    def has_system(self, system: Type[TSystem]) -> bool:
-        system_name = type(system).__name__
-        return system_name in self.systems
-
-    def get_system(self, system: Type[TSystem]) -> Optional[TSystem]:
-        system_name: str = system.__name__
-        return cast(Optional[TSystem], self.systems.get(system_name))
+    def has_system(self, system: System) -> bool:
+        return system in self.systems
 
     # Update
     def update(self) -> None:
@@ -222,3 +242,7 @@ class Registry:
                 self.entity_component_signatures[entity.get_id() - 1].clear()
                 self.free_entity_ids.append(entity.get_id())
             self.entities_to_be_removed.clear()
+
+    def run(self, pipeline: SystemPipeline) -> None:
+        for system in self.systems[pipeline]:
+            system(*self.queries[system])  # type: ignore

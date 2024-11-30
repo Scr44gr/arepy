@@ -42,10 +42,15 @@ from bitarray import bitarray
 class Signature:
     def __init__(self, size: int):
         self.__bits = bitarray(size)
-        self.__bits.setall(False)  # Inicializar todos los bits a False
+        self.__bits.setall(False)
+        self.__flipped = False
 
     def set(self, index, value: bool):
         self.__bits[index] = value
+
+    def flip(self):
+        self.__flipped = not self.__flipped
+        self.__bits = ~self.__bits
 
     def clear_bit(self, index: int):
         self.__bits[index] = False
@@ -62,3 +67,7 @@ class Signature:
 
     def clear(self):
         self.__bits.setall(False)
+
+    @property
+    def was_flipped(self):
+        return self.__flipped

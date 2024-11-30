@@ -1,12 +1,15 @@
-from typing import Type
+from typing import Any, Dict, Type
 
 from ..asset_store import AssetStore
 from ..builders import EntityBuilder
-from ..container import dependencies
 from ..ecs.registry import Registry
-from ..ecs.systems import TSystem
-from ..engine.renderer.renderer_2d_repository import Color
+from ..ecs.systems import System, SystemPipeline
 from ..event_manager import EventManager
+from .display import DisplayRepository
+from .input import InputRepository
+from .renderer.renderer_2d import Color, Renderer2D
+
+Resources: Dict[str, Any] = {}
 
 
 class ArepyEngine:
@@ -22,12 +25,22 @@ class ArepyEngine:
     vsync: bool = False
 
     def __init__(self):
-        self._registry = Registry()
+        from ..container import dependencies
+
         self._asset_store = AssetStore()
         self._event_manager = EventManager()
         self.display = dependencies().display_repository
         self.renderer = dependencies().renderer_repository
         self.input = dependencies().input_repository
+        # add resources
+        Resources[DisplayRepository.__name__] = self.display
+        Resources[Renderer2D.__name__] = self.renderer
+        Resources[InputRepository.__name__] = self.input
+        Resources[EventManager.__name__] = self._event_manager
+        Resources[AssetStore.__name__] = self._asset_store
+
+        self._registry = Registry()
+        self._registry.resources = Resources
 
     def init(self):
         self.display.set_vsync(self.vsync)
@@ -49,12 +62,14 @@ class ArepyEngine:
     def __input_process(self): ...
 
     def __update_process(self):
+        self._registry.run(pipeline=SystemPipeline.UPDATE)
         self.on_update()
         self._registry.update()
 
     def __render_process(self):
         self.renderer.start_frame()
         self.renderer.clear(color=Color(245, 245, 245, 255))
+        self._registry.run(pipeline=SystemPipeline.RENDER)
         self.on_render()
         self.renderer.draw_fps(position=(10, 10))
         self.renderer.end_frame()
@@ -68,27 +83,14 @@ class ArepyEngine:
         entity = self._registry.create_entity()
         return EntityBuilder(entity, self._registry)
 
-    def add_system(self, system: Type[TSystem]) -> None:
+    def add_system(self, pipeline: SystemPipeline, system: System) -> None:
         """Create a new system.
 
         Args:
+            pipeline: A pipeline to add the system.
             system: A system.
         """
-        self._registry.add_system(system)
-
-    def get_system(self, system_type: Type[TSystem]) -> TSystem:
-        """Get a system.
-
-        Args:
-            system_type: The system type.
-
-        Returns:
-            The system.
-        """
-        system = self._registry.get_system(system_type)
-        if not system:
-            raise RuntimeError(f"System {system_type} does not exist.")
-        return system
+        self._registry.add_system(pipeline, system)
 
     def get_asset_store(self) -> AssetStore:
         """Get the asset store.
