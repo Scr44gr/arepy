@@ -39,3 +39,8 @@ class AssetStore:
 
     def get_font(self, name: str) -> Face:
         return self.fonts[name]
+
+    def unload_texture(self, renderer: Renderer2D, name: str) -> None:
+
+        texture = self.textures.pop(name)
+        renderer.unload_texture(texture)

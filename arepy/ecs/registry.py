@@ -1,7 +1,8 @@
 import logging
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional, Set, Type, cast
+from inspect import isclass, isfunction
+from typing import Dict, List, Optional, Set, Type, cast
 
 from .components import ComponentIndex, ComponentPool, IComponentPool, TComponent
 from .constants import MAX_COMPONENTS
@@ -176,32 +177,25 @@ class Registry:
         return self.entity_component_signatures[entity_id - 1].test(component_id)
 
     # System management
-    def add_system(self, pipeline: SystemPipeline, system: System, **kwargs) -> None:
+    def add_system(self, pipeline: SystemPipeline, system: System) -> None:
 
-        if type(system) is tuple:
-            assert isinstance(system, tuple)
-            for callback in system:
-                arguments = make_query_signature(callback)
-                self.queries[callback] = arguments
-        else:
-            arguments = make_query_signature(system)  # type: ignore
-            # fill arguments with the resources
-            for argument in arguments.copy():
-                for resource in self.resources:
-                    try:
-
-                        if resource == argument.__name__:  # type: ignore
-                            arguments[self.resources[resource]] = arguments.pop(
-                                argument
-                            )
-                    except AttributeError:
-                        continue
-            self.queries[system] = arguments
+        arguments = make_query_signature(system)
+        self._fill_arguments_with_resources(arguments)
+        self.queries[system] = arguments
 
         if self.systems.get(pipeline) is None:
             self.systems[pipeline] = set()
-
+        if not isfunction(system):
+            raise ValueError("System must be a function")
         self.systems[pipeline].add(system)
+
+    def _fill_arguments_with_resources(self, arguments: dict) -> None:
+        for argument in arguments.copy():
+            for resource_name, _ in self.resources.items():
+                if isclass(argument) and resource_name == argument.__name__:
+                    resource_value = self.resources[resource_name]
+                    argument_value = arguments.pop(argument)
+                    arguments[resource_value] = argument_value
 
     def add_entity_to_systems(self, entity: Entity) -> None:
         entity_id: int = entity.get_id()
@@ -245,4 +239,4 @@ class Registry:
 
     def run(self, pipeline: SystemPipeline) -> None:
         for system in self.systems[pipeline]:
-            system(*self.queries[system])  # type: ignore
+            system(*self.queries[system])

@@ -56,13 +56,14 @@ class RegistryTest(TestCase):
 
         # Kill the entity
         registry.kill_entity(entity)
-
+        self.assertEqual(len(registry.entities_to_be_removed), 1)
+        # Update the registry
+        registry.update()
         # Ensure the entity is removed
         self.assertEqual(registry.number_of_entities, 1)
         self.assertEqual(len(registry.component_pools), 2)
         self.assertEqual(len(registry.entity_component_signatures), 1)
-        self.assertEqual(len(registry.entities_to_be_added), 1)
-        self.assertEqual(len(registry.entities_to_be_removed), 1)
+        self.assertEqual(len(registry.entities_to_be_removed), 0)
 
 
 # to run: python -m unittest tests/units/test_registry.py

@@ -1,6 +1,6 @@
-from typing import Generic, List, Type, TypeVar, cast
+from typing import List
 
-from .ecs.components import Component, PComponent, TComponent
+from .ecs.components import Component
 from .ecs.registry import Entity, Registry
 
 
@@ -8,7 +8,7 @@ class EntityBuilder:
     """A builder for entities.
 
     This is a wrapped class for the entity class.
-    It allows for the creation of entities with components without having to touch the registry.
+    It allows for the creation of entities with components without having to touch the ecs registry.
     """
 
     _registry: Registry

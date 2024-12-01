@@ -31,11 +31,26 @@ class EntityWith(Generic[P]): ...
 class EntityWithout(Generic[P]): ...
 
 
-# The query must be run in a separate thread
-# and we need to find a way to differentiate between READ and WRITE queries
-# read queries can be run in parallel while write queries must be run sequentially in the main thread
 class Query(Generic[T]):
-    """Query class to define the components to query for."""
+    """
+
+    Query class to filter entities based on the components they have.
+
+    TODO: test this example and fix it if needed hehe :D
+    Example:
+    ```python
+    from arepy.ecs.query import Query, EntityWith
+    from arepy.bundle.components import Transform, Rigidbody2D
+
+    def movement_system(query: Query[EntityWith[Transform, Rigidbody2D]]):
+        for entity in query.get_entities():
+            position = entity.get_component(Transform).position
+            velocity = entity.get_component(Rigidbody2D).velocity
+
+            position.x += velocity.x
+            position.y += velocity.y
+    ```
+    """
 
     def __init__(self) -> None:
         self._signature = Signature(MAX_COMPONENTS)
@@ -62,8 +77,8 @@ class Query(Generic[T]):
         return iter(self._entities)
 
 
-# should return a dict with the args as keys without values except for the query
 def make_query_signature(function: Callable) -> OrderedDict[object, Any]:
+    """Sign the query with the components that the function needs."""
 
     func_arguments = get_args(function)
     query_signature = get_query_from_args(func_arguments, raw_query=True)
@@ -93,10 +108,12 @@ def get_args(function: Callable) -> OrderedDict[object, str]:
 def get_query_from_args(args: dict[object, str], raw_query: bool = False) -> Query:
 
     if raw_query:
+        # When whe have a raw query(Annotation) search for it and return it
         result = [key for key in args if key.__qualname__ == Query.__name__][0]
         return cast(Query, result)
 
-    for key, _ in args.items():
-        if isinstance(key, Query):
-            return key
+    for instance, _ in args.items():
+        # When the instance is a Query, return it ^-^
+        if isinstance(instance, Query):
+            return instance
     raise Exception("Missing Query annotation")

@@ -1,10 +1,9 @@
 from enum import Enum
 from typing import Callable
 
-System = Callable | tuple[Callable, ...]
+System = Callable[[], None]
 
 
-# Maybe this should be in the engine module? 7-7
 class SystemPipeline(Enum):
     """Pipeline for systems to be executed in."""
 

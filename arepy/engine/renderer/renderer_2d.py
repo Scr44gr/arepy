@@ -8,6 +8,7 @@ from . import ArepyTexture, Color, Rect
 class Renderer2D(Protocol):
     # Texture methods
     def create_texture(self, path: PathLike[str]) -> ArepyTexture: ...
+    def unload_texture(self, texture: ArepyTexture) -> None: ...
 
     # Draw methods
     def draw_texture(

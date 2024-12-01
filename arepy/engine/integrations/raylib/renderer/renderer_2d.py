@@ -22,6 +22,16 @@ def create_texture(path: PathLike[str]) -> ArepyTexture:
     return arepy_texture
 
 
+def unload_texture(texture: ArepyTexture) -> None:
+    """
+    Unload a texture.
+
+    Args:
+        texture (ArepyTexture): The texture to unload.
+    """
+    rl.UnloadTexture(texture._ref)  # type: ignore
+
+
 def set_max_framerate(max_frame_rate: int) -> None:
     """
     Set the maximum framerate.

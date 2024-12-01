@@ -11,6 +11,8 @@ class ArepyTexture:
     def get_size(self) -> tuple[int, int]:
         return self._texture_size
 
+    def unload(self) -> None: ...
+
 
 @dataclass
 class Rect:

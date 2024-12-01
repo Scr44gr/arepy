@@ -17,7 +17,7 @@ class ArepyEngine:
     window_width: int = 640
     window_height: int = 480
     # Logical size
-    screen_size = (window_width, window_height)
+    render_size = (window_width, window_height)
     max_frame_rate: int = 60
     debug: bool = False
     fullscreen: bool = False
