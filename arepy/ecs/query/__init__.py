@@ -12,6 +12,8 @@ from typing import (
     cast,
 )
 
+from arepy.ecs.threading import ECS_LOCK
+
 from ..components import Component, ComponentIndex
 from ..constants import MAX_COMPONENTS
 from ..utils import Signature
@@ -22,7 +24,7 @@ except ImportError:
     ...
 
 T = TypeVar("T")
-P = ParamSpec("P")
+P = ParamSpec("P", bound=Type[Component])  # type: ignore
 
 
 class EntityWith(Generic[P]): ...
@@ -77,43 +79,58 @@ class Query(Generic[T]):
         return iter(self._entities)
 
 
-def make_query_signature(function: Callable) -> OrderedDict[object, Any]:
-    """Sign the query with the components that the function needs."""
+def make_query_signature(function: Callable) -> OrderedDict[Any, str]:
+    """Sign the query with the components that the function needs.
 
-    func_arguments = get_args(function)
+    note: in Python 3.14 we can use the new feature of the annotations module to get the annotations of a function.
+    @see: https://docs.python.org/3.14/library/annotationlib.html
+    """
+
+    func_arguments = get_annotations(function)
     query_signature = get_query_from_args(func_arguments, raw_query=True)
 
-    if query_signature:
-        raw_query: Query = cast(Query, query_signature)
-        kind_of_result = raw_query.__args__[0]  # type: ignore
-        required_components: tuple[Type[Component], ...] = kind_of_result.__args__[0]
-        query = raw_query()  # type: ignore
-        query._kind = kind_of_result
+    if not query_signature:
+        return OrderedDict()
 
-        query_signature_arguments = OrderedDict(
-            [(query, func_arguments.pop(query_signature))]
-        )
-        query_signature_arguments.update(func_arguments)
-        for component_type in required_components:
-            component_id = ComponentIndex.get_id(component_type.__name__)
-            query._signature.set(component_id, True)
+    raw_query: Callable[[], Query] = cast(Callable[[], Query], query_signature)
+    kind_of_result = raw_query.__args__[0]
+    required_components: tuple[Type[Component], ...] = kind_of_result.__args__[0]
+    query: Query = raw_query()
+    query._kind = kind_of_result
+
+    # TODO:
+    # if the query arg is not the first argument we will have problems
+    # in order to fix this we should convert the func_arguments to a list and identify the query_signature index
+    # after sign the query we should return the arguments in the correct order
+    query_signature_arguments = OrderedDict(
+        [(query, func_arguments.pop(query_signature))]
+    )
+    query_signature_arguments.update(func_arguments)
+    for component_type in required_components:
+        component_id = ComponentIndex.get_id(component_type.__name__)
+        query._signature.set(component_id, True)
 
     return query_signature_arguments
 
 
-def get_args(function: Callable) -> OrderedDict[object, str]:
-    return OrderedDict({value: key for (key, value) in OrderedDict(function.__annotations__).items()})  # type: ignore
+def get_annotations(function: Callable) -> OrderedDict[Any, str]:
+    """Get the annotations of a function in order"""
+    return OrderedDict(
+        {value: key for (key, value) in OrderedDict(function.__annotations__).items()}
+    )
 
 
-def get_query_from_args(args: dict[object, str], raw_query: bool = False) -> Query:
+def get_query_from_args(
+    args: dict[object, str], raw_query: bool = False
+) -> Callable[[], Query] | Query:
 
+    # When whe have a raw query(Annotation) search for it and return it
     if raw_query:
-        # When whe have a raw query(Annotation) search for it and return it
         result = [key for key in args if key.__qualname__ == Query.__name__][0]
-        return cast(Query, result)
+        return cast(Callable[[], Query], result)
 
+    # When the instance is a Query, return it ^-^
     for instance, _ in args.items():
-        # When the instance is a Query, return it ^-^
         if isinstance(instance, Query):
             return instance
     raise Exception("Missing Query annotation")

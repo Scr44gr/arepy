@@ -1,9 +1,11 @@
+from threading import Thread
 from typing import Any, Dict, Type
 
 from ..asset_store import AssetStore
 from ..builders import EntityBuilder
 from ..ecs.registry import Registry
 from ..ecs.systems import System, SystemPipeline
+from ..ecs.threading import ECS_KILL_THREAD_EVENT, run_ecs_thread_executor
 from ..event_manager import EventManager
 from .display import DisplayRepository
 from .input import InputRepository
@@ -52,11 +54,13 @@ class ArepyEngine:
     def run(self):
 
         self.on_startup()
+        # _ = Thread(target=run_ecs_thread_executor, daemon=True).start()
         while not self.display.window_should_close():
             self.__input_process()
             self.__update_process()
             self.__render_process()
 
+        ECS_KILL_THREAD_EVENT.set()
         self.on_shutdown()
 
     def __input_process(self): ...

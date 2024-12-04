@@ -9,7 +9,7 @@ try:
     # load environment variables from .env file
     load_dotenv(find_dotenv())
 except ImportError:
-    pass
+    ...
 
 logger_level = int(getenv("LOG_LEVEL", 50))
 

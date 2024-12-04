@@ -13,6 +13,7 @@ from .exceptions import (
 )
 from .query import get_query_from_args, make_query_signature
 from .systems import System, SystemPipeline
+from .threading import ECS_EXECUTOR_QUEUE
 from .utils import Signature
 
 logger = logging.getLogger(__name__)
@@ -239,4 +240,8 @@ class Registry:
 
     def run(self, pipeline: SystemPipeline) -> None:
         for system in self.systems[pipeline]:
+            # Need to improve the threading system
+            # maybe spliting the queries in chunks of entities
+            # if pipeline == SystemPipeline.UPDATE:
+            #   ECS_EXECUTOR_QUEUE.put_nowait((system, self.queries[system]))
             system(*self.queries[system])
