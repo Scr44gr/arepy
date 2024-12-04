@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=72"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arepy"
+description = "An ECS python game engine"
+authors = [{ name = "Abrahan Gil", email = "scr44gr@protonmail.com" }]
+license = { file = "LICENSE" }
+classifiers = [
+    'OSI Approved :: MIT License',
+    'Development Status :: 3 - Alpha',
+    'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.12',
+    'Programming Language :: Python :: 3.13',
+    'Operating System :: Microsoft :: Windows',
+    'Operating System :: POSIX :: Linux',
+    'Operating System :: MacOS :: MacOS X',
+]
+keywords = ['ecs', 'game-engine', 'python-game-engine']
+requires-python = ">=3.10"
+dependencies = ["bitarray==2.9.2", "raylib==5.5.0.2"]
+dynamic = ['version', 'readme']
+
+[project.optional-dependencies]
+imgui = ["imgui==2.0.0"]
+
+[tool.uv]
+dev-dependencies = ["python-dotenv==1.0.1"]
+
+[tool.setuptools.packages.find]
+include = ["/arepy", "/README.md", "/LICENSE"]
+
+[tool.setuptools.dynamic]
+version = {attr = "arepy.__version__"}
+readme = {file = "README.md"}
