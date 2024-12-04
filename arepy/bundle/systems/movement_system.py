@@ -3,7 +3,7 @@ from ...engine.renderer.renderer_2d import Renderer2D
 from ..components.rigidbody_component import RigidBody2D
 from ..components.transform_component import Transform
 
-LIMITS = (800, 600)
+LIMITS = (640 - 32, 480 - 32)
 
 
 def movement_system(
@@ -18,14 +18,15 @@ def movement_system(
 
         if transform.position.x < 0:
             transform.position.x = 0
-            velocity.x *= -1
-        if transform.position.y < 0:
-            transform.position.y = 0
-            velocity.y *= -1
-
+            velocity.x = -velocity.x
         if transform.position.x > LIMITS[0]:
             transform.position.x = LIMITS[0]
-            velocity.x *= -1
+            velocity.x = -velocity.x
+
+        if transform.position.y < 0:
+            transform.position.y = 0
+            velocity.y = -velocity.y
+
         if transform.position.y > LIMITS[1]:
             transform.position.y = LIMITS[1]
-            velocity.y *= -1
+            velocity.y = -velocity.y
