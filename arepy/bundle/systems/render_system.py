@@ -1,6 +1,7 @@
 from random import choice
 
-from arepy.ecs.query import EntityWith, Query
+from arepy.ecs.query import Query, With
+from arepy.ecs.registry import Entity
 
 from ...asset_store import AssetStore
 from ...engine.renderer.renderer_2d import Color, Rect, Renderer2D
@@ -19,7 +20,7 @@ COLORS = [
 
 
 def render_system(
-    query: Query[EntityWith[Transform, Sprite]],
+    query: Query[Entity, With[Transform, Sprite]],
     renderer: Renderer2D,
     asset_store: AssetStore,
 ):

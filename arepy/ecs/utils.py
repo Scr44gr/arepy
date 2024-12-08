@@ -61,8 +61,8 @@ class Signature:
     def get_bits(self):
         return self.__bits
 
-    def matches(self, signature: "Signature"):
-        matches = (signature.get_bits() & self.get_bits()) == self.get_bits()
+    def matches(self, other_signature: "Signature"):
+        matches = (other_signature.get_bits() & self.get_bits()) == self.get_bits()
         return matches
 
     def clear(self):

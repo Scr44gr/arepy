@@ -6,76 +6,14 @@ from typing import Dict, List, Optional, Set, Type, cast
 
 from .components import ComponentIndex, ComponentPool, IComponentPool, TComponent
 from .constants import MAX_COMPONENTS
-from .exceptions import (
-    ComponentNotFoundError,
-    MaximumComponentsExceededError,
-    RegistryNotSetError,
-)
+from .entities import Entity
+from .exceptions import MaximumComponentsExceededError
 from .query import get_query_from_args, make_query_signature
 from .systems import System, SystemPipeline
 from .threading import ECS_EXECUTOR_QUEUE
 from .utils import Signature
 
 logger = logging.getLogger(__name__)
-
-
-class Entity:
-    __slots__ = ["_id", "_registry", "_component_cache"]
-
-    def __init__(self, id: int, registry: "Registry"):
-        self._id = id
-        self._registry = registry
-        self._component_cache = {}
-
-    def get_id(self) -> int:
-        return self._id
-
-    def get_component(self, component_type: Type[TComponent]) -> TComponent:
-        if self._registry is None:
-            raise RegistryNotSetError
-
-        if component := self._component_cache.get(component_type):
-            return component
-
-        component = self._registry.get_component(self, component_type)
-        if component is None:
-            raise ComponentNotFoundError(component_type)
-
-        self._component_cache[component_type] = component
-        return component
-
-    def remove_component(self, component_type: Type[TComponent]) -> None:
-        if self._registry is None:
-            raise RegistryNotSetError
-        self._registry.remove_component(self, component_type)
-
-        if component_type in self._component_cache:
-            del self._component_cache[component_type]
-
-    def has_component(self, component_type: Type[TComponent]) -> bool:
-        if self._registry is None:
-            raise RegistryNotSetError
-        return self._registry.has_component(self, component_type)
-
-    def kill(self) -> None:
-        if self._registry is None:
-            raise RegistryNotSetError
-        self._component_cache.clear()
-        self._registry.kill_entity(self)
-
-    def __repr__(self) -> str:
-        return f"Entity(id={self._id})"
-
-    def __str__(self) -> str:
-        return self.__repr__()
-
-    def __eq__(self, other: "Entity") -> bool:
-        if not isinstance(other, Entity):
-            return False
-        return self._id == other._id
-
-    def __hash__(self) -> int:
-        return hash(self._id)
 
 
 @dataclass(slots=True)
@@ -206,12 +144,16 @@ class Registry:
 
         for arguments in self.queries.values():
             query = get_query_from_args(arguments)
+            if not query:
+                continue
             if query.get_component_signature().matches(entity_component_signature):
                 query.add_entity(entity)
 
     def remove_entity_from_systems(self, entity: Entity) -> None:
         for arguments in self.queries.values():
             query = get_query_from_args(arguments)
+            if not query:
+                continue
             query.remove_entity(entity)
 
     def kill_entity(self, entity: Entity) -> None:
