@@ -1,5 +1,5 @@
 # Arepy 🎮
-An ECS game engine using python with raylib :)
+An ECS game engine created in python with raylib and imgui integration :)
 
 ## Installation 📖
 ```bash
