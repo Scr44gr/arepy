@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Any, Optional, Protocol
 
 
@@ -7,6 +8,7 @@ class ImGuiRendererRepository(Protocol):
     def process_inputs(self): ...
 
 
+@dataclass(frozen=True)
 class Default:
     def __init__(self, *args, **kwargs):
         pass
@@ -15,7 +17,7 @@ class Default:
         return self
 
     def __call__(self, *args, **kwargs):
-        return self
+        return False
 
 
 class ImGui(Protocol):

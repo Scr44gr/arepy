@@ -7,7 +7,6 @@ from .arepy_imgui.imgui_repository import ImGui, ImGuiRendererRepository
 from .engine.display import Display
 from .engine.input import Input
 from .engine.integrations.raylib.display import display_repository
-from .engine.integrations.raylib.imgui.backend import ImguiRenderer
 
 # ModernGLRenderer implementation
 from .engine.integrations.raylib.input import input_repository
@@ -17,10 +16,13 @@ from .engine.renderer.renderer_2d import Renderer2D
 try:
     from imgui_bundle import imgui, imgui_ctx
 
+    from .engine.integrations.raylib.imgui.backend import ImguiRenderer
+
     imgui.create_context()
-except ImportError:
+except (ImportError, ModuleNotFoundError):
     imgui = None
     imgui_ctx = None
+    ImguiRenderer = EmptyRepository
 
 
 @dataclass(frozen=True)
