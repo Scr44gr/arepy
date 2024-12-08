@@ -89,3 +89,8 @@ def set_exit_key(key: Key) -> None:
         key (Key): The key to set as the exit key.
     """
     rl.SetExitKey(key.value)
+
+
+def pool_events() -> None:
+    """Pool the events."""
+    rl.PollInputEvents()

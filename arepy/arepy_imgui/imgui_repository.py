@@ -1,13 +1,9 @@
-from abc import ABC
-from typing import Optional, Protocol
+from typing import Any, Optional, Protocol
 
 
-class ImguiRendererRepository(Protocol):
+class ImGuiRendererRepository(Protocol):
     def __init__(self, window: int): ...
-    def render(self, data: int): ...
-    def start_frame(self): ...
-    def end_frame(self): ...
-    def process_event(self, event: int): ...
+    def render(self, data: Any): ...
     def process_inputs(self): ...
 
 
@@ -22,8 +18,12 @@ class Default:
         return self
 
 
-class ImGuiRepository(Protocol):
+class ImGui(Protocol):
     """A helper class to interact with the ImGui library"""
+
+    def get_draw_data(self) -> Any:
+        """Get the draw data"""
+        ...
 
     def create_context(self):
         """Create a new ImGui Context"""

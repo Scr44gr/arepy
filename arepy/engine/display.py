@@ -2,7 +2,7 @@ from os import PathLike
 from typing import Protocol
 
 
-class DisplayRepository(Protocol):
+class Display(Protocol):
 
     def create_window(self, width: int, height: int, title: str) -> None: ...
     def window_should_close(self) -> bool: ...

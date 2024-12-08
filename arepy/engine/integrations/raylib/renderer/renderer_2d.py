@@ -162,14 +162,14 @@ def start_frame() -> None:
     """
     Start a frame.
     """
-    rl.BeginDrawing()
+    ...
 
 
 def end_frame() -> None:
     """
     End a frame.
     """
-    rl.EndDrawing()
+    rl.rlDrawRenderBatchActive()
 
 
 def get_delta_time() -> float:
@@ -190,3 +190,10 @@ def get_framerate() -> int:
         float: The current framerate.
     """
     return rl.GetFPS()
+
+
+def swap_buffers() -> None:
+    """
+    Swap the buffers.
+    """
+    rl.EndDrawing()

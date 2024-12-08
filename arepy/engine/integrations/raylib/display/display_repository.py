@@ -1,4 +1,3 @@
-# by default pyray/raylib use glfw
 from os import PathLike
 from os.path import exists
 
@@ -16,6 +15,7 @@ def create_window(width: int, height: int, title: str) -> None:
         height (int): The window height.
         title (str): The window title.
     """
+    rl.glfwInit()
     rl.InitWindow(width, height, title.encode("utf-8"))
 
 

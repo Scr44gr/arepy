@@ -96,7 +96,7 @@ class MouseButton(Enum):
     MIDDLE = 2
 
 
-class InputRepository(Protocol):
+class Input(Protocol):
     """Input repository interface."""
 
     def is_key_pressed(self, key: Key) -> bool:
@@ -163,4 +163,8 @@ class InputRepository(Protocol):
 
     def set_exit_key(self, key: Key) -> None:
         """Set the key that closes the window."""
+        ...
+
+    def pool_events(self) -> None:
+        """Pool events."""
         ...

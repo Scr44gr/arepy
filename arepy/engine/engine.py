@@ -1,14 +1,16 @@
 from threading import Thread
 from typing import Any, Dict, Type
 
+from arepy.arepy_imgui.imgui_repository import ImGui
+
 from ..asset_store import AssetStore
 from ..builders import EntityBuilder
 from ..ecs.registry import Registry
 from ..ecs.systems import System, SystemPipeline
 from ..ecs.threading import ECS_KILL_THREAD_EVENT, run_ecs_thread_executor
 from ..event_manager import EventManager
-from .display import DisplayRepository
-from .input import InputRepository
+from .display import Display
+from .input import Input
 from .renderer.renderer_2d import Color, Renderer2D
 
 Resources: Dict[str, Any] = {}
@@ -35,9 +37,9 @@ class ArepyEngine:
         self.renderer = dependencies().renderer_repository
         self.input = dependencies().input_repository
         # add resources
-        Resources[DisplayRepository.__name__] = self.display
+        Resources[Display.__name__] = self.display
         Resources[Renderer2D.__name__] = self.renderer
-        Resources[InputRepository.__name__] = self.input
+        Resources[Input.__name__] = self.input
         Resources[EventManager.__name__] = self._event_manager
         Resources[AssetStore.__name__] = self._asset_store
 
@@ -45,11 +47,17 @@ class ArepyEngine:
         self._registry.resources = Resources
 
     def init(self):
+        from ..container import dependencies
+
         self.display.set_vsync(self.vsync)
         self.display.create_window(self.window_width, self.window_height, self.title)
         self.renderer.set_max_framerate(self.max_frame_rate)
         if self.fullscreen:
             self.display.toggle_fullscreen()
+        # Imgui
+        self.imgui = dependencies().imgui_repository
+        self.imgui_backend_implementation = dependencies().imgui_renderer_repository()
+        self._registry.resources[ImGui.__name__] = self.imgui
 
     def run(self):
 
@@ -59,11 +67,10 @@ class ArepyEngine:
             self.__input_process()
             self.__update_process()
             self.__render_process()
-
-        ECS_KILL_THREAD_EVENT.set()
         self.on_shutdown()
 
-    def __input_process(self): ...
+    def __input_process(self):
+        self.imgui_backend_implementation.process_inputs()
 
     def __update_process(self):
         self._registry.run(pipeline=SystemPipeline.UPDATE)
@@ -73,10 +80,14 @@ class ArepyEngine:
     def __render_process(self):
         self.renderer.start_frame()
         self.renderer.clear(color=Color(245, 245, 245, 255))
+        self.imgui.new_frame()
         self._registry.run(pipeline=SystemPipeline.RENDER)
-        self.on_render()
         self.renderer.draw_fps(position=(10, 10))
+        self.on_render()
         self.renderer.end_frame()
+        self.imgui.render()
+        self.imgui_backend_implementation.render(self.imgui.get_draw_data())
+        self.renderer.swap_buffers()
 
     def create_entity(self) -> EntityBuilder:
         """Create an entity builder.
