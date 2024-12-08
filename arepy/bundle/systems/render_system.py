@@ -1,42 +1,50 @@
+from random import choice
+
+from arepy.ecs.query import Query, With
+from arepy.ecs.registry import Entity
+
 from ...asset_store import AssetStore
-from ...ecs import System
-from ...engine.renderer import BaseRenderer
+from ...engine.renderer.renderer_2d import Color, Rect, Renderer2D
 from ..components import Sprite, Transform
 
+COLORS = [
+    Color(255, 0, 0, 255),  # red
+    Color(0, 255, 0, 255),  # green
+    Color(0, 0, 255, 255),  # blue
+    Color(255, 255, 0, 255),  # yellow
+    Color(0, 255, 255, 255),  # cyan
+    Color(255, 0, 255, 255),  # magenta
+    Color(255, 255, 255, 255),  # white
+    Color(0, 0, 0, 255),  # black
+]
 
-class RenderSystem(System):
-    def __init__(self):
-        super().__init__()
-        self.require_components([Transform, Sprite])
 
-    def update(
-        self,
-        dt: float,
-        renderer: BaseRenderer,
-        asset_store: AssetStore,
-    ):
+def render_system(
+    query: Query[Entity, With[Transform, Sprite]],
+    renderer: Renderer2D,
+    asset_store: AssetStore,
+):
+    for entity in query.get_entities():
+        position = entity.get_component(Transform).position
+        sprite = entity.get_component(Sprite)
+        texture = asset_store.get_texture(sprite.asset_id)
+        texture_size = texture.get_size()
+        dst_rect = Rect(
+            position.x,
+            position.y,
+            int(texture_size[0]),
+            int(texture_size[1]),
+        )
+        src_rect = Rect(
+            float(sprite.src_rect[0]),
+            float(sprite.src_rect[1]),
+            int(sprite.src_rect[2]),
+            int(sprite.src_rect[3]),
+        )
 
-        for entity in self.get_entities():
-            position = entity.get_component(Transform).position
-            sprite = entity.get_component(Sprite)
-            texture = asset_store.get_texture(sprite.asset_id)
-            texture_size = texture.get_size()
-            dst_rect = (
-                float(texture_size[0]),
-                float(texture_size[1]),
-                position.x,
-                position.y,
-            )
-            src_rect = (
-                float(sprite.src_rect[0]),
-                float(sprite.src_rect[1]),
-                float(sprite.src_rect[2]),
-                float(sprite.src_rect[3]),
-            )
-
-            renderer.draw_sprite(
-                texture,
-                src_rect,
-                dst_rect,
-                (255, 255, 255, 255),
-            )
+        renderer.draw_texture(
+            texture,
+            src_rect,
+            dst_rect,
+            Color(255, 255, 255, 255),
+        )

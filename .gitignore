@@ -2,7 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
-
+.pyvenv/
 # C extensions
 *.so
 
@@ -160,3 +160,4 @@ cython_debug/
 #.idea/
 
 /assets
+/stuffs

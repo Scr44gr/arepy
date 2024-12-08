@@ -5,11 +5,11 @@ TEvent = TypeVar("TEvent", bound="Event")
 
 class Event:
     class EventId:
-        __id_counters: dict = {}
+        __id_counters: dict[str, int] = {}
         __last_insert: Optional[str] = None
 
         @classmethod
-        def get_id(cls, class_name):
+        def get_id(cls, class_name: str) -> int:
             internal_class_name = f"{class_name}_{id(cls)}"
             if not internal_class_name in cls.__id_counters:
                 counter = 0
@@ -27,13 +27,20 @@ class Event:
 
 
 class EventManager:
-    def __init__(self) -> None:
-        self._subscribers: Dict[str, List[Callable]] = {}
+    """A simple event manager that allows to subscribe and emit events."""
 
-    # subscribe
+    def __init__(self) -> None:
+        self._subscribers: Dict[int, List[Callable]] = {}
+
     def subscribe(
         self, event: Type[TEvent], callback: Callable[[TEvent], None]
     ) -> None:
+        """Subscribe to an event.
+
+        Args:
+            event (Type[TEvent]): The event to subscribe.
+            callback (Callable[[TEvent], None]): The callback to call when the event is emitted.
+        """
         event_id = event.EventId.get_id(event.__name__)
         if not event_id in self._subscribers:
             self._subscribers[event_id] = []
@@ -42,11 +49,18 @@ class EventManager:
     def unsubscribe(
         self, event: Type[TEvent], callback: Callable[[TEvent], None]
     ) -> None:
+        """Unsubscribe from an event.
+
+        Args:
+            event (Type[TEvent]): The event to unsubscribe.
+            callback (Callable[[TEvent], None]): The callback to remove from the subscribers.
+        """
         event_id = event.EventId.get_id(event.__name__)
         if event_id in self._subscribers:
             self._subscribers[event_id].remove(callback)
 
     def emit(self, event: Event) -> None:
+        """Emit an event."""
         event_id = event.EventId.get_id(event.__class__.__name__)
         if event_id in self._subscribers:
             for callback in self._subscribers[event_id]:

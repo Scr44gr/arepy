@@ -1,5 +1,4 @@
-from .engine.engine import Engine
+from .engine import ArepyEngine
 
-
-class Arepy(Engine):
-    pass
+__all__ = ["ArepyEngine"]
+__version__ = "0.1.0"

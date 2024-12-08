@@ -9,9 +9,9 @@ try:
     # load environment variables from .env file
     load_dotenv(find_dotenv())
 except ImportError:
-    pass
+    ...
 
-logger_level = int(getenv("LOG_LEVEL", 0))
+logger_level = int(getenv("LOG_LEVEL", 50))
 
 log_color = {
     0: "\033[0m",
@@ -42,10 +42,15 @@ from bitarray import bitarray
 class Signature:
     def __init__(self, size: int):
         self.__bits = bitarray(size)
-        self.__bits.setall(False)  # Inicializar todos los bits a False
+        self.__bits.setall(False)
+        self.__flipped = False
 
     def set(self, index, value: bool):
         self.__bits[index] = value
+
+    def flip(self):
+        self.__flipped = not self.__flipped
+        self.__bits = ~self.__bits
 
     def clear_bit(self, index: int):
         self.__bits[index] = False
@@ -56,9 +61,13 @@ class Signature:
     def get_bits(self):
         return self.__bits
 
-    def matches(self, signature: "Signature"):
-        matches = (signature.get_bits() & self.get_bits()) == self.get_bits()
+    def matches(self, other_signature: "Signature"):
+        matches = (other_signature.get_bits() & self.get_bits()) == self.get_bits()
         return matches
 
     def clear(self):
         self.__bits.setall(False)
+
+    @property
+    def was_flipped(self):
+        return self.__flipped

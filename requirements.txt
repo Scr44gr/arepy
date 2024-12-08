@@ -1,9 +1,4 @@
-PyGLM==2.7.1
-pysdl2==0.9.16
-pysdl2-dll==2.28.5
 bitarray==2.9.2
 python-dotenv==1.0.1
 freetype-py==2.4.0
-PyOpenGL==3.1.7
-numpy==1.26.4
-pillow==10.2.0
+raylib==5.5.0.2
