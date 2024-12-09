@@ -18,9 +18,8 @@ Resources: Dict[str, Any] = {}
 
 class ArepyEngine:
     title: str = "Arepy Engine"
-    window_width: int = 640
-    window_height: int = 480
-    # Logical size
+    window_width: int = 1920
+    window_height: int = 1080
     render_size = (window_width, window_height)
     max_frame_rate: int = 60
     debug: bool = False

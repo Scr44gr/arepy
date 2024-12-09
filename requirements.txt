@@ -1,4 +1,0 @@
-bitarray==2.9.2
-python-dotenv==1.0.1
-freetype-py==2.4.0
-raylib==5.5.0.2

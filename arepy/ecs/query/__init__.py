@@ -4,8 +4,11 @@ from typing import (
     Callable,
     Generic,
     Iterable,
+    List,
+    Mapping,
     Optional,
     ParamSpec,
+    Sequence,
     Type,
     TypeVar,
     Union,
@@ -87,59 +90,67 @@ class Query(Generic[TEntity, TFilter]):
     def fetch(self) -> TEntity: ...
 
 
-def make_query_signature(function: Callable) -> OrderedDict[Any, str]:
-    """Sign the query with the components that the function needs.
+def get_signed_query_arguments(function: Callable) -> OrderedDict[str, Any]:
+    """Sign the query with the components that the function needs and return the arguments in order.
 
     note: in Python 3.14 we can use the new feature of the annotations module to get the annotations of a function.
     @see: https://docs.python.org/3.14/library/annotationlib.html
     """
 
     func_arguments = get_annotations(function)
-    query_signature = get_query_from_args(func_arguments, raw_query=True)
+    queries_signature = get_queries_from_arguments(func_arguments)
 
-    if not query_signature:
-        return OrderedDict(func_arguments)
+    if not queries_signature:
+        return func_arguments
 
-    raw_query: Callable[[], Query] = cast(Callable[[], Query], query_signature)
-    kind_of_result = raw_query.__args__[1]
-    required_components: tuple[Type[Component], ...] = kind_of_result.__args__[0]
-    query: Query = raw_query()
-    query._kind = kind_of_result
-
-    # TODO:
-    # if the query arg is not the first argument we will have problems
-    # in order to fix this we should convert the func_arguments to a list and identify the query_signature index
-    # after sign the query we should return the arguments in the correct order
-    query_signature_arguments = OrderedDict(
-        [(query, func_arguments.pop(query_signature))]
-    )
-    query_signature_arguments.update(func_arguments)
-    for component_type in required_components:
-        component_id = ComponentIndex.get_id(component_type.__name__)
-        query._signature.set(component_id, True)
-
-    return query_signature_arguments
+    signed_queries = sign_queries(queries_signature)
+    func_arguments.update(signed_queries)
+    return func_arguments
 
 
-def get_annotations(function: Callable) -> OrderedDict[Any, str]:
+QuerySignature = list[tuple[str, Callable[[], Query]]]
+
+
+def sign_queries(
+    queries_signature: QuerySignature,
+) -> List[tuple[str, Query]]:
+    signed_queries = []
+    for name, query_signature in queries_signature:
+        query_factory: Callable[[], Query] = cast(Callable[[], Query], query_signature)
+        kind_of_result = query_factory.__args__[1]
+        required_components: tuple[Type[Component], ...] = kind_of_result.__args__[0]
+        query: Query = query_factory()
+        query._kind = kind_of_result
+        for component_type in required_components:
+            component_id = ComponentIndex.get_id(component_type.__name__)
+            query._signature.set(component_id, True)
+        signed_queries.append((name, query))
+
+    return signed_queries
+
+
+def get_annotations(function: Callable) -> OrderedDict[str, Any]:
     """Get the annotations of a function in order"""
-    return OrderedDict(
-        {value: key for (key, value) in OrderedDict(function.__annotations__).items()}
-    )
+    return OrderedDict(function.__annotations__)
 
 
-def get_query_from_args(
-    args: dict[object, str], raw_query: bool = False
-) -> Optional[Callable[[], Query] | Query]:
+def get_queries_from_arguments(
+    args: Mapping[str, object]
+) -> list[tuple[str, Callable[[], Query]]]:
+    """Get the queries from the arguments"""
+    results = [
+        (key, value)
+        for key, value in args.items()
+        if value.__qualname__ == Query.__name__
+    ]
+    return cast(list[tuple[str, Callable[[], Query]]], results)
 
-    # When whe have a raw query(Annotation) search for it and return it
-    if raw_query:
-        result = [key for key in args if key.__qualname__ == Query.__name__]
-        if not result:
-            return None
-        return cast(Callable[[], Query], result[0])
 
-    # When the instance is a Query, return it ^-^
-    for instance, _ in args.items():
-        if isinstance(instance, Query):
-            return instance
+def get_queries_instance_from_arguments(args: Sequence[object]) -> list[Query]:
+    """Get the instances of the queries from the arguments
+
+    Args:
+        args (dict[object, str]): the arguments of a function
+    """
+    results = [key for key in args if isinstance(key, Query)]
+    return cast(list[Query], results)
