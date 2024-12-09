@@ -66,4 +66,4 @@ class RegistryTest(TestCase):
         self.assertEqual(len(registry.entities_to_be_removed), 0)
 
 
-# to run: python -m unittest tests/units/test_registry.py
+# to run: python -m unittest tests/test_registry.py

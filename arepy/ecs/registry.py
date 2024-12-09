@@ -1,14 +1,14 @@
 import logging
-from collections import deque
+from collections import OrderedDict, deque
 from dataclasses import dataclass, field
 from inspect import isclass, isfunction
-from typing import Dict, List, Optional, Set, Type, cast
+from typing import Dict, List, Optional, Sequence, Set, Type, cast
 
 from .components import ComponentIndex, ComponentPool, IComponentPool, TComponent
 from .constants import MAX_COMPONENTS
 from .entities import Entity
 from .exceptions import MaximumComponentsExceededError
-from .query import get_query_from_args, make_query_signature
+from .query import get_queries_instance_from_arguments, get_signed_query_arguments
 from .systems import System, SystemPipeline
 from .threading import ECS_EXECUTOR_QUEUE
 from .utils import Signature
@@ -20,9 +20,10 @@ logger = logging.getLogger(__name__)
 class Registry:
     number_of_entities: int = 0
     component_pools: List[Optional[IComponentPool]] = field(default_factory=list)
-    systems: Dict[SystemPipeline, Set[System]] = field(default_factory=dict)
-    # TODO: make the queries type hints more robust
-    queries: dict[System, dict] = field(default_factory=dict)
+    systems: Dict[SystemPipeline, Set[System]] = field(
+        default_factory=lambda: {key: set() for key in SystemPipeline}
+    )
+    queries: dict[System, Sequence[object]] = field(default_factory=dict)
     entity_component_signatures: List[Signature] = field(default_factory=list)
 
     entities_to_be_added: Set[Entity] = field(default_factory=set)
@@ -118,9 +119,9 @@ class Registry:
     # System management
     def add_system(self, pipeline: SystemPipeline, system: System) -> None:
 
-        arguments = make_query_signature(system)
+        arguments = get_signed_query_arguments(system)
         self._fill_arguments_with_resources(arguments)
-        self.queries[system] = arguments
+        self.queries[system] = list(arguments.values())
 
         if self.systems.get(pipeline) is None:
             self.systems[pipeline] = set()
@@ -129,12 +130,11 @@ class Registry:
         self.systems[pipeline].add(system)
 
     def _fill_arguments_with_resources(self, arguments: dict) -> None:
-        for argument in arguments.copy():
+        for key, value in arguments.copy().items():
             for resource_name, _ in self.resources.items():
-                if isclass(argument) and resource_name == argument.__name__:
+                if isclass(value) and resource_name == value.__name__:
                     resource_value = self.resources[resource_name]
-                    argument_value = arguments.pop(argument)
-                    arguments[resource_value] = argument_value
+                    arguments[key] = resource_value
 
     def add_entity_to_systems(self, entity: Entity) -> None:
         entity_id: int = entity.get_id()
@@ -143,18 +143,16 @@ class Registry:
         ]
 
         for arguments in self.queries.values():
-            query = get_query_from_args(arguments)
-            if not query:
-                continue
-            if query.get_component_signature().matches(entity_component_signature):
-                query.add_entity(entity)
+            queries = get_queries_instance_from_arguments(arguments)
+            for query in queries:
+                if query.get_component_signature().matches(entity_component_signature):
+                    query.add_entity(entity)
 
     def remove_entity_from_systems(self, entity: Entity) -> None:
         for arguments in self.queries.values():
-            query = get_query_from_args(arguments)
-            if not query:
-                continue
-            query.remove_entity(entity)
+            queries = get_queries_instance_from_arguments(arguments)
+            for query in queries:
+                query.remove_entity(entity)
 
     def kill_entity(self, entity: Entity) -> None:
         self.entities_to_be_removed.add(entity)

@@ -1,14 +1,14 @@
 from ...ecs.entities import Entities
 from ...ecs.query import Query, With
 from ...engine.renderer.renderer_2d import Renderer2D
-from ..components.rigidbody_component import RigidBody2D
-from ..components.transform_component import Transform
+from ..components import RigidBody2D, Transform
 
-LIMITS = (640 - 32, 480 - 32)
+LIMITS = (1920 - 32, 1080 - 32)
 
 
 def movement_system(
-    query: Query[Entities, With[Transform, RigidBody2D]], renderer: Renderer2D
+    query: Query[Entities, With[Transform, RigidBody2D]],
+    renderer: Renderer2D,
 ):
     delta_time = renderer.get_delta_time()
     entities = query.get_entities()
@@ -16,8 +16,7 @@ def movement_system(
         transform = entity.get_component(Transform)
         velocity = entity.get_component(RigidBody2D).velocity
 
-        transform.position.x += velocity.x * delta_time
-        transform.position.y += velocity.y * delta_time
+        transform.position += velocity * delta_time
 
         if transform.position.x < 0:
             transform.position.x = 0
