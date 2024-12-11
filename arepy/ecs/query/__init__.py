@@ -63,6 +63,8 @@ class Query(Generic[TEntity, TFilter]):
         and the threads will process every entity(in chunks) instead of processing a loop of entities.
     """
 
+    __slots__ = ["_signature", "_entities", "_kind", "_thread_id"]
+
     def __init__(self) -> None:
         self._signature = Signature(MAX_COMPONENTS)
         self._entities: set["Entity"] = set()

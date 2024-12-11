@@ -40,6 +40,8 @@ from bitarray import bitarray
 
 
 class Signature:
+    __slots__ = ["__bits", "__flipped"]
+
     def __init__(self, size: int):
         self.__bits = bitarray(size)
         self.__bits.setall(False)

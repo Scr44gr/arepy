@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from enum import Enum
 from os.path import exists
 from pathlib import Path
@@ -12,9 +13,21 @@ class TextureFilter(Enum):
     LINEAR = 1
 
 
+@dataclass(frozen=True, slots=True)
 class AssetStore:
-    textures: Dict[str, ArepyTexture] = dict()
-    fonts: Dict[str, Any] = dict()
+    textures: Dict[str, ArepyTexture] = field(default_factory=dict)
+    fonts: Dict[str, Any] = field(default_factory=dict)
+
+    def create_render_texture(
+        self,
+        renderer: Renderer2D,
+        name: str,
+        width: int,
+        height: int,
+    ) -> ArepyTexture:
+        texture = renderer.create_render_texture(width, height)
+        self.textures[name] = texture
+        return texture
 
     def load_texture(
         self,

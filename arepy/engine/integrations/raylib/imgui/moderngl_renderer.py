@@ -2,10 +2,12 @@
 # @see https://github.com/moderngl/moderngl-window/pull/197/commits/67a30750e595de058cca57d9c3676a772157d194
 # thx @highfestiva for the implementation :)
 import ctypes
+from dataclasses import dataclass
 
 import moderngl
 from imgui_bundle import imgui
 from imgui_bundle.python_backends.base_backend import BaseOpenGLRenderer
+from OpenGL import GL
 
 
 class ModernGLRenderer(BaseOpenGLRenderer):
@@ -33,6 +35,18 @@ class ModernGLRenderer(BaseOpenGLRenderer):
             Out_Color = (Frag_Color * texture(Texture, Frag_UV.st));
         }
     """
+
+    __slots__ = (
+        "wnd",
+        "ctx",
+        "_prog",
+        "_fbo",
+        "_font_texture",
+        "_vertex_buffer",
+        "_index_buffer",
+        "_vao",
+        "_textures",
+    )
 
     def __init__(self, *args, **kwargs):
         self._prog = None
@@ -104,6 +118,8 @@ class ModernGLRenderer(BaseOpenGLRenderer):
             )
 
     def render(self, draw_data: imgui.ImDrawData):
+        if not draw_data:
+            return
         io = self.io
         display_width, display_height = io.display_size
         fb_width = int(display_width * io.display_framebuffer_scale[0])
@@ -148,19 +164,9 @@ class ModernGLRenderer(BaseOpenGLRenderer):
 
             idx_pos = 0
             for command in commands.cmd_buffer:
-                texture = self._textures.get(command.texture_id)
-                if texture is None:
-                    raise ValueError(
-                        (
-                            "Texture {} is not registered. Please add to renderer using "
-                            "register_texture(..). "
-                            "Current textures: {}".format(
-                                command.texture_id, list(self._textures)
-                            )
-                        )
-                    )
+                texture_id = command.texture_id
 
-                texture.use(0)
+                GL.glBindTexture(GL.GL_TEXTURE_2D, texture_id)
 
                 x, y, z, w = command.clip_rect
                 self.ctx.scissor = int(x), int(fb_height - w), int(z - x), int(w - y)
@@ -168,7 +174,7 @@ class ModernGLRenderer(BaseOpenGLRenderer):
                     moderngl.TRIANGLES, vertices=command.elem_count, first=idx_pos
                 )
                 idx_pos += command.elem_count
-
+        GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
         self.ctx.scissor = None
 
     def _invalidate_device_objects(self):

@@ -6,6 +6,23 @@ import raylib as rl
 from arepy.engine.renderer import ArepyTexture, Color, Rect
 
 
+def create_render_texture(width: int, height: int) -> ArepyTexture:
+    """
+    Create a render texture.
+
+    Args:
+        width (int): The width of the render texture.
+        height (int): The height of the render texture.
+
+    Returns:
+        ArepyTexture: The created render texture.
+    """
+    render_texture = rl.LoadRenderTexture(width, height)
+    arepy_texture = ArepyTexture(render_texture.texture.id, (width, height))
+    arepy_texture._ref = render_texture
+    return arepy_texture
+
+
 def create_texture(path: PathLike[str]) -> ArepyTexture:
     """
     Create a texture from a file path.
@@ -92,6 +109,23 @@ def draw_texture_ex(
     )
 
 
+def bind_render_texture(texture: ArepyTexture) -> None:
+    """
+    Bind a render texture.
+
+    Args:
+        texture (ArepyTexture): The render texture to bind.
+    """
+    rl.BeginTextureMode(texture._ref)  # type: ignore
+
+
+def unbind_render_texture() -> None:
+    """
+    Unbind a render texture.
+    """
+    rl.EndTextureMode()
+
+
 def draw_rectangle(rect: Rect, color: Color) -> None:
     """
     Draw a rectangle.
@@ -162,7 +196,7 @@ def start_frame() -> None:
     """
     Start a frame.
     """
-    ...
+    rl.BeginDrawing()
 
 
 def end_frame() -> None:

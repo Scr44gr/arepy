@@ -1,11 +1,8 @@
-from random import choice
-
+from arepy.asset_store import AssetStore
+from arepy.bundle.components import Sprite, Transform
 from arepy.ecs.query import Query, With
 from arepy.ecs.registry import Entity
-
-from ...asset_store import AssetStore
-from ...engine.renderer.renderer_2d import Color, Rect, Renderer2D
-from ..components import Sprite, Transform
+from arepy.engine.renderer.renderer_2d import Color, Rect, Renderer2D
 
 COLORS = [
     Color(255, 0, 0, 255),  # red
@@ -24,6 +21,8 @@ def render_system(
     renderer: Renderer2D,
     asset_store: AssetStore,
 ):
+    renderer.start_frame()
+    renderer.clear(color=Color(245, 245, 245, 255))
     for entity in query.get_entities():
         position = entity.get_component(Transform).position
         sprite = entity.get_component(Sprite)
@@ -41,10 +40,11 @@ def render_system(
             int(sprite.src_rect[2]),
             int(sprite.src_rect[3]),
         )
-
         renderer.draw_texture(
             texture,
             src_rect,
             dst_rect,
             Color(255, 255, 255, 255),
         )
+    renderer.draw_fps((10, 10))
+    renderer.end_frame()

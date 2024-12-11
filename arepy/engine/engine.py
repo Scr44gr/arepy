@@ -1,5 +1,5 @@
-from threading import Thread
-from typing import Any, Dict, Type
+import asyncio
+from typing import Any, Dict
 
 from arepy.arepy_imgui.imgui_repository import ImGui
 
@@ -7,7 +7,6 @@ from ..asset_store import AssetStore
 from ..builders import EntityBuilder
 from ..ecs.registry import Registry
 from ..ecs.systems import System, SystemPipeline
-from ..ecs.threading import ECS_KILL_THREAD_EVENT, run_ecs_thread_executor
 from ..event_manager import EventManager
 from .display import Display
 from .input import Input
@@ -18,10 +17,10 @@ Resources: Dict[str, Any] = {}
 
 class ArepyEngine:
     title: str = "Arepy Engine"
-    window_width: int = 1920
-    window_height: int = 1080
+    window_width: int = 1920 // 2
+    window_height: int = 1080 // 2
     render_size = (window_width, window_height)
-    max_frame_rate: int = 60
+    max_frame_rate: int = 800
     debug: bool = False
     fullscreen: bool = False
     fake_fullscreen: bool = False
@@ -55,7 +54,7 @@ class ArepyEngine:
             self.display.toggle_fullscreen()
         # Imgui
         self.imgui = dependencies().imgui_repository
-        self.imgui_backend_implementation = dependencies().imgui_renderer_repository()
+        self.imgui_backend = dependencies().imgui_renderer_repository()
         self._registry.resources[ImGui.__name__] = self.imgui
 
     def run(self):
@@ -68,24 +67,30 @@ class ArepyEngine:
             self.__render_process()
         self.on_shutdown()
 
+    async def run_async(self):
+        self.on_startup()
+        # await run_ecs_thread_executor()
+        while not self.display.window_should_close():
+            self.__input_process()
+            self.__update_process()
+            self.__render_process()
+            await asyncio.sleep(0)
+        self.on_shutdown()
+
     def __input_process(self):
-        self.imgui_backend_implementation.process_inputs()
+        self.imgui_backend.process_inputs()
 
     def __update_process(self):
+        self._registry.update()
         self._registry.run(pipeline=SystemPipeline.UPDATE)
         self.on_update()
-        self._registry.update()
 
     def __render_process(self):
-        self.renderer.start_frame()
         self.renderer.clear(color=Color(245, 245, 245, 255))
-        self.imgui.new_frame()
         self._registry.run(pipeline=SystemPipeline.RENDER)
-        self.renderer.draw_fps(position=(10, 10))
+        self._registry.run(pipeline=SystemPipeline.UI_RENDER)
         self.on_render()
-        self.renderer.end_frame()
-        self.imgui.render()
-        self.imgui_backend_implementation.render(self.imgui.get_draw_data())
+        self.imgui_backend.render(self.imgui.get_draw_data())
         self.renderer.swap_buffers()
 
     def create_entity(self) -> EntityBuilder:

@@ -43,6 +43,24 @@ class ImGui(Protocol):
         """Get the ImGui IO object"""
         ...
 
+    def image(
+        self,
+        texture_id: int,
+        size: tuple[int, int],
+        uv0: tuple[float, float],
+        uv1: tuple[float, float],
+        tint_col: Optional[tuple[float, float, float, float]],
+        border_col: Optional[tuple[float, float, float, float]],
+    ):
+        """Create an image
+
+        Args:
+            texture_id: The id of the texture
+            width: The width of the image
+            height: The height of the image
+        """
+        ...
+
     def accept_drag_drop_payload(self, type: str, flags: int):
         """Accept a drag and drop payload
 
@@ -161,6 +179,10 @@ class ImGui(Protocol):
 
     def new_frame(self):
         """Start a new ImGui frame"""
+        ...
+
+    def end_frame(self):
+        """End the current ImGui frame"""
         ...
 
     def button(self, label: str) -> bool:

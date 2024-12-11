@@ -1,9 +1,9 @@
-from ...ecs.entities import Entities
-from ...ecs.query import Query, With
-from ...engine.renderer.renderer_2d import Renderer2D
-from ..components import RigidBody2D, Transform
+from arepy.bundle.components import RigidBody2D, Transform
+from arepy.ecs.entities import Entities
+from arepy.ecs.query import Query, With
+from arepy.engine.renderer.renderer_2d import Renderer2D
 
-LIMITS = (1920 - 32, 1080 - 32)
+LIMITS = (640 - 32, 480 - 32)
 
 
 def movement_system(
