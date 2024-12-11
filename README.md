@@ -1,6 +1,7 @@
 # Arepy 🎮
-An ECS game engine created in python with raylib and imgui integration :)
+[![Upload Python Package](https://github.com/Scr44gr/arepy/actions/workflows/python-publish.yml/badge.svg)](https://github.com/Scr44gr/arepy/actions/workflows/python-publish.yml)
 
+An ECS game engine created in python with raylib and imgui integration :)
 ## Installation 📖
 ```bash
 pip install git+https://github.com/Scr44gr/arepy.git
