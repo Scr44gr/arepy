@@ -21,7 +21,8 @@ classifiers = [
 keywords = ['ecs', 'game-engine', 'python-game-engine']
 requires-python = ">=3.10"
 dependencies = ["bitarray==2.9.2", "raylib==5.5.0.2"]
-dynamic = ['version', 'readme']
+dynamic = ['version']
+readme = "README.md"
 
 [project.optional-dependencies]
 imgui = ["imgui-bundle==1.6.0", "moderngl==5.12.0"]
@@ -35,4 +36,3 @@ include = ["arepy", "arepy.*"]
 
 [tool.setuptools.dynamic]
 version = {attr = "arepy.__version__"}
-readme = {file = "README.md"}
