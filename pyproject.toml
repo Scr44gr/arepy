@@ -8,7 +8,7 @@ description = "An ECS python game engine with Raylib"
 authors = [{ name = "Abrahan Gil", email = "scr44gr@protonmail.com" }]
 license = { file = "LICENSE" }
 classifiers = [
-    'OSI Approved :: MIT License',
+    "License :: OSI Approved :: MIT License",
     'Development Status :: 3 - Alpha',
     'Programming Language :: Python :: 3.10',
     'Programming Language :: Python :: 3.11',
