@@ -12,4 +12,4 @@ class SystemPipeline(Enum):
     INPUT = 2
     PHYSICS = 3
     ASYNC_UPDATE = 4
-    UI_RENDER = 5
+    RENDER_UI = 5

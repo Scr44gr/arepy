@@ -1,4 +1,5 @@
 import asyncio
+from threading import Thread
 from typing import Any, Dict
 
 from arepy.arepy_imgui.imgui_repository import ImGui
@@ -8,17 +9,20 @@ from ..builders import EntityBuilder
 from ..ecs.registry import Registry
 from ..ecs.systems import System, SystemPipeline
 from ..event_manager import EventManager
+from ..event_manager.handlers import InputEventHandler
 from .display import Display
 from .input import Input
 from .renderer.renderer_2d import Color, Renderer2D
 
 Resources: Dict[str, Any] = {}
 
+InputDispatchThread = None
+
 
 class ArepyEngine:
     title: str = "Arepy Engine"
-    window_width: int = 1920 // 2
-    window_height: int = 1080 // 2
+    window_width: int = 1920 // 3
+    window_height: int = 1080 // 3
     render_size = (window_width, window_height)
     max_frame_rate: int = 800
     debug: bool = False
@@ -34,11 +38,12 @@ class ArepyEngine:
         self.display = dependencies().display_repository
         self.renderer = dependencies().renderer_repository
         self.input = dependencies().input_repository
+        # Necessary for input dispatching
         # add resources
         Resources[Display.__name__] = self.display
         Resources[Renderer2D.__name__] = self.renderer
-        Resources[Input.__name__] = self.input
         Resources[EventManager.__name__] = self._event_manager
+        Resources[InputEventHandler.__name__] = InputEventHandler(self._event_manager)
         Resources[AssetStore.__name__] = self._asset_store
 
         self._registry = Registry()
@@ -54,8 +59,12 @@ class ArepyEngine:
             self.display.toggle_fullscreen()
         # Imgui
         self.imgui = dependencies().imgui_repository
-        self.imgui_backend = dependencies().imgui_renderer_repository()
+        self.imgui_backend = dependencies().imgui_renderer_repository(
+            self._event_manager
+        )
         self._registry.resources[ImGui.__name__] = self.imgui
+        self.input.event_manager = self._event_manager
+        self.input.register_dispatchers()
 
     def run(self):
 
@@ -78,7 +87,10 @@ class ArepyEngine:
         self.on_shutdown()
 
     def __input_process(self):
+        # dispatch input events
+        self._event_manager.process_events()
         self.imgui_backend.process_inputs()
+        self._registry.run(pipeline=SystemPipeline.INPUT)
 
     def __update_process(self):
         self._registry.update()
@@ -88,7 +100,7 @@ class ArepyEngine:
     def __render_process(self):
         self.renderer.clear(color=Color(245, 245, 245, 255))
         self._registry.run(pipeline=SystemPipeline.RENDER)
-        self._registry.run(pipeline=SystemPipeline.UI_RENDER)
+        self._registry.run(pipeline=SystemPipeline.RENDER_UI)
         self.on_render()
         self.imgui_backend.render(self.imgui.get_draw_data())
         self.renderer.swap_buffers()

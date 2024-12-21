@@ -16,7 +16,7 @@ from .engine.renderer.renderer_2d import Renderer2D
 try:
     from imgui_bundle import imgui, imgui_ctx
 
-    from .engine.integrations.raylib.imgui.backend import ImguiRenderer
+    from .engine.integrations.imgui.backend import ImguiBackend
 
     imgui.create_context()
 except (ImportError, ModuleNotFoundError):
@@ -46,7 +46,7 @@ def _build_dependencies() -> Callable[[], Dependencies]:
         imgui_renderer_repository=(
             cast(
                 Callable[..., ImGuiRendererRepository],
-                ImguiRenderer if imgui is not None else EmptyRepository,
+                ImguiBackend if imgui is not None else EmptyRepository,
             )
         ),
         input_repository=cast(Input, input_repository),

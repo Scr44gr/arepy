@@ -1,8 +1,11 @@
 from enum import Enum
 from typing import Iterator, Protocol
 
+from ..event_manager.event_manager import EventManager
+
 
 class Key(Enum):
+
     A = 65
     B = 66
     C = 67
@@ -29,6 +32,7 @@ class Key(Enum):
     X = 88
     Y = 89
     Z = 90
+    SPACE = 32
     NUM_0 = 48
     NUM_1 = 49
     NUM_2 = 50
@@ -94,60 +98,19 @@ class MouseButton(Enum):
     LEFT = 0
     RIGHT = 1
     MIDDLE = 2
+    # 3-7 are extra mouse buttonsq
+    BUTTON_4 = 3
+    BUTTON_5 = 4
+    BUTTON_6 = 5
+    BUTTON_7 = 6
+    BUTTON_8 = 7
 
 
 class Input(Protocol):
     """Input repository interface."""
 
-    def is_key_pressed(self, key: Key) -> bool:
-        """Check if a key is pressed."""
-        ...
-
-    def is_key_down(self, key: Key) -> bool:
-        """Check if a key is down."""
-        ...
-
-    def is_key_released(self, key: Key) -> bool:
-        """Check if a key is released.
-
-        Args:
-            key (Key): The key to check.
-
-        Returns:
-            bool: True if the key is released.
-        """
-        ...
-
-    def is_key_up(self, key: Key) -> bool:
-        """Check if a key is up.
-
-        Args:
-            key (Key): The key to check.
-
-        Returns:
-            bool: True if the key is up.
-        """
-        ...
-
-    def get_keys_pressed(self) -> Iterator[Key]:
-        """Get the keys that are pressed."""
-        ...
-
-    def is_mouse_button_pressed(self, button: MouseButton) -> bool:
-        """Check if a mouse button is pressed."""
-        ...
-
-    def is_mouse_button_down(self, button: MouseButton) -> bool:
-        """Check if a mouse button is down."""
-        ...
-
-    def is_mouse_button_released(self, button: MouseButton) -> bool:
-        """Check if a mouse button is released."""
-        ...
-
-    def is_mouse_button_up(self, button: MouseButton) -> bool:
-        """Check if a mouse button is up."""
-        ...
+    def register_dispatchers(self) -> None:
+        """Dispatch input events for the current frame."""
 
     def get_mouse_position(self) -> tuple[float, float]:
         """Get the mouse position in the window."""
@@ -161,10 +124,16 @@ class Input(Protocol):
         """Get the mouse amount of scroll in the y-axis."""
         ...
 
-    def set_exit_key(self, key: Key) -> None:
-        """Set the key that closes the window."""
-        ...
-
     def pool_events(self) -> None:
         """Pool events."""
+        ...
+
+    @property
+    def event_manager(self) -> EventManager:
+        """Get the event manager."""
+        ...
+
+    @event_manager.setter
+    def event_manager(self) -> EventManager:
+        """Get the event manager."""
         ...

@@ -3,7 +3,7 @@ from typing import cast
 
 import raylib as rl
 
-from arepy.engine.renderer import ArepyTexture, Color, Rect
+from arepy.engine.renderer import ArepyTexture, Color, Rect, TextureFilter
 
 
 def create_render_texture(width: int, height: int) -> ArepyTexture:
@@ -19,7 +19,9 @@ def create_render_texture(width: int, height: int) -> ArepyTexture:
     """
     render_texture = rl.LoadRenderTexture(width, height)
     arepy_texture = ArepyTexture(render_texture.texture.id, (width, height))
-    arepy_texture._ref = render_texture
+    arepy_texture._ref_texture = render_texture.texture
+    arepy_texture._ref_render_texture = render_texture
+    set_texture_filter(arepy_texture, arepy_texture._filter)
     return arepy_texture
 
 
@@ -35,7 +37,8 @@ def create_texture(path: PathLike[str]) -> ArepyTexture:
     """
     texture = rl.LoadTexture(str(path).encode("utf-8"))
     arepy_texture = ArepyTexture(texture.id, (texture.width, texture.height))
-    arepy_texture._ref = texture
+    arepy_texture._ref_texture = texture
+    set_texture_filter(arepy_texture, arepy_texture._filter)
     return arepy_texture
 
 
@@ -74,7 +77,7 @@ def draw_texture(
     # the rl.Texture doesnt exists in raylib(works in the pyray module)
     # texture._ref = cast(rl.Texture, texture._ref)
     rl.DrawTextureRec(
-        texture._ref,  # type: ignore
+        texture._ref_texture,  # type: ignore
         src_rect.to_tuple(),
         (dst_rect.x, dst_rect.y),
         (color.r, color.g, color.b, color.a),
@@ -98,9 +101,9 @@ def draw_texture_ex(
         rotation (float): The rotation angle.
         color (Color): The color to tint the texture.
     """
-    texture._ref = cast(rl.Texture, texture._ref)
+    texture._ref_texture = cast(rl.Texture, texture._ref_texture)
     rl.DrawTexturePro(
-        texture._ref,
+        texture._ref_texture,
         src_rect.to_tuple(),
         dst_rect.to_tuple(),
         (dst_rect.width or 2 / 2, dst_rect.height or 2 / 2),
@@ -116,7 +119,7 @@ def bind_render_texture(texture: ArepyTexture) -> None:
     Args:
         texture (ArepyTexture): The render texture to bind.
     """
-    rl.BeginTextureMode(texture._ref)  # type: ignore
+    rl.BeginTextureMode(texture._ref_render_texture)  # type: ignore
 
 
 def unbind_render_texture() -> None:
@@ -142,6 +145,23 @@ def draw_rectangle(rect: Rect, color: Color) -> None:
         int(rect.y),
         rect.width,
         rect.height,
+        (color.r, color.g, color.b, color.a),
+    )
+
+
+def draw_unfilled_rectangle(rect: Rect, color: Color) -> None:
+    """
+    Draw lines.
+
+    Args:
+        points (list[tuple[float, float]]): The points to draw lines between.
+        color (Color): The color of the lines.
+    """
+    rl.DrawRectangleLines(
+        int(rect.x),
+        int(rect.y),
+        rect.width,  # type: ignore
+        rect.height,  # type: ignore
         (color.r, color.g, color.b, color.a),
     )
 
@@ -231,3 +251,18 @@ def swap_buffers() -> None:
     Swap the buffers.
     """
     rl.EndDrawing()
+
+
+def set_texture_filter(texture: ArepyTexture, filter: TextureFilter):
+    """
+    Set the texture filter.
+
+    Args:
+        filter (TextureFilter): The texture filter to set.
+    """
+    texture_filter_map = {
+        TextureFilter.NEAREST: rl.TEXTURE_FILTER_POINT,
+        TextureFilter.BILINEAR: rl.TEXTURE_FILTER_BILINEAR,
+        TextureFilter.TRILINEAR: rl.TEXTURE_FILTER_TRILINEAR,
+    }
+    rl.SetTextureFilter(texture._ref_texture, texture_filter_map[filter])  # type: ignore

@@ -10,68 +10,42 @@ from imgui_bundle.python_backends import compute_fb_scale
 from pyray import ffi
 from raylib.defines import GLFW_FOCUSED, GLFW_PRESS, GLFW_RELEASE
 
+from ....event_manager import EventManager
+from ....event_manager.events.keyboard_event import (
+    Key,
+    KeyboardPressedEvent,
+    KeyboardReleasedEvent,
+)
+from ....event_manager.events.mouse_event import (
+    MouseMovedEvent,
+    MousePressedEvent,
+    MouseReleasedEvent,
+    MouseWheelEvent,
+)
 from .moderngl_renderer import ModernGLRenderer
 
 GlfwKey = int
 
 
-@ffi.callback("void(GLFWwindow *, int, int, int, int)")
-def keyboard_callback(window, key, scancode, action, mods):
-    print("keyboard_callback", window, key, scancode, action, mods)
-
-
-class ImguiRenderer(ModernGLRenderer):
+class ImguiBackend(ModernGLRenderer):
     key_map: Dict[GlfwKey, imgui.Key]
     modifier_map: Dict[GlfwKey, imgui.Key]
 
-    def __init__(self, attach_callbacks: bool = True):
-        super(ImguiRenderer, self).__init__(ctx=moderngl.get_context())
+    def __init__(
+        self,
+        event_manager: EventManager,
+        attach_callbacks: bool = True,
+    ):
+        super(ImguiBackend, self).__init__(ctx=moderngl.get_context())
         self.window = rl.glfwGetCurrentContext()
-
         if attach_callbacks:
-            self._keyboard_callback = ffi.callback(
-                "void(GLFWwindow *, int, int, int, int)", self.keyboard_callback
-            )
-            self._mouse_callback = ffi.callback(
-                "void(GLFWwindow*, double, double)", self.mouse_callback
-            )
-            self._mouse_button_callback = ffi.callback(
-                "void(GLFWwindow*, int, int, int)", self.mouse_button_callback
-            )
-            self._resize_callback = ffi.callback(
-                "void(GLFWwindow*, int, int)", self.resize_callback
-            )
-            self._char_callback = ffi.callback(
-                "void(GLFWwindow*, unsigned int)", self.char_callback
-            )
-            self._scroll_callback = ffi.callback(
-                "void(GLFWwindow*, double, double)", self.scroll_callback
-            )
+            event_manager.subscribe(KeyboardPressedEvent, self.keyboard_callback)
+            event_manager.subscribe(KeyboardReleasedEvent, self.keyboard_callback)
+            event_manager.subscribe(MouseMovedEvent, self.mouse_callback)
+            event_manager.subscribe(MousePressedEvent, self.mouse_button_callback)
+            event_manager.subscribe(MouseReleasedEvent, self.mouse_button_callback)
+            event_manager.subscribe(MouseWheelEvent, self.scroll_callback)
 
-            rl.glfwSetKeyCallback(
-                self.window,
-                self._keyboard_callback,
-            )
-            rl.glfwSetCursorPosCallback(
-                self.window,
-                self._mouse_callback,
-            )
-            rl.glfwSetMouseButtonCallback(
-                self.window,
-                self._mouse_button_callback,
-            )
-            rl.glfwSetWindowSizeCallback(
-                self.window,
-                self._resize_callback,
-            )
-            rl.glfwSetCharCallback(
-                self.window,
-                self._char_callback,
-            )
-            rl.glfwSetScrollCallback(
-                self.window,
-                self._scroll_callback,
-            )
         screen_width = ffi.new("int *")
         screen_height = ffi.new("int *")
         rl.glfwGetMonitorPhysicalSize(
@@ -146,23 +120,24 @@ class ImguiRenderer(ModernGLRenderer):
         self.modifier_map[rl.KEY_LEFT_SUPER] = imgui.Key.mod_super
         self.modifier_map[rl.KEY_RIGHT_SUPER] = imgui.Key.mod_super
 
-    def keyboard_callback(self, window, glfw_key: int, scancode, action, mods):
-        # perf: local for faster access
+    def keyboard_callback(self, event: KeyboardPressedEvent | KeyboardReleasedEvent):
         io = self.io
-
-        if glfw_key not in self.key_map:
+        event_key = event.key.value
+        if event_key not in self.key_map:
             return
-        imgui_key = self.key_map[glfw_key]
 
-        down = action != GLFW_RELEASE
+        imgui_key = self.key_map[event_key]
+
+        down = isinstance(event, KeyboardPressedEvent)
         io.add_key_event(imgui_key, down)
 
-        if glfw_key in self.modifier_map:
-            imgui_key = self.modifier_map[glfw_key]
+        if event_key in self.modifier_map:
+            imgui_key = self.modifier_map[event_key]
             io.add_key_event(imgui_key, down)
 
-    def char_callback(self, window, char):
+    def char_callback(self, event: KeyboardPressedEvent):
         io = imgui.get_io()
+        char = event.key.value
 
         if 0 < char < 0x10000:
             io.add_input_character(char)
@@ -170,7 +145,7 @@ class ImguiRenderer(ModernGLRenderer):
     def resize_callback(self, window, width, height):
         self.io.display_size = ImVec2(width, height)
 
-    def mouse_callback(self, *args, **kwargs):
+    def mouse_callback(self, _: MouseMovedEvent):
         if rl.glfwGetWindowAttrib(self.window, GLFW_FOCUSED):
             x_pos = ffi.new("double *")
             y_pos = ffi.new("double *")
@@ -180,10 +155,14 @@ class ImguiRenderer(ModernGLRenderer):
         else:
             self.io.add_mouse_pos_event(-1, -1)
 
-    def mouse_button_callback(self, window, button, action, mods):
-        self.io.add_mouse_button_event(button, action == GLFW_PRESS)
+    def mouse_button_callback(self, event: MousePressedEvent | MouseReleasedEvent):
+        self.io.add_mouse_button_event(
+            event.button.value, isinstance(event, MousePressedEvent)
+        )
 
-    def scroll_callback(self, window, x_offset, y_offset):
+    def scroll_callback(self, event: MouseWheelEvent):
+        x_offset = event.x_offset
+        y_offset = event.y_offset
         self.io.add_mouse_wheel_event(x_offset, y_offset)
 
     def process_inputs(self):

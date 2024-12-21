@@ -1,12 +1,26 @@
 from dataclasses import dataclass
+from enum import Enum
 from typing import Optional
 
 
+class TextureFilter(Enum):
+    NEAREST = 0
+    BILINEAR = 1
+    TRILINEAR = 2
+
+
 class ArepyTexture:
-    def __init__(self, texture_id: int, size: tuple[int, int]):
+    def __init__(
+        self,
+        texture_id: int,
+        size: tuple[int, int],
+        filter: TextureFilter = TextureFilter.NEAREST,
+    ):
         self.texture_id = texture_id
         self._texture_size = size
-        self._ref: object = None
+        self._ref_texture: object = None
+        self._ref_render_texture: object = None
+        self._filter = filter
 
     def get_size(self) -> tuple[int, int]:
         return self._texture_size
