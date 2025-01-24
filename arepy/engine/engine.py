@@ -2,7 +2,8 @@ import asyncio
 from threading import Thread
 from typing import Any, Dict
 
-from arepy.arepy_imgui.imgui_repository import ImGui
+from arepy.arepy_imgui.imgui_repository import Imgui
+from arepy.engine.input import Input
 
 from ..asset_store import AssetStore
 from ..builders import EntityBuilder
@@ -11,12 +12,9 @@ from ..ecs.systems import System, SystemPipeline
 from ..event_manager import EventManager
 from ..event_manager.handlers import InputEventHandler
 from .display import Display
-from .input import Input
 from .renderer.renderer_2d import Color, Renderer2D
 
 Resources: Dict[str, Any] = {}
-
-InputDispatchThread = None
 
 
 class ArepyEngine:
@@ -38,13 +36,10 @@ class ArepyEngine:
         self.display = dependencies().display_repository
         self.renderer = dependencies().renderer_repository
         self.input = dependencies().input_repository
-        # Necessary for input dispatching
-        # add resources
         Resources[Display.__name__] = self.display
         Resources[Renderer2D.__name__] = self.renderer
-        Resources[EventManager.__name__] = self._event_manager
-        Resources[InputEventHandler.__name__] = InputEventHandler(self._event_manager)
         Resources[AssetStore.__name__] = self._asset_store
+        Resources[Input.__name__] = self.input
 
         self._registry = Registry()
         self._registry.resources = Resources
@@ -59,17 +54,12 @@ class ArepyEngine:
             self.display.toggle_fullscreen()
         # Imgui
         self.imgui = dependencies().imgui_repository
-        self.imgui_backend = dependencies().imgui_renderer_repository(
-            self._event_manager
-        )
-        self._registry.resources[ImGui.__name__] = self.imgui
-        self.input.event_manager = self._event_manager
-        self.input.register_dispatchers()
+        self.imgui_backend = dependencies().imgui_renderer_repository()
+        self._registry.resources[Imgui.__name__] = self.imgui
 
     def run(self):
 
         self.on_startup()
-        # _ = Thread(target=run_ecs_thread_executor, daemon=True).start()
         while not self.display.window_should_close():
             self.__input_process()
             self.__update_process()
@@ -88,7 +78,7 @@ class ArepyEngine:
 
     def __input_process(self):
         # dispatch input events
-        self._event_manager.process_events()
+        # self.input.pool_events()
         self.imgui_backend.process_inputs()
         self._registry.run(pipeline=SystemPipeline.INPUT)
 

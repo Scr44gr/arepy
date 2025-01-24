@@ -1,84 +1,68 @@
-import sys
-from sys import stdout
 from typing import Iterator
 
 import raylib as rl
-from raylib import ffi
 
-from .....event_manager.event_manager import EventManager
-from .....event_manager.handlers.input_event_handler import (
-    ClearEvents,
-    Key,
-    KeyboardPressedEvent,
-    KeyboardReleasedEvent,
-    MouseMovedEvent,
-    MousePressedEvent,
-    MouseReleasedEvent,
-    MouseWheelEvent,
-)
 from ....input import Key, MouseButton
 
-PRESS = 1
-RELEASE = 0
-REPEAT = 2
 
-event_manager: EventManager = None  # type: ignore
-
-
-@ffi.callback("void(int, const char *)")
-def ErrorCallback(error: int, description: bytes):
-    print("%r" % description, file=sys.stderr)
+def is_key_pressed(key: Key) -> bool:
+    """Check if a key is pressed."""
+    return rl.IsKeyPressed(key.value)
 
 
-rl.glfwSetErrorCallback(ErrorCallback)  # type: ignore
+def is_key_down(key: Key) -> bool:
+    """Check if a key is down."""
+    return rl.IsKeyDown(key.value)
 
 
-@ffi.callback("void(GLFWwindow *, int, int, int, int)")
-def keyboard_callback(window, key, scancode, action, mods):
-    if action == PRESS:
-        event_manager.emit(KeyboardPressedEvent(Key(key)))
-    elif action == RELEASE:
-        event_manager.emit(KeyboardReleasedEvent(Key(key)))
+def is_key_released(key: Key) -> bool:
+    """Check if a key is released.
+
+    Args:
+        key (Key): The key to check.
+
+    Returns:
+        bool: True if the key is released.
+    """
+    return rl.IsKeyReleased(key.value)
 
 
-@ffi.callback("void(GLFWwindow*, double, double)")
-def mouse_callback(window, x, y):
-    event_manager.emit(MouseMovedEvent(x, y))
+def is_key_up(key: Key) -> bool:
+    """Check if a key is up.
+
+    Args:
+        key (Key): The key to check.
+
+    Returns:
+        bool: True if the key is up.
+    """
+    return rl.IsKeyUp(key.value)
 
 
-@ffi.callback("void(GLFWwindow*, int, int, int)")
-def mouse_button_callback(window, button, action, mods):
-    if action == PRESS:
-        event_manager.emit(MousePressedEvent(MouseButton(button)))
-    elif action == RELEASE:
-        event_manager.emit(MouseReleasedEvent(MouseButton(button)))
+def get_keys_pressed() -> Iterator[Key]:
+    """Get the keys that are pressed."""
+    while (key := rl.GetKeyPressed()) != 0:
+        yield Key(key)
 
 
-@ffi.callback("void(GLFWwindow*, double, double)")
-def resize_callback(window, width, height):
-    pass
+def is_mouse_button_pressed(button: MouseButton) -> bool:
+    """Check if a mouse button is pressed."""
+    return rl.IsMouseButtonPressed(button.value)
 
 
-@ffi.callback("void(GLFWwindow*, double, double)")
-def scroll_callback(window, x_offset, y_offset):
-    event_manager.emit(MouseWheelEvent(x_offset, y_offset))
+def is_mouse_button_down(button: MouseButton) -> bool:
+    """Check if a mouse button is down."""
+    return rl.IsMouseButtonDown(button.value)
 
 
-@ffi.callback("void(GLFWwindow*, unsigned int)")
-def char_callback(window, char):
-    pass
+def is_mouse_button_released(button: MouseButton) -> bool:
+    """Check if a mouse button is released."""
+    return rl.IsMouseButtonReleased(button.value)
 
 
-def register_dispatchers() -> None:
-    """Dispatch input events for the current frame."""
-    assert event_manager is not None, "Event manager is not set."
-
-    window = rl.glfwGetCurrentContext()
-    rl.glfwSetKeyCallback(window, keyboard_callback)
-    rl.glfwSetCursorPosCallback(window, mouse_callback)
-    rl.glfwSetMouseButtonCallback(window, mouse_button_callback)
-    rl.glfwSetScrollCallback(window, scroll_callback)
-    rl.glfwSetCharCallback(window, char_callback)
+def is_mouse_button_up(button: MouseButton) -> bool:
+    """Check if a mouse button is up."""
+    return rl.IsMouseButtonUp(button.value)
 
 
 def get_mouse_position() -> tuple[float, float]:
@@ -96,6 +80,15 @@ def get_mouse_delta() -> tuple[float, float]:
 def get_mouse_wheel_delta() -> float:
     """Get the mouse wheel delta."""
     return rl.GetMouseWheelMove()
+
+
+def set_exit_key(key: Key) -> None:
+    """Set the exit key.
+
+    Args:
+        key (Key): The key to set as the exit key.
+    """
+    rl.SetExitKey(key.value)
 
 
 def pool_events() -> None:

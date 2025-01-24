@@ -80,6 +80,18 @@ class Key(Enum):
     NUM_LOCK = 282
     PRINT_SCREEN = 283
     PAUSE = 284
+    EQUAL = 61
+    LEFT_BRACKET = 91
+    RIGHT_BRACKET = 93
+    BACKSLASH = 92
+    SEMICOLON = 59
+    APOSTROPHE = 39
+    GRAVE_ACCENT = 96
+    COMMA = 44
+    PERIOD = 46
+    SLASH = 47
+    MINUS = 45
+
     F1 = 290
     F2 = 291
     F3 = 292
@@ -109,8 +121,55 @@ class MouseButton(Enum):
 class Input(Protocol):
     """Input repository interface."""
 
-    def register_dispatchers(self) -> None:
-        """Dispatch input events for the current frame."""
+    def is_key_pressed(self, key: Key) -> bool:
+        """Check if a key is pressed."""
+        ...
+
+    def is_key_down(self, key: Key) -> bool:
+        """Check if a key is down."""
+        ...
+
+    def is_key_released(self, key: Key) -> bool:
+        """Check if a key is released.
+
+        Args:
+            key (Key): The key to check.
+
+        Returns:
+            bool: True if the key is released.
+        """
+        ...
+
+    def is_key_up(self, key: Key) -> bool:
+        """Check if a key is up.
+
+        Args:
+            key (Key): The key to check.
+
+        Returns:
+            bool: True if the key is up.
+        """
+        ...
+
+    def get_keys_pressed(self) -> Iterator[Key]:
+        """Get the keys that are pressed."""
+        ...
+
+    def is_mouse_button_pressed(self, button: MouseButton) -> bool:
+        """Check if a mouse button is pressed."""
+        ...
+
+    def is_mouse_button_down(self, button: MouseButton) -> bool:
+        """Check if a mouse button is down."""
+        ...
+
+    def is_mouse_button_released(self, button: MouseButton) -> bool:
+        """Check if a mouse button is released."""
+        ...
+
+    def is_mouse_button_up(self, button: MouseButton) -> bool:
+        """Check if a mouse button is up."""
+        ...
 
     def get_mouse_position(self) -> tuple[float, float]:
         """Get the mouse position in the window."""
@@ -124,16 +183,10 @@ class Input(Protocol):
         """Get the mouse amount of scroll in the y-axis."""
         ...
 
+    def set_exit_key(self, key: Key) -> None:
+        """Set the key that closes the window."""
+        ...
+
     def pool_events(self) -> None:
         """Pool events."""
-        ...
-
-    @property
-    def event_manager(self) -> EventManager:
-        """Get the event manager."""
-        ...
-
-    @event_manager.setter
-    def event_manager(self) -> EventManager:
-        """Get the event manager."""
         ...

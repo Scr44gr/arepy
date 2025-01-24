@@ -3,12 +3,10 @@ from dataclasses import dataclass
 from typing import Callable, cast
 
 from .arepy_imgui.imgui_repository import Default as EmptyRepository
-from .arepy_imgui.imgui_repository import ImGui, ImGuiRendererRepository
+from .arepy_imgui.imgui_repository import Imgui, ImGuiRendererRepository
 from .engine.display import Display
 from .engine.input import Input
 from .engine.integrations.raylib.display import display_repository
-
-# ModernGLRenderer implementation
 from .engine.integrations.raylib.input import input_repository
 from .engine.integrations.raylib.renderer import renderer_2d
 from .engine.renderer.renderer_2d import Renderer2D
@@ -30,7 +28,7 @@ class Dependencies:
     """Dependency container for the application."""
 
     input_repository: Input
-    imgui_repository: ImGui
+    imgui_repository: Imgui
     display_repository: Display
     renderer_repository: Renderer2D
     imgui_renderer_repository: Callable[..., ImGuiRendererRepository]
@@ -52,7 +50,7 @@ def _build_dependencies() -> Callable[[], Dependencies]:
         input_repository=cast(Input, input_repository),
         # for gui manipulation
         imgui_repository=(
-            cast(ImGui, imgui if imgui is not None else EmptyRepository())
+            cast(Imgui, imgui if imgui is not None else EmptyRepository())
         ),
     )
 
