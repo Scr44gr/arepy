@@ -2,7 +2,10 @@ from os import PathLike
 from typing import cast
 
 import raylib as rl
+from pyray import Camera2D as rlCamera2D
+from pyray import Vector2 as rlVector2
 
+from arepy.bundle.components.camera_component import Camera2D
 from arepy.engine.renderer import ArepyTexture, Color, Rect, TextureFilter
 
 
@@ -218,6 +221,26 @@ def draw_fps(position: tuple[int, int]) -> None:
     )
 
 
+def screen_to_world(
+    position: tuple[float, float], camera: Camera2D
+) -> tuple[float, float]:
+    """
+    Convert screen coordinates to world coordinates.
+
+    Args:
+        position (tuple[float, float]): The position to convert.
+        camera (Camera2D): The camera to use for the conversion.
+
+    Returns:
+        tuple[float, float]: The converted position.
+    """
+    result = rl.GetScreenToWorld2D(
+        (position[0], position[1]),
+        camera._ref,  # type: ignore
+    )
+    return (result.x, result.y)
+
+
 def clear(color: Color) -> None:
     """
     Clear the screen with a color.
@@ -282,3 +305,55 @@ def set_texture_filter(texture: ArepyTexture, filter: TextureFilter):
         TextureFilter.TRILINEAR: rl.TEXTURE_FILTER_TRILINEAR,
     }
     rl.SetTextureFilter(texture._ref_texture, texture_filter_map[filter])  # type: ignore
+
+
+# Camera methods
+def add_camera(camera: Camera2D) -> None:
+    """
+    Add a camera.
+
+    Args:
+        camera (Camera2D): The camera to add.
+    """
+    if camera._ref is None:
+        camera._ref = rlCamera2D(  # type: ignore
+            rlVector2(camera.target.x, camera.target.y),
+            rlVector2(camera.offset.x, camera.offset.y),
+            camera.rotation,
+            camera.zoom,
+        )
+
+
+def begin_camera_mode(camera: Camera2D) -> None:
+    """
+    Set the current camera.
+
+    Args:
+        camera (Camera2D): The camera to set as the current camera.
+    """
+    rl.BeginMode2D(camera._ref)  # type: ignore
+
+
+def end_camera_mode() -> None:
+    """
+    Set the current camera.
+
+    Args:
+        camera (Camera2D): The camera to set as the current camera.
+    """
+    rl.EndMode2D()
+
+
+def update_camera(camera: Camera2D) -> None:
+    """
+    Update the camera.
+
+    Args:
+        camera (Camera2D): The camera to update.
+    """
+    camera._ref.target = rlVector2(camera.target.x, camera.target.y)
+    camera._ref.offset = rlVector2(camera.offset.x, camera.offset.y)
+    camera._ref.rotation = camera.rotation
+    camera._ref.zoom = camera.zoom
+
+    rl.UpdateCamera(camera._ref, rl.CAMERA_CUSTOM)
