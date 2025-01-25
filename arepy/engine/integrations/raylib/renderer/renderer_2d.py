@@ -137,14 +137,30 @@ def draw_rectangle(rect: Rect, color: Color) -> None:
         rect (Rect): The rectangle to draw.
         color (Color): The color to tint the rectangle.
     """
-    assert (
-        rect.width is not None and rect.height is not None
-    ), "Width and height must be set"
+
     rl.DrawRectangle(
         int(rect.x),
         int(rect.y),
         rect.width,
         rect.height,
+        (color.r, color.g, color.b, color.a),
+    )
+
+
+def draw_rectangle_ex(rect: Rect, rotation: float, color: Color) -> None:
+    """
+    Draw a rectangle with rotation.
+
+    Args:
+        rect (Rect): The rectangle to draw.
+        rotation (float): The rotation angle.
+        color (Color): The color to tint the rectangle.
+    """
+
+    rl.DrawRectanglePro(
+        (rect.x, rect.y, rect.width, rect.height),
+        (rect.width or 2 / 2, rect.height or 2 / 2),
+        rotation,
         (color.r, color.g, color.b, color.a),
     )
 

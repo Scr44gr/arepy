@@ -28,18 +28,18 @@ class ArepyTexture:
     def unload(self) -> None: ...
 
 
-@dataclass
+@dataclass(slots=True)
 class Rect:
     x: float
     y: float
-    width: Optional[int]
-    height: Optional[int]
+    width: int
+    height: int
 
-    def to_tuple(self) -> tuple[float, float, Optional[int], Optional[int]]:
+    def to_tuple(self) -> tuple[float, float, int, int]:
         return (self.x, self.y, self.width, self.height)
 
 
-@dataclass
+@dataclass(slots=True)
 class Color:
     r: int
     g: int
