@@ -1,5 +1,4 @@
 import asyncio
-from threading import Thread
 from typing import Any, Dict
 
 from arepy.arepy_imgui.imgui_repository import Imgui
@@ -10,7 +9,6 @@ from ..builders import EntityBuilder
 from ..ecs.registry import Registry
 from ..ecs.systems import System, SystemPipeline
 from ..event_manager import EventManager
-from ..event_manager.handlers import InputEventHandler
 from .display import Display
 from .renderer.renderer_2d import Color, Renderer2D
 
@@ -40,6 +38,7 @@ class ArepyEngine:
         Resources[Renderer2D.__name__] = self.renderer
         Resources[AssetStore.__name__] = self._asset_store
         Resources[Input.__name__] = self.input
+        Resources[ArepyEngine.__name__] = self
 
         self._registry = Registry()
         self._registry.resources = Resources
