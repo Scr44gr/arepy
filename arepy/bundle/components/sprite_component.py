@@ -11,3 +11,4 @@ class Sprite(Component):
         self.asset_id = asset_id
         self.src_rect = src_rect
         self.z_index = z_index
+        self.flipped = False

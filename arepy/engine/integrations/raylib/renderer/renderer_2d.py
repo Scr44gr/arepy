@@ -354,5 +354,3 @@ def update_camera(camera: Camera2D) -> None:
     camera._ref.offset = rlVector2(camera.offset.x, camera.offset.y)
     camera._ref.rotation = camera.rotation
     camera._ref.zoom = camera.zoom
-
-    rl.UpdateCamera(camera._ref, rl.CAMERA_CUSTOM)
