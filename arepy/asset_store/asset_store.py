@@ -4,6 +4,7 @@ from os.path import exists
 from pathlib import Path
 from typing import Any, Dict
 
+from ..engine.audio import ArepyMusic, ArepySound, AudioDevice
 from ..engine.renderer import ArepyTexture
 from ..engine.renderer.renderer_2d import Renderer2D
 
@@ -17,6 +18,8 @@ class TextureFilter(Enum):
 class AssetStore:
     textures: Dict[str, ArepyTexture] = field(default_factory=dict)
     fonts: Dict[str, Any] = field(default_factory=dict)
+    sounds: Dict[str, ArepySound] = field(default_factory=dict)
+    musics: Dict[str, ArepyMusic] = field(default_factory=dict)
 
     def create_render_texture(
         self,
@@ -51,3 +54,20 @@ class AssetStore:
 
         texture = self.textures.pop(name)
         renderer.unload_texture(texture)
+
+    # Audio related methods
+    def load_sound(self, audio_device: AudioDevice, path: str):
+        sound = audio_device.load_sound(Path(path))
+        self.sounds[path] = sound
+
+    def load_music(self, audio_device: AudioDevice, path: str):
+        music = audio_device.load_music(Path(path))
+        self.musics[path] = music
+
+    def unload_sound(self, audio_device: AudioDevice, path: str):
+        sound = self.sounds.pop(path)
+        audio_device.unload_sound(sound)
+
+    def unload_music(self, audio_device: AudioDevice, path: str):
+        music = self.musics.pop(path)
+        audio_device.unload_music(music)
