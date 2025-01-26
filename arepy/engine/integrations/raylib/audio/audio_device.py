@@ -1,3 +1,5 @@
+from os import PathLike
+
 import raylib as rl
 
 from ....audio import ArepyMusic, ArepySound
@@ -7,8 +9,8 @@ def init_device() -> None:
     rl.InitAudioDevice()
 
 
-def load_sound(path: str) -> ArepySound:
-    return ArepySound(rl.LoadSound(path.encode()))
+def load_sound(path: PathLike[str]) -> ArepySound:
+    return ArepySound(rl.LoadSound(str(path).encode("utf-8")))
 
 
 def play_sound(sound: ArepySound) -> None:
@@ -39,8 +41,8 @@ def unload_sound(sound: ArepySound) -> None:
     rl.UnloadSound(sound._ref)  # type: ignore
 
 
-def load_music(path: str) -> ArepyMusic:
-    return ArepyMusic(rl.LoadMusicStream(path.encode()))
+def load_music(path: PathLike[str]) -> ArepyMusic:
+    return ArepyMusic(rl.LoadMusicStream(str(path).encode("utf-8")))
 
 
 def play_music(music: ArepyMusic) -> None:

@@ -84,7 +84,10 @@ class Query(Generic[TEntity, TFilter]):
         self._entities.add(entity)
 
     def remove_entity(self, entity: "Entity") -> None:
-        self._entities.remove(entity)
+        try:
+            self._entities.remove(entity)
+        except KeyError:
+            pass
 
     def __iter__(self) -> Iterable["Entity"]:
         return iter(self._entities)

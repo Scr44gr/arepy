@@ -56,18 +56,24 @@ class AssetStore:
         renderer.unload_texture(texture)
 
     # Audio related methods
-    def load_sound(self, audio_device: AudioDevice, path: str):
+    def load_sound(self, audio_device: AudioDevice, name: str, path: str):
         sound = audio_device.load_sound(Path(path))
-        self.sounds[path] = sound
+        self.sounds[name] = sound
 
-    def load_music(self, audio_device: AudioDevice, path: str):
+    def load_music(self, audio_device: AudioDevice, name: str, path: str):
         music = audio_device.load_music(Path(path))
-        self.musics[path] = music
+        self.musics[name] = music
 
-    def unload_sound(self, audio_device: AudioDevice, path: str):
-        sound = self.sounds.pop(path)
+    def get_sound(self, name: str) -> ArepySound:
+        return self.sounds[name]
+
+    def get_music(self, name: str) -> ArepyMusic:
+        return self.musics[name]
+
+    def unload_sound(self, audio_device: AudioDevice, name: str):
+        sound = self.sounds.pop(name)
         audio_device.unload_sound(sound)
 
-    def unload_music(self, audio_device: AudioDevice, path: str):
-        music = self.musics.pop(path)
+    def unload_music(self, audio_device: AudioDevice, name: str):
+        music = self.musics.pop(name)
         audio_device.unload_music(music)
