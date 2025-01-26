@@ -4,8 +4,10 @@ from typing import Callable, cast
 
 from .arepy_imgui.imgui_repository import Default as EmptyRepository
 from .arepy_imgui.imgui_repository import Imgui, ImGuiRendererRepository
+from .engine.audio import AudioDevice
 from .engine.display import Display
 from .engine.input import Input
+from .engine.integrations.raylib.audio import audio_device
 from .engine.integrations.raylib.display import display_repository
 from .engine.integrations.raylib.input import input_repository
 from .engine.integrations.raylib.renderer import renderer_2d
@@ -27,6 +29,7 @@ except (ImportError, ModuleNotFoundError):
 class Dependencies:
     """Dependency container for the application."""
 
+    audio_device_repository: AudioDevice
     input_repository: Input
     imgui_repository: Imgui
     display_repository: Display
@@ -52,6 +55,7 @@ def _build_dependencies() -> Callable[[], Dependencies]:
         imgui_repository=(
             cast(Imgui, imgui if imgui is not None else EmptyRepository())
         ),
+        audio_device_repository=cast(AudioDevice, audio_device),
     )
 
     def fn() -> Dependencies:

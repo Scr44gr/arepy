@@ -104,9 +104,8 @@ def draw_texture_ex(
         rotation (float): The rotation angle.
         color (Color): The color to tint the texture.
     """
-    texture._ref_texture = cast(rl.Texture, texture._ref_texture)
     rl.DrawTexturePro(
-        texture._ref_texture,
+        texture._ref_texture,  # type: ignore
         src_rect.to_tuple(),
         dst_rect.to_tuple(),
         (dst_rect.width or 2 / 2, dst_rect.height or 2 / 2),

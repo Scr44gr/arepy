@@ -2,6 +2,7 @@ import asyncio
 from typing import Any, Dict
 
 from arepy.arepy_imgui.imgui_repository import Imgui
+from arepy.engine.audio import AudioDevice
 from arepy.engine.input import Input
 
 from ..asset_store import AssetStore
@@ -34,11 +35,13 @@ class ArepyEngine:
         self.display = dependencies().display_repository
         self.renderer = dependencies().renderer_repository
         self.input = dependencies().input_repository
+        self.audio_device = dependencies().audio_device_repository
         Resources[Display.__name__] = self.display
         Resources[Renderer2D.__name__] = self.renderer
         Resources[AssetStore.__name__] = self._asset_store
         Resources[Input.__name__] = self.input
         Resources[ArepyEngine.__name__] = self
+        Resources[AudioDevice.__name__] = self.audio_device
 
         self._registry = Registry()
         self._registry.resources = Resources
@@ -51,6 +54,9 @@ class ArepyEngine:
         self.renderer.set_max_framerate(self.max_frame_rate)
         if self.fullscreen:
             self.display.toggle_fullscreen()
+        # init audio device
+        self.audio_device.init_device()
+
         # Imgui
         self.imgui = dependencies().imgui_repository
         self.imgui_backend = dependencies().imgui_renderer_repository()
@@ -74,6 +80,7 @@ class ArepyEngine:
             self.__render_process()
             await asyncio.sleep(0)
         self.on_shutdown()
+        self.free_resources()
 
     def __input_process(self):
         # dispatch input events
@@ -133,3 +140,6 @@ class ArepyEngine:
     def on_update(self): ...
     def on_shutdown(self): ...
     def on_render(self): ...
+
+    def free_resources(self):
+        self.audio_device.close_device()
