@@ -5,8 +5,9 @@ from .systems import System, SystemPipeline
 
 class World:
 
-    def __init__(self):
+    def __init__(self, name: str):
         self._registry = Registry()
+        self.name = name
 
     def create_entity(self):
         """Create an entity builder.

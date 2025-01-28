@@ -66,6 +66,7 @@ class ArepyEngine:
         self.on_startup()
         while not self.display.window_should_close():
             self.__next_frame()
+            self.__check_and_set_world()
         self.on_shutdown()
 
     async def run_async(self):
@@ -73,6 +74,7 @@ class ArepyEngine:
         # await run_ecs_thread_executor()
         while not self.display.window_should_close():
             self.__next_frame()
+            self.__check_and_set_world()
             await asyncio.sleep(0)
         self.on_shutdown()
 
@@ -85,6 +87,7 @@ class ArepyEngine:
         self.__update_process()
         self.__render_process()
 
+    def __check_and_set_world(self):
         if self._next_world_to_set:
             self._current_world = self.worlds[self._next_world_to_set]
             self._next_world_to_set = None  # type: ignore
@@ -96,14 +99,17 @@ class ArepyEngine:
         self._current_world._registry.run(pipeline=SystemPipeline.INPUT)
 
     def __update_process(self):
-        self._current_world._registry.update()
-        self._current_world._registry.run(pipeline=SystemPipeline.UPDATE)
+        current_world = self._current_world
+        current_world._registry.update()
+        current_world._registry.run(pipeline=SystemPipeline.UPDATE)
         self.on_update()
 
     def __render_process(self):
         self.renderer.clear(color=Color(245, 245, 245, 255))
-        self._current_world._registry.run(pipeline=SystemPipeline.RENDER)
-        self._current_world._registry.run(pipeline=SystemPipeline.RENDER_UI)
+        # perform trick
+        current_world = self._current_world
+        current_world._registry.run(pipeline=SystemPipeline.RENDER)
+        current_world._registry.run(pipeline=SystemPipeline.RENDER_UI)
         self.on_render()
         self.imgui_backend.render(self.imgui.get_draw_data())
         self.renderer.swap_buffers()
@@ -133,7 +139,7 @@ class ArepyEngine:
         if name in self.worlds:
             raise ValueError(f"World with name {name} already exists")
 
-        world = World()
+        world = World(name)
         # Add resources to the world
         ecs_registry = world.get_registry()
         ecs_registry.resources = Resources
