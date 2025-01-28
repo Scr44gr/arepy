@@ -44,6 +44,7 @@ class ArepyEngine:
         Resources[EventManager.__name__] = self._event_manager
         self.worlds: Dict[str, World] = {}
         self._current_world: World = None  # type: ignore
+        self._next_world_to_set: str = None  # type: ignore
 
     def init(self):
         from ..container import dependencies
@@ -83,6 +84,10 @@ class ArepyEngine:
         self.__input_process()
         self.__update_process()
         self.__render_process()
+
+        if self._next_world_to_set:
+            self._current_world = self.worlds[self._next_world_to_set]
+            self._next_world_to_set = None  # type: ignore
 
     def __input_process(self):
         # dispatch input events
@@ -143,7 +148,7 @@ class ArepyEngine:
         """
         if name not in self.worlds:
             raise ValueError(f"World with name {name} does not exist")
-        self._current_world = self.worlds[name]
+        self._next_world_to_set = name
 
     def get_current_world(self) -> World:
         """Get the current world.
