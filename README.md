@@ -70,5 +70,10 @@ if __name__ == "__main__":
     game.set_current_world("example_world")
     game.run()
 ```
+### And you can see the result:
+
+![window](https://github.com/user-attachments/assets/c23a6af6-14a0-4afc-b335-7702815a7777)
+
+
 
 TODO!: create a nice README.md
