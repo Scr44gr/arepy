@@ -2,13 +2,12 @@ import asyncio
 from typing import Any, Dict
 
 from arepy.arepy_imgui.imgui_repository import Imgui
+from arepy.ecs.world import World
 from arepy.engine.audio import AudioDevice
 from arepy.engine.input import Input
 
 from ..asset_store import AssetStore
-from ..builders import EntityBuilder
-from ..ecs.registry import Registry
-from ..ecs.systems import System, SystemPipeline
+from ..ecs.systems import SystemPipeline
 from ..event_manager import EventManager
 from .display import Display
 from .renderer.renderer_2d import Color, Renderer2D
@@ -20,15 +19,15 @@ class ArepyEngine:
     title: str = "Arepy Engine"
     window_width: int = 1920 // 3
     window_height: int = 1080 // 3
-    render_size = (window_width, window_height)
     max_frame_rate: int = 800
     debug: bool = False
     fullscreen: bool = False
-    fake_fullscreen: bool = False
     vsync: bool = False
 
     def __init__(self):
         from ..container import dependencies
+
+        global Resources
 
         self._asset_store = AssetStore()
         self._event_manager = EventManager()
@@ -42,9 +41,9 @@ class ArepyEngine:
         Resources[Input.__name__] = self.input
         Resources[ArepyEngine.__name__] = self
         Resources[AudioDevice.__name__] = self.audio_device
-
-        self._registry = Registry()
-        self._registry.resources = Resources
+        Resources[EventManager.__name__] = self._event_manager
+        self.worlds: Dict[str, World] = {}
+        self._current_world: World = None  # type: ignore
 
     def init(self):
         from ..container import dependencies
@@ -60,64 +59,49 @@ class ArepyEngine:
         # Imgui
         self.imgui = dependencies().imgui_repository
         self.imgui_backend = dependencies().imgui_renderer_repository()
-        self._registry.resources[Imgui.__name__] = self.imgui
+        Resources[Imgui.__name__] = self.imgui
 
     def run(self):
-
         self.on_startup()
         while not self.display.window_should_close():
-            self.__input_process()
-            self.__update_process()
-            self.__render_process()
+            self.__next_frame()
         self.on_shutdown()
 
     async def run_async(self):
         self.on_startup()
         # await run_ecs_thread_executor()
         while not self.display.window_should_close():
-            self.__input_process()
-            self.__update_process()
-            self.__render_process()
+            self.__next_frame()
             await asyncio.sleep(0)
         self.on_shutdown()
-        self.free_resources()
+
+    def __next_frame(self):
+        if not self._current_world:
+            self.renderer.swap_buffers()
+            return
+        # Process input, update and render
+        self.__input_process()
+        self.__update_process()
+        self.__render_process()
 
     def __input_process(self):
         # dispatch input events
         # self.input.pool_events()
         self.imgui_backend.process_inputs()
-        self._registry.run(pipeline=SystemPipeline.INPUT)
+        self._current_world._registry.run(pipeline=SystemPipeline.INPUT)
 
     def __update_process(self):
-        self._registry.update()
-        self._registry.run(pipeline=SystemPipeline.UPDATE)
+        self._current_world._registry.update()
+        self._current_world._registry.run(pipeline=SystemPipeline.UPDATE)
         self.on_update()
 
     def __render_process(self):
         self.renderer.clear(color=Color(245, 245, 245, 255))
-        self._registry.run(pipeline=SystemPipeline.RENDER)
-        self._registry.run(pipeline=SystemPipeline.RENDER_UI)
+        self._current_world._registry.run(pipeline=SystemPipeline.RENDER)
+        self._current_world._registry.run(pipeline=SystemPipeline.RENDER_UI)
         self.on_render()
         self.imgui_backend.render(self.imgui.get_draw_data())
         self.renderer.swap_buffers()
-
-    def create_entity(self) -> EntityBuilder:
-        """Create an entity builder.
-
-        Returns:
-            An entity builder.
-        """
-        entity = self._registry.create_entity()
-        return EntityBuilder(entity, self._registry)
-
-    def add_system(self, pipeline: SystemPipeline, system: System) -> None:
-        """Create a new system.
-
-        Args:
-            pipeline: A pipeline to add the system.
-            system: A system.
-        """
-        self._registry.add_system(pipeline, system)
 
     def get_asset_store(self) -> AssetStore:
         """Get the asset store.
@@ -135,11 +119,54 @@ class ArepyEngine:
         """
         return self._event_manager
 
+    def create_world(self, name: str) -> World:
+        """Add a world to the engine.
+
+        Args:
+            name: The name of the world.
+        """
+        if name in self.worlds:
+            raise ValueError(f"World with name {name} already exists")
+
+        world = World()
+        # Add resources to the world
+        ecs_registry = world.get_registry()
+        ecs_registry.resources = Resources
+        self.worlds[name] = world
+        return world
+
+    def set_current_world(self, name: str) -> None:
+        """Set the current world.
+
+        Args:
+            name: The name of the world.
+        """
+        if name not in self.worlds:
+            raise ValueError(f"World with name {name} does not exist")
+        self._current_world = self.worlds[name]
+
+    def get_current_world(self) -> World:
+        """Get the current world.
+
+        Returns:
+            The current world.
+        """
+        return self._current_world
+
+    def remove_world(self, name: str) -> World:
+        """Remove a world from the engine.
+
+        (this will not delete the world, just remove it from the engine.)
+
+        Args:
+            name: The name of the world.
+        """
+        if name not in self.worlds:
+            raise ValueError(f"World with name {name} does not exist")
+        return self.worlds.pop(name)
+
     # Engine func Events
     def on_startup(self): ...
     def on_update(self): ...
     def on_shutdown(self): ...
     def on_render(self): ...
-
-    def free_resources(self):
-        self.audio_device.close_device()

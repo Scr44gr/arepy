@@ -40,7 +40,9 @@ class Renderer2D(Protocol):
         self,
         position: tuple[int, int],
     ) -> None: ...
-    def screen_to_world(self, position: tuple[float, float]) -> tuple[float, float]: ...
+    def screen_to_world(
+        self, position: tuple[float, float], camera: Camera2D
+    ) -> tuple[float, float]: ...
 
     # Frame methods
     def set_texture_filter(

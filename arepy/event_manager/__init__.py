@@ -1,1 +1,1 @@
-from .event_manager import EventManager
+from .event_manager import Event, EventManager

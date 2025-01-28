@@ -4,6 +4,8 @@ from ...math.vec3 import Vec3
 
 
 class Camera2D(Component):
+    """A 2D camera component that stores the camera's target, offset, zoom, rotation, and shake data."""
+
     def __init__(
         self,
         target: Vec2,

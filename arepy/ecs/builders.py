@@ -1,7 +1,7 @@
 from typing import List
 
-from .ecs.components import Component
-from .ecs.registry import Entity, Registry
+from .components import Component
+from .registry import Entity, Registry
 
 
 class EntityBuilder:

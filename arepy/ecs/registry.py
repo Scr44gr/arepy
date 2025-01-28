@@ -1,5 +1,5 @@
 import logging
-from collections import OrderedDict, deque
+from collections import deque
 from dataclasses import dataclass, field
 from inspect import isclass, isfunction
 from typing import Dict, List, Optional, Sequence, Set, Type, cast
@@ -10,7 +10,6 @@ from .entities import Entity
 from .exceptions import MaximumComponentsExceededError
 from .query import get_queries_instance_from_arguments, get_signed_query_arguments
 from .systems import System, SystemPipeline
-from .threading import ECS_EXECUTOR_QUEUE
 from .utils import Signature
 
 logger = logging.getLogger(__name__)
