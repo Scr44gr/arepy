@@ -1,6 +1,6 @@
 from typing import NewType, Set, Type
 
-from .components import TComponent
+from .components import Component, TComponent
 from .exceptions import ComponentNotFoundError, RegistryNotSetError
 
 try:
@@ -42,6 +42,15 @@ class Entity:
 
         if component_type in self._component_cache:
             del self._component_cache[component_type]
+
+    def add_component(self, component: Component) -> None:
+        component_type = type(component)
+        if self._registry is None:
+            raise RegistryNotSetError
+        if component_type in self._component_cache:
+            return
+
+        self._registry.add_component(self, component_type, component, sync_queries=True)
 
     def has_component(self, component_type: Type[TComponent]) -> bool:
         if self._registry is None:

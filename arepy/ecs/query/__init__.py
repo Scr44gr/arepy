@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from functools import lru_cache
 from typing import (
     Any,
     Callable,
@@ -14,8 +15,6 @@ from typing import (
     Union,
     cast,
 )
-
-from arepy.ecs.threading import ECS_LOCK
 
 from ..components import Component, ComponentIndex
 from ..constants import MAX_COMPONENTS
@@ -108,7 +107,7 @@ def get_signed_query_arguments(function: Callable) -> OrderedDict[str, Any]:
     if not queries_signature:
         return func_arguments
 
-    signed_queries = sign_queries(queries_signature)
+    signed_queries = sign_queries(tuple(queries_signature))
     func_arguments.update(signed_queries)
     return func_arguments
 
@@ -116,6 +115,7 @@ def get_signed_query_arguments(function: Callable) -> OrderedDict[str, Any]:
 QuerySignature = list[tuple[str, Callable[[], Query]]]
 
 
+@lru_cache(typed=True)
 def sign_queries(
     queries_signature: QuerySignature,
 ) -> List[tuple[str, Query]]:

@@ -13,3 +13,10 @@ class SystemPipeline(Enum):
     PHYSICS = 3
     ASYNC_UPDATE = 4
     RENDER_UI = 5
+
+
+class SystemState(Enum):
+    """State of the system."""
+
+    OFF = 0
+    ON = 1

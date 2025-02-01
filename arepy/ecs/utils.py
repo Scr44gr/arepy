@@ -70,6 +70,12 @@ class Signature:
     def clear(self):
         self.__bits.setall(False)
 
+    def copy(self) -> "Signature":
+        signature = Signature(len(self.__bits))
+        signature.__bits = self.__bits.copy()
+        signature.__flipped = self.__flipped
+        return signature
+
     @property
     def was_flipped(self):
         return self.__flipped
