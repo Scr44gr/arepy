@@ -228,7 +228,11 @@ class Registry:
             raise ValueError(f"System {system} not found in pipeline {pipeline}")
 
         prev_state = prev_state[0]
-        self.systems[pipeline][state] = self.systems[pipeline].pop(prev_state, set())
+        self.systems[pipeline][prev_state].remove(system)
+        if not state in self.systems[pipeline]:
+            self.systems[pipeline][state] = set()
+
+        self.systems[pipeline][state].add(system)
 
     # Update
     def update(self) -> None:
