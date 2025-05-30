@@ -22,6 +22,7 @@ class Renderer2D(Protocol):
         texture: ArepyTexture,
         source: Rect,
         dest: Rect,
+        origin: tuple[float, float],
         rotation: float,
         color: Color,
     ) -> None: ...
@@ -33,6 +34,7 @@ class Renderer2D(Protocol):
     def draw_circle(
         self, center: tuple[float, float], radius: float, color: Color
     ) -> None: ...
+
     def draw_text(
         self, text: str, position: tuple[float, float], font_size: int, color: Color
     ) -> None: ...

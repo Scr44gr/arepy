@@ -107,7 +107,7 @@ def get_signed_query_arguments(function: Callable) -> OrderedDict[str, Any]:
     if not queries_signature:
         return func_arguments
 
-    signed_queries = sign_queries(tuple(queries_signature))
+    signed_queries = sign_queries(list(queries_signature))
     func_arguments.update(signed_queries)
     return func_arguments
 
@@ -115,7 +115,6 @@ def get_signed_query_arguments(function: Callable) -> OrderedDict[str, Any]:
 QuerySignature = list[tuple[str, Callable[[], Query]]]
 
 
-@lru_cache(typed=True)
 def sign_queries(
     queries_signature: QuerySignature,
 ) -> List[tuple[str, Query]]:

@@ -2,7 +2,7 @@ from typing import Iterator
 
 import raylib as rl
 
-from ....input import Key, MouseButton
+from arepy.engine.input import Key, MouseButton
 
 
 def is_key_pressed(key: Key) -> bool:

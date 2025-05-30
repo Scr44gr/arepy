@@ -2,7 +2,7 @@ from os import PathLike
 
 import raylib as rl
 
-from ....audio import ArepyMusic, ArepySound
+from arepy.engine.audio import ArepyMusic, ArepySound
 
 
 def init_device() -> None:

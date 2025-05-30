@@ -91,6 +91,7 @@ def draw_texture_ex(
     texture: ArepyTexture,
     src_rect: Rect,
     dst_rect: Rect,
+    origin: tuple[float, float],
     rotation: float,
     color: Color,
 ) -> None:
@@ -108,11 +109,41 @@ def draw_texture_ex(
         texture._ref_texture,  # type: ignore
         src_rect.to_tuple(),
         dst_rect.to_tuple(),
-        (dst_rect.width or 2 / 2, dst_rect.height or 2 / 2),
+        origin,
         rotation,
         (color.r, color.g, color.b, color.a),
     )
 
+def draw_unfilled_circle(center: tuple[float, float], radius: float, color: Color) -> None:
+    """
+    Draw an unfilled circle.
+
+    Args:
+        center (tuple[float, float]): The center of the circle.
+        radius (float): The radius of the circle.
+        color (Color): The color of the circle.
+    """
+    rl.DrawCircleLines(
+        int(center[0]),
+        int(center[1]),
+        radius,
+        (color.r, color.g, color.b, color.a),
+    )
+def draw_circle(center: tuple[float, float], radius: float, color: Color) -> None:
+    """
+    Draw a circle.
+
+    Args:
+        center (tuple[float, float]): The center of the circle.
+        radius (float): The radius of the circle.
+        color (Color): The color of the circle.
+    """
+    rl.DrawCircle(
+        int(center[0]),
+        int(center[1]),
+        radius,
+        (color.r, color.g, color.b, color.a),
+    )
 
 def bind_render_texture(texture: ArepyTexture) -> None:
     """
@@ -350,7 +381,7 @@ def update_camera(camera: Camera2D) -> None:
     Args:
         camera (Camera2D): The camera to update.
     """
-    camera._ref.target = rlVector2(camera.target.x, camera.target.y)
-    camera._ref.offset = rlVector2(camera.offset.x, camera.offset.y)
-    camera._ref.rotation = camera.rotation
-    camera._ref.zoom = camera.zoom
+    camera._ref.target = rlVector2(camera.target.x, camera.target.y) # type: ignore
+    camera._ref.offset = rlVector2(camera.offset.x, camera.offset.y) # type: ignore
+    camera._ref.rotation = camera.rotation # type: ignore
+    camera._ref.zoom = camera.zoom # type: ignore

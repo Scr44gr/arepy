@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from collections import deque
 from dataclasses import dataclass, field
@@ -29,7 +30,7 @@ class Registry:
     systems: Dict[
         SystemPipeline,
         Dict[SystemState, Set[System]],
-    ] = field(default_factory=lambda: {key: {} for key in SystemPipeline})
+    ] = field(default_factory=lambda: {pipeline: {state: set()} for pipeline in SystemPipeline for state in SystemState})
     queries: dict[System, Sequence[object]] = field(default_factory=dict)
 
     entity_component_signatures: List[Signature] = field(default_factory=list)
@@ -231,7 +232,7 @@ class Registry:
         self.systems[pipeline][prev_state].remove(system)
         if not state in self.systems[pipeline]:
             self.systems[pipeline][state] = set()
-
+        
         self.systems[pipeline][state].add(system)
 
     # Update
@@ -269,5 +270,11 @@ class Registry:
             #   ECS_EXECUTOR_QUEUE.put_nowait((system, self.queries[system]))
             if state == SystemState.OFF:
                 continue
+
             for system in systems:
+                # is is a coroutine, use asyncio.run
+                if asyncio.iscoroutinefunction(system):
+                    asyncio.create_task(system(*self.queries[system])) # type: ignore
+                    continue
+
                 system(*self.queries[system])
