@@ -10,21 +10,44 @@ BUNNY_ASSET = "bunny.png"
 
 BUNNY_COUNT = 3000  # You can increase this for stress testing
 
+WINDOW_WIDTH = 640
+WINDOW_HEIGHT = 480
+
 
 def movement_system(
     query: Query[Entities, With[Transform, RigidBody2D]], renderer: Renderer2D
 ):
+    """
+    Updates the position of entities based on their velocity and handles bouncing
+    off the window edges.
+    """
     delta_time = renderer.get_delta_time()
+    sprite_size = 16  # Half of the sprite size (32x32 pixels)
+
     for entity in query.get_entities():
         transform = entity.get_component(Transform)
-        velocity = entity.get_component(RigidBody2D).velocity
+        rigidbody = entity.get_component(RigidBody2D)
+        velocity = rigidbody.velocity
+
+        # Update position
         transform.position.x += velocity.x * delta_time
         transform.position.y += velocity.y * delta_time
-        # Bounce on window edges
-        if transform.position.x < 0 or transform.position.x > 640 - 32:
-            velocity.x = -velocity.x
-        if transform.position.y < 0 or transform.position.y > 480 - 32:
-            velocity.y = -velocity.y
+
+        # Bounce on window edges considering sprite size
+        transform.position.x = max(
+            0, min(WINDOW_WIDTH - sprite_size, transform.position.x)
+        )
+        transform.position.y = max(
+            0, min(WINDOW_HEIGHT - sprite_size, transform.position.y)
+        )
+
+        # Reverse velocity if bouncing
+        velocity.x *= (
+            -1 if transform.position.x in (0, WINDOW_WIDTH - sprite_size) else 1
+        )
+        velocity.y *= (
+            -1 if transform.position.y in (0, WINDOW_HEIGHT - sprite_size) else 1
+        )
 
 
 def render_system(
@@ -42,9 +65,9 @@ def render_system(
             texture,
             Rect(0, 0, 32, 32),
             Rect(transform.position.x, transform.position.y, 32, 32),
-            (32 / 2, 32 / 2),
+            (transform.origin.x, transform.origin.y),
             0.0,  # rotation
-            Color(255, number_of_entities % 255, 0, 255),  # color
+            WHITE_COLOR,
         )
         number_of_entities += 1
     renderer.draw_text(
@@ -60,8 +83,8 @@ def render_system(
 def main():
     game = ArepyEngine()
     game.title = "Arepy BunnyMark"
-    game.window_width = 640
-    game.window_height = 480
+    game.window_width = WINDOW_WIDTH
+    game.window_height = WINDOW_HEIGHT
     game.max_frame_rate = 0  # Unlimited
     game.init()
     world = game.create_world("bunnymark")
@@ -77,7 +100,7 @@ def main():
         vx = random.uniform(-200, 200)
         vy = random.uniform(-200, 200)
         world.create_entity().with_component(
-            Transform(position=Vec2(x, y))
+            Transform(position=Vec2(x, y), origin=Vec2(16, 16))
         ).with_component(RigidBody2D(velocity=Vec2(vx, vy))).with_component(
             Sprite(asset_id=BUNNY_ASSET, src_rect=(0, 0, 32, 32), z_index=1)
         ).build()
