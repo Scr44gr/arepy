@@ -125,13 +125,14 @@ def sign_queries(
                 f"Query {name} does not have the correct type hint. "
                 "Make sure to use the correct type hint for the query."
             )
-        if query_factory.__args__[1] not in (With, Without):
+
+        kind_of_result = query_factory.__args__[1]
+        if kind_of_result.__origin__ not in (With, Without):
             raise TypeError(
                 f"Query {name} does not have the correct type hint. "
                 "Make sure to use the correct type hint for the query, "
                 "it should be Query[Entity, With[Component1, Component2, ...]] or Query[Entity, Without[Component1, Component2, ...]]"
             )
-        kind_of_result = query_factory.__args__[1]
         required_components: tuple[Type[Component], ...] = kind_of_result.__args__[0]
         query: Query = query_factory()
         query._kind = kind_of_result
