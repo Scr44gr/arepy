@@ -1,8 +1,11 @@
+import random
+
 from arepy import ArepyEngine, Color, Rect, Renderer2D, SystemPipeline
 from arepy.bundle.components.rigidbody_component import RigidBody2D
 from arepy.bundle.components.sprite_component import Sprite
 from arepy.bundle.components.transform_component import Transform
 from arepy.ecs import Entities, Query, With
+from arepy.ecs.world import World
 from arepy.math import Vec2
 
 WHITE_COLOR = Color(255, 255, 255, 255)
@@ -80,6 +83,20 @@ def render_system(
     renderer.end_frame()
 
 
+def spawn_bunnies(world: World, count: int):
+
+    for _ in range(count):
+        x = random.uniform(0, WINDOW_WIDTH - 32)
+        y = random.uniform(0, WINDOW_HEIGHT - 32)
+        vx = random.uniform(-200, 200)
+        vy = random.uniform(-200, 200)
+        world.create_entity().with_component(
+            Transform(position=Vec2(x, y), origin=Vec2(16, 16))
+        ).with_component(RigidBody2D(velocity=Vec2(vx, vy))).with_component(
+            Sprite(asset_id=BUNNY_ASSET, src_rect=(0, 0, 32, 32), z_index=1)
+        ).build()
+
+
 def main():
     game = ArepyEngine()
     game.title = "Arepy BunnyMark"
@@ -92,18 +109,10 @@ def main():
     renderer = game.renderer
     # Register asset_store as a resource for ECS injection
     asset_store.load_texture(renderer, BUNNY_ASSET, f"./assets/{BUNNY_ASSET}")
-    import random
 
-    for _ in range(BUNNY_COUNT):
-        x = random.uniform(0, 640 - 32)
-        y = random.uniform(0, 480 - 32)
-        vx = random.uniform(-200, 200)
-        vy = random.uniform(-200, 200)
-        world.create_entity().with_component(
-            Transform(position=Vec2(x, y), origin=Vec2(16, 16))
-        ).with_component(RigidBody2D(velocity=Vec2(vx, vy))).with_component(
-            Sprite(asset_id=BUNNY_ASSET, src_rect=(0, 0, 32, 32), z_index=1)
-        ).build()
+    # Spawn bunnies
+    spawn_bunnies(world, BUNNY_COUNT)
+
     world.add_system(SystemPipeline.UPDATE, movement_system)
     world.add_system(SystemPipeline.RENDER, render_system)
     game.set_current_world("bunnymark")
