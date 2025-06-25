@@ -1,5 +1,4 @@
 from collections import OrderedDict
-from functools import lru_cache
 from typing import (
     Any,
     Callable,
@@ -121,11 +120,27 @@ def sign_queries(
     signed_queries = []
     for name, query_signature in queries_signature:
         query_factory: Callable[[], Query] = cast(Callable[[], Query], query_signature)
+        if not hasattr(query_factory, "__args__"):
+            raise TypeError(
+                f"Query {name} does not have the correct type hint. "
+                "Make sure to use the correct type hint for the query."
+            )
+        if query_factory.__args__[1] not in (With, Without):
+            raise TypeError(
+                f"Query {name} does not have the correct type hint. "
+                "Make sure to use the correct type hint for the query, "
+                "it should be Query[Entity, With[Component1, Component2, ...]] or Query[Entity, Without[Component1, Component2, ...]]"
+            )
         kind_of_result = query_factory.__args__[1]
         required_components: tuple[Type[Component], ...] = kind_of_result.__args__[0]
         query: Query = query_factory()
         query._kind = kind_of_result
         for component_type in required_components:
+            if not issubclass(component_type, Component):
+                raise TypeError(
+                    f"Query {name} has an invalid component type: {component_type.__name__}. "
+                    "Make sure to use a valid component type."
+                )
             component_id = ComponentIndex.get_id(component_type.__name__)
             query._signature.set(component_id, True)
         signed_queries.append((name, query))
@@ -139,7 +154,7 @@ def get_annotations(function: Callable) -> OrderedDict[str, Any]:
 
 
 def get_queries_from_arguments(
-    args: Mapping[str, object]
+    args: Mapping[str, object],
 ) -> list[tuple[str, Callable[[], Query]]]:
     """Get the queries from the arguments"""
     results = [

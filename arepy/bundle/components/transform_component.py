@@ -7,8 +7,10 @@ class Transform(Component):
         self,
         position: Vec2 = Vec2(0, 0),
         scale: Vec2 = Vec2(1, 1),
+        origin: Vec2 = Vec2(0, 0),
         rotation: float = 0,
     ):
         self.position = position
         self.scale = scale
         self.rotation = rotation
+        self.origin = origin
