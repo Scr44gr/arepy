@@ -30,7 +30,13 @@ class Registry:
     systems: Dict[
         SystemPipeline,
         Dict[SystemState, Set[System]],
-    ] = field(default_factory=lambda: {pipeline: {state: set()} for pipeline in SystemPipeline for state in SystemState})
+    ] = field(
+        default_factory=lambda: {
+            pipeline: {state: set()}
+            for pipeline in SystemPipeline
+            for state in SystemState
+        }
+    )
     queries: dict[System, Sequence[object]] = field(default_factory=dict)
 
     entity_component_signatures: List[Signature] = field(default_factory=list)
@@ -71,33 +77,30 @@ class Registry:
         component: TComponent,
         sync_queries: bool = False,
     ) -> None:
-        logger.debug(f"Adding component {component_type.__name__} to entity {entity}.")
-
         if sync_queries:
             self.entities_to_be_synced_on_add.add((entity, component))
 
         entity_id = entity.get_id()
-
         component_id = ComponentIndex.get_id(component_type.__name__)
 
         if component_id >= len(self.component_pools):
             if component_id >= MAX_COMPONENTS:
                 raise MaximumComponentsExceededError(MAX_COMPONENTS)
-            self.component_pools.extend(
-                [None] * (component_id - len(self.component_pools))
-            )
+            new_size = component_id + 1
+            self.component_pools.extend([None] * (new_size - len(self.component_pools)))
+
         if self.component_pools[component_id - 1] is None:
             self.component_pools[component_id - 1] = ComponentPool(component_type)
 
         component_pool = cast(
             ComponentPool[TComponent], self.component_pools[component_id - 1]
         )
-        # Resize the component pool if necessary
-        if entity_id >= len(component_pool):
-            component_pool.extend([None] * (entity_id - len(component_pool) + 1))
-        # Set the component to the pool
-        component_pool.set(entity_id - 1, component)
 
+        if entity_id >= len(component_pool):
+            new_pool_size = max(entity_id + 1, len(component_pool) * 2)
+            component_pool.extend([None] * (new_pool_size - len(component_pool)))
+
+        component_pool.set(entity_id - 1, component)
         self.entity_component_signatures[entity_id - 1].set(component_id, True)
 
     def get_component(
@@ -232,30 +235,30 @@ class Registry:
         self.systems[pipeline][prev_state].remove(system)
         if not state in self.systems[pipeline]:
             self.systems[pipeline][state] = set()
-        
+
         self.systems[pipeline][state].add(system)
 
     # Update
     def update(self) -> None:
 
-        if len(self.entities_to_be_synced_on_add) > 0:
+        if self.entities_to_be_synced_on_add:
             for entity, component in self.entities_to_be_synced_on_add:
                 self.sync_queries_on_add_component(
                     entity, self.entity_component_signatures[entity.get_id() - 1]
                 )
             self.entities_to_be_synced_on_add.clear()
 
-        if len(self.entities_to_be_synced_on_remove) > 0:
+        if self.entities_to_be_synced_on_remove:
             for entity, component in self.entities_to_be_synced_on_remove:
                 self.sync_queries_on_remove_component(entity, component)
             self.entities_to_be_synced_on_remove.clear()
 
-        if len(self.entities_to_be_added) > 0:
+        if self.entities_to_be_added:
             for entity in self.entities_to_be_added:
                 self.add_entity_to_systems(entity)
             self.entities_to_be_added.clear()
 
-        if len(self.entities_to_be_removed) > 0:
+        if self.entities_to_be_removed:
             for entity in self.entities_to_be_removed:
                 self.remove_entity_from_systems(entity)
                 self.entity_component_signatures[entity.get_id() - 1].clear()
@@ -263,7 +266,8 @@ class Registry:
             self.entities_to_be_removed.clear()
 
     def run(self, pipeline: SystemPipeline) -> None:
-        for state, systems in self.systems[pipeline].items():
+        pipeline_systems = self.systems.get(pipeline, {})
+        for state, systems in pipeline_systems.items():
             # Need to improve the threading system by handling concurrency issues and optimizing performance
             # maybe spliting the queries in chunks of entities
             # if pipeline == SystemPipeline.UPDATE:
@@ -274,7 +278,6 @@ class Registry:
             for system in systems:
                 # is is a coroutine, use asyncio.run
                 if asyncio.iscoroutinefunction(system):
-                    asyncio.create_task(system(*self.queries[system])) # type: ignore
+                    asyncio.create_task(system(*self.queries[system]))  # type: ignore
                     continue
-
                 system(*self.queries[system])
