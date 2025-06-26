@@ -33,7 +33,7 @@ class RegistryTest(TestCase):
 
         # Ensure that the entity has the components
         self.assertEqual(self.registry.number_of_entities, 1)
-        self.assertEqual(len(self.registry.component_pools), 2)
+        self.assertEqual(len(self.registry.component_pools), 3)
         self.assertEqual(len(self.registry.entity_component_signatures), 1)
         self.assertEqual(len(self.registry.entities_to_be_added), 1)
         self.assertEqual(len(self.registry.entities_to_be_removed), 0)
@@ -61,7 +61,10 @@ class RegistryTest(TestCase):
         registry.update()
         # Ensure the entity is removed
         self.assertEqual(registry.number_of_entities, 1)
-        self.assertEqual(len(registry.component_pools), 2)
+
+        # new_pool_size = max(entity_id + 1, len(component_pool) * 2)
+
+        self.assertEqual(len(registry.component_pools), 3)  # + 1 None
         self.assertEqual(len(registry.entity_component_signatures), 1)
         self.assertEqual(len(registry.entities_to_be_removed), 0)
 
