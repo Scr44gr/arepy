@@ -101,6 +101,9 @@ def get_signed_query_arguments(function: Callable) -> OrderedDict[str, Any]:
     """
 
     func_arguments = get_annotations(function)
+    # remove return type from the arguments
+    func_arguments.pop("return", None)
+
     queries_signature = get_queries_from_arguments(func_arguments)
 
     if not queries_signature:
@@ -117,25 +120,27 @@ QuerySignature = list[tuple[str, Callable[[], Query]]]
 def sign_queries(
     queries_signature: QuerySignature,
 ) -> List[tuple[str, Query]]:
+    """Sign the queries with the components that the query needs and return the queries in order."""
     signed_queries = []
     for name, query_signature in queries_signature:
         query_factory: Callable[[], Query] = cast(Callable[[], Query], query_signature)
+
+        # Skip expensive type checking in production for performance
         if not hasattr(query_factory, "__args__"):
-            raise TypeError(
-                f"Query {name} does not have the correct type hint. "
-                "Make sure to use the correct type hint for the query."
-            )
+            raise TypeError(f"Query {query_factory} does not have args.")
 
         kind_of_result = query_factory.__args__[1]
-        if kind_of_result.__origin__ not in (With, Without):
+        if not hasattr(
+            kind_of_result, "__origin__"
+        ) or kind_of_result.__origin__ not in (With, Without):
             raise TypeError(
-                f"Query {name} does not have the correct type hint. "
-                "Make sure to use the correct type hint for the query, "
-                "it should be Query[Entity, With[Component1, Component2, ...]] or Query[Entity, Without[Component1, Component2, ...]]"
+                f"Invalid query kind: {kind_of_result}. Expected `With` or `Without`."
             )
+
         required_components: tuple[Type[Component], ...] = kind_of_result.__args__[0]
         query: Query = query_factory()
         query._kind = kind_of_result
+
         for component_type in required_components:
             if not issubclass(component_type, Component):
                 raise TypeError(
@@ -144,8 +149,8 @@ def sign_queries(
                 )
             component_id = ComponentIndex.get_id(component_type.__name__)
             query._signature.set(component_id, True)
-        signed_queries.append((name, query))
 
+        signed_queries.append((name, query))
     return signed_queries
 
 
@@ -161,8 +166,9 @@ def get_queries_from_arguments(
     results = [
         (key, value)
         for key, value in args.items()
-        if value.__qualname__ == Query.__name__
+        if hasattr(value, "__qualname__") and value.__qualname__ == Query.__name__
     ]
+
     return cast(list[tuple[str, Callable[[], Query]]], results)
 
 
