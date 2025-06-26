@@ -11,46 +11,40 @@ from arepy.math import Vec2
 WHITE_COLOR = Color(255, 255, 255, 255)
 BUNNY_ASSET = "bunny.png"
 
-BUNNY_COUNT = 3000  # You can increase this for stress testing
-
+BUNNY_COUNT = 5000
 WINDOW_WIDTH = 640
 WINDOW_HEIGHT = 480
 
 
 def movement_system(
     query: Query[Entities, With[Transform, RigidBody2D]], renderer: Renderer2D
-):
-    """
-    Updates the position of entities based on their velocity and handles bouncing
-    off the window edges.
-    """
-    delta_time = renderer.get_delta_time()
-    sprite_size = 16  # Half of the sprite size (32x32 pixels)
+) -> None:
+    """Simple movement system"""
+    delta_time: float = renderer.get_delta_time()
+    sprite_size: int = 16
 
     for entity in query.get_entities():
         transform = entity.get_component(Transform)
         rigidbody = entity.get_component(RigidBody2D)
-        velocity = rigidbody.velocity
 
         # Update position
-        transform.position.x += velocity.x * delta_time
-        transform.position.y += velocity.y * delta_time
+        transform.position.x += rigidbody.velocity.x * delta_time
+        transform.position.y += rigidbody.velocity.y * delta_time
 
-        # Bounce on window edges considering sprite size
-        transform.position.x = max(
-            0, min(WINDOW_WIDTH - sprite_size, transform.position.x)
-        )
-        transform.position.y = max(
-            0, min(WINDOW_HEIGHT - sprite_size, transform.position.y)
-        )
+        # Bounce logic with minimal conditions
+        if transform.position.x <= 0:
+            transform.position.x = 0
+            rigidbody.velocity.x = abs(rigidbody.velocity.x)
+        elif transform.position.x >= WINDOW_WIDTH - sprite_size:
+            transform.position.x = WINDOW_WIDTH - sprite_size
+            rigidbody.velocity.x = -abs(rigidbody.velocity.x)
 
-        # Reverse velocity if bouncing
-        velocity.x *= (
-            -1 if transform.position.x in (0, WINDOW_WIDTH - sprite_size) else 1
-        )
-        velocity.y *= (
-            -1 if transform.position.y in (0, WINDOW_HEIGHT - sprite_size) else 1
-        )
+        if transform.position.y <= 0:
+            transform.position.y = 0
+            rigidbody.velocity.y = abs(rigidbody.velocity.y)
+        elif transform.position.y >= WINDOW_HEIGHT - sprite_size:
+            transform.position.y = WINDOW_HEIGHT - sprite_size
+            rigidbody.velocity.y = -abs(rigidbody.velocity.y)
 
 
 def render_system(
@@ -61,7 +55,7 @@ def render_system(
     renderer.start_frame()
     renderer.clear(color=WHITE_COLOR)
     texture = game.get_asset_store().get_texture(BUNNY_ASSET)
-    number_of_entities = 0
+    number_of_entities: int = 0
     for entity in query.get_entities():
         transform = entity.get_component(Transform)
         renderer.draw_texture_ex(
@@ -83,13 +77,12 @@ def render_system(
     renderer.end_frame()
 
 
-def spawn_bunnies(world: World, count: int):
-
+def spawn_bunnies(world: World, count: int) -> None:
     for _ in range(count):
-        x = random.uniform(0, WINDOW_WIDTH - 32)
-        y = random.uniform(0, WINDOW_HEIGHT - 32)
-        vx = random.uniform(-200, 200)
-        vy = random.uniform(-200, 200)
+        x: float = random.uniform(0, WINDOW_WIDTH - 32)
+        y: float = random.uniform(0, WINDOW_HEIGHT - 32)
+        vx: float = random.uniform(-200, 200)
+        vy: float = random.uniform(-200, 200)
         world.create_entity().with_component(
             Transform(position=Vec2(x, y), origin=Vec2(16, 16))
         ).with_component(RigidBody2D(velocity=Vec2(vx, vy))).with_component(
@@ -97,22 +90,18 @@ def spawn_bunnies(world: World, count: int):
         ).build()
 
 
-def main():
-    game = ArepyEngine()
+def main() -> None:
+    game: ArepyEngine = ArepyEngine()
     game.title = "Arepy BunnyMark"
     game.window_width = WINDOW_WIDTH
     game.window_height = WINDOW_HEIGHT
     game.max_frame_rate = 0  # Unlimited
     game.init()
-    world = game.create_world("bunnymark")
+    world: World = game.create_world("bunnymark")
     asset_store = game.get_asset_store()
     renderer = game.renderer
-    # Register asset_store as a resource for ECS injection
     asset_store.load_texture(renderer, BUNNY_ASSET, f"./assets/{BUNNY_ASSET}")
-
-    # Spawn bunnies
     spawn_bunnies(world, BUNNY_COUNT)
-
     world.add_system(SystemPipeline.UPDATE, movement_system)
     world.add_system(SystemPipeline.RENDER, render_system)
     game.set_current_world("bunnymark")
