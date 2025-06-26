@@ -213,6 +213,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Raylib](https://www.raylib.com/) - Amazing C library for 2D/3D graphics
 - [ImGui](https://github.com/ocornut/imgui) - Fantastic debugging interface
 - [EnTT](https://github.com/skypjack/entt) - Inspiration for ECS design
+- [Bevy Engine](https://github.com/bevyengine/bevy) - Inspiration for ECS Query system
 - [Pikuma](https://pikuma.com/courses/cpp-2d-game-engine-development) - Educational resources :)
 - [raylib-python-cffi](https://github.com/electronstudio/raylib-python-cffi) - Python bindings for Raylib
 ---
