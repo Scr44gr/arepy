@@ -99,7 +99,7 @@ def main() -> None:
     game.init()
     world: World = game.create_world("bunnymark")
     asset_store = game.get_asset_store()
-    renderer = game.renderer
+    renderer = game.renderer_2d
     asset_store.load_texture(renderer, BUNNY_ASSET, f"./assets/{BUNNY_ASSET}")
     spawn_bunnies(world, BUNNY_COUNT)
     world.add_system(SystemPipeline.UPDATE, movement_system)

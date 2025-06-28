@@ -203,7 +203,7 @@ def camera_system_3d(
     )
 
     if distance_from_center > cached_input.center_threshold:
-        game.renderer.set_mouse_position((center_x, center_y))
+        game.renderer_2d.set_mouse_position((center_x, center_y))
         cached_input.mouse_was_centered = True
     renderer_3d.update_camera(camera)
 
@@ -213,7 +213,6 @@ def render_system_3d(
     camera_query: Query[Entities, With[Camera3D]],
     renderer: Renderer3D,
     renderer_2d: Renderer2D,
-    game: ArepyEngine,
 ) -> None:
     """Optimized 3D rendering system"""
     # Start 2D frame
@@ -360,7 +359,7 @@ def main() -> None:
     # Spawn 3D cubes
     spawn_cubes_3d(world, CUBE_COUNT)
     # set mouse cursor to center
-    game.renderer.disable_mouse_cursor()
+    game.renderer_2d.disable_mouse_cursor()
 
     # Register systems
     world.add_system(SystemPipeline.UPDATE, movement_system_3d)
