@@ -1,9 +1,9 @@
 import random
 
 from arepy import ArepyEngine, Color, Rect, Renderer2D, SystemPipeline
-from arepy.bundle.components.rigidbody_component import RigidBody2D
-from arepy.bundle.components.sprite_component import Sprite
-from arepy.bundle.components.transform_component import Transform
+from arepy.bundle.components.rigidbody import RigidBody2D
+from arepy.bundle.components.sprite import Sprite
+from arepy.bundle.components.transform import Transform
 from arepy.ecs import Entities, Query, With
 from arepy.ecs.world import World
 from arepy.math import Vec2
