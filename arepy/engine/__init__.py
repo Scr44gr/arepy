@@ -13,15 +13,20 @@ from .renderer.renderer_2d import (
     Renderer2D,
     TextureFilter,
 )
+from .renderer.renderer_3d import ArepyMaterial, ArepyMesh, ArepyModel, Renderer3D
 
 __all__ = [
     "ArepyEngine",
     "Display",
     "Renderer2D",
+    "Renderer3D",
     "Color",
     "Rect",
     "TextureFilter",
     "ArepyTexture",
+    "ArepyModel",
+    "ArepyMesh",
+    "ArepyMaterial",
     "Input",
     "Key",
     "MouseButton",

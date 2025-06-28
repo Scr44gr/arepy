@@ -1,3 +1,5 @@
+from typing import Optional
+
 from ...ecs import Component
 from ...math.vec2 import Vec2
 from ...math.vec3 import Vec3
@@ -28,8 +30,19 @@ class Camera2D(Component):
 
 
 class Camera3D(Component):
-    def __init__(self, target: Vec3, offset: Vec3, zoom: float = 1.0) -> None:
-        self.target = target
-        self.offset = offset
-        self.zoom = zoom
+    """A 3D camera component that stores position, target, up vector, and projection settings."""
+
+    def __init__(
+        self,
+        position: Optional[Vec3] = None,
+        target: Optional[Vec3] = None,
+        up: Optional[Vec3] = None,
+        fovy: float = 45.0,
+        projection: int = 0,  # 0 = PERSPECTIVE, 1 = ORTHOGRAPHIC
+    ) -> None:
+        self.position = position if position is not None else Vec3(10.0, 10.0, 10.0)
+        self.target = target if target is not None else Vec3(0.0, 0.0, 0.0)
+        self.up = up if up is not None else Vec3(0.0, 1.0, 0.0)
+        self.fovy = fovy  # Field of view Y in degrees
+        self.projection = projection
         self._ref = None

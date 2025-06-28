@@ -11,6 +11,7 @@ from ..ecs.systems import SystemPipeline
 from ..event_manager import EventManager
 from .display import Display
 from .renderer.renderer_2d import Color, Renderer2D
+from .renderer.renderer_3d import Renderer3D
 
 Resources: Dict[str, Any] = {}
 
@@ -33,10 +34,12 @@ class ArepyEngine:
         self._event_manager = EventManager()
         self.display = dependencies().display_repository
         self.renderer = dependencies().renderer_repository
+        self.renderer_3d = dependencies().renderer_3d_repository
         self.input = dependencies().input_repository
         self.audio_device = dependencies().audio_device_repository
         Resources[Display.__name__] = self.display
         Resources[Renderer2D.__name__] = self.renderer
+        Resources[Renderer3D.__name__] = self.renderer_3d
         Resources[AssetStore.__name__] = self._asset_store
         Resources[Input.__name__] = self.input
         Resources[ArepyEngine.__name__] = self
