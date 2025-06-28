@@ -27,7 +27,7 @@ CUBE_COLORS = [
     CYAN_COLOR,
 ]
 
-CUBE_COUNT = 10
+CUBE_COUNT = 3000
 WORLD_SIZE = 50.0
 CUBE_SIZE = 1.0
 
@@ -46,8 +46,6 @@ class CachedInput(Component):
     """Component to cache input state for camera movement"""
 
     def __init__(self):
-        self.mouse_delta = (0.0, 0.0)  # Mouse delta for rotation
-        self.wheel_delta = 0.0  # Mouse wheel delta for zoom
         self.horizontal_angle = 0.0  # Cached horizontal angle
         self.vertical_angle = 0.0  # Cached vertical angle
         self.distance = 20.0  # Cached camera distance
@@ -208,9 +206,6 @@ def camera_system_3d(
         game.renderer.set_mouse_position((center_x, center_y))
         cached_input.mouse_was_centered = True
     renderer_3d.update_camera(camera)
-    # Cache input state for next frame
-    cached_input.mouse_delta = mouse_delta
-    cached_input.wheel_delta = wheel_delta
 
 
 def render_system_3d(
@@ -344,7 +339,7 @@ def main() -> None:
     # Create 3D camera with cached input
     cached_input = CachedInput()
     cached_input.needs_update = True  # Force initial calculation
-    cached_input.target_distance = 34.64  # sqrt(20^2 + 20^2 + 20^2) / sqrt(3)
+    cached_input.target_distance = 34.64  # 20 * sqrt(3)
     cached_input.distance = cached_input.target_distance
 
     _ = (  # as camera entity
