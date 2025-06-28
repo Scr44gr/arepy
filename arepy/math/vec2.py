@@ -109,6 +109,9 @@ class Vec2:
     def copy(self) -> "Vec2":
         return Vec2(self.x, self.y)
 
+    def to_tuple(self) -> tuple[float, float]:
+        return (self.x, self.y)
+
 
 def vec2(x: float, y: float) -> Vec2:
     return Vec2(x, y)

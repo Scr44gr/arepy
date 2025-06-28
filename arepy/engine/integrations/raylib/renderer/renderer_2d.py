@@ -5,7 +5,7 @@ import raylib as rl
 from pyray import Camera2D as rlCamera2D
 from pyray import Vector2 as rlVector2
 
-from arepy.bundle.components.camera_component import Camera2D
+from arepy.bundle.components.camera import Camera2D
 from arepy.engine.renderer import ArepyTexture, Color, Rect, TextureFilter
 
 
@@ -114,7 +114,10 @@ def draw_texture_ex(
         (color.r, color.g, color.b, color.a),
     )
 
-def draw_unfilled_circle(center: tuple[float, float], radius: float, color: Color) -> None:
+
+def draw_unfilled_circle(
+    center: tuple[float, float], radius: float, color: Color
+) -> None:
     """
     Draw an unfilled circle.
 
@@ -129,6 +132,8 @@ def draw_unfilled_circle(center: tuple[float, float], radius: float, color: Colo
         radius,
         (color.r, color.g, color.b, color.a),
     )
+
+
 def draw_circle(center: tuple[float, float], radius: float, color: Color) -> None:
     """
     Draw a circle.
@@ -144,6 +149,7 @@ def draw_circle(center: tuple[float, float], radius: float, color: Color) -> Non
         radius,
         (color.r, color.g, color.b, color.a),
     )
+
 
 def bind_render_texture(texture: ArepyTexture) -> None:
     """
@@ -232,6 +238,23 @@ def draw_text(
         int(position[0]),
         int(position[1]),
         font_size,
+        (color.r, color.g, color.b, color.a),
+    )
+
+
+def draw_lines(points: list[tuple[float, float]], color: Color) -> None:
+    """
+    Draw lines.
+
+    Args:
+        points (list[tuple[float, float]]): The points to draw lines between.
+        color (Color): The color of the lines.
+    """
+    if len(points) < 2:
+        return
+    rl.DrawLineStrip(
+        [(int(p[0]), int(p[1])) for p in points],
+        len(points),
         (color.r, color.g, color.b, color.a),
     )
 
@@ -337,6 +360,40 @@ def set_texture_filter(texture: ArepyTexture, filter: TextureFilter):
     rl.SetTextureFilter(texture._ref_texture, texture_filter_map[filter])  # type: ignore
 
 
+def set_mouse_position(position: tuple[float, float]) -> None:
+    """
+    Set the mouse position.
+
+    Args:
+        position (tuple[float, float]): The position to set the mouse to.
+    """
+    rl.SetMousePosition(int(position[0]), int(position[1]))
+
+
+def disable_mouse_cursor() -> None:
+    """
+    Disable the mouse cursor.
+    """
+    rl.HideCursor()
+
+
+def enable_mouse_cursor() -> None:
+    """
+    Enable the mouse cursor.
+    """
+    rl.ShowCursor()
+
+
+def is_mouse_cursor_hidden() -> bool:
+    """
+    Check if the mouse cursor is hidden.
+
+    Returns:
+        bool: True if the mouse cursor is hidden, False otherwise.
+    """
+    return rl.IsCursorHidden()
+
+
 # Camera methods
 def add_camera(camera: Camera2D) -> None:
     """
@@ -381,7 +438,7 @@ def update_camera(camera: Camera2D) -> None:
     Args:
         camera (Camera2D): The camera to update.
     """
-    camera._ref.target = rlVector2(camera.target.x, camera.target.y) # type: ignore
-    camera._ref.offset = rlVector2(camera.offset.x, camera.offset.y) # type: ignore
-    camera._ref.rotation = camera.rotation # type: ignore
-    camera._ref.zoom = camera.zoom # type: ignore
+    camera._ref.target = rlVector2(camera.target.x, camera.target.y)  # type: ignore
+    camera._ref.offset = rlVector2(camera.offset.x, camera.offset.y)  # type: ignore
+    camera._ref.rotation = camera.rotation  # type: ignore
+    camera._ref.zoom = camera.zoom  # type: ignore

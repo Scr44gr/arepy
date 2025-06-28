@@ -1,9 +1,9 @@
 import random
 
 from arepy import ArepyEngine, Color, Rect, Renderer2D, SystemPipeline
-from arepy.bundle.components.rigidbody_component import RigidBody2D
-from arepy.bundle.components.sprite_component import Sprite
-from arepy.bundle.components.transform_component import Transform
+from arepy.bundle.components.rigidbody import RigidBody2D
+from arepy.bundle.components.sprite import Sprite
+from arepy.bundle.components.transform import Transform
 from arepy.ecs import Entities, Query, With
 from arepy.ecs.world import World
 from arepy.math import Vec2
@@ -99,7 +99,7 @@ def main() -> None:
     game.init()
     world: World = game.create_world("bunnymark")
     asset_store = game.get_asset_store()
-    renderer = game.renderer
+    renderer = game.renderer_2d
     asset_store.load_texture(renderer, BUNNY_ASSET, f"./assets/{BUNNY_ASSET}")
     spawn_bunnies(world, BUNNY_COUNT)
     world.add_system(SystemPipeline.UPDATE, movement_system)

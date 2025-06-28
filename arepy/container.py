@@ -10,8 +10,9 @@ from .engine.input import Input
 from .engine.integrations.raylib.audio import audio_device
 from .engine.integrations.raylib.display import display_repository
 from .engine.integrations.raylib.input import input_repository
-from .engine.integrations.raylib.renderer import renderer_2d
+from .engine.integrations.raylib.renderer import renderer_2d, renderer_3d
 from .engine.renderer.renderer_2d import Renderer2D
+from .engine.renderer.renderer_3d import Renderer3D
 
 try:
     from imgui_bundle import imgui, imgui_ctx
@@ -34,6 +35,7 @@ class Dependencies:
     imgui_repository: Imgui
     display_repository: Display
     renderer_repository: Renderer2D
+    renderer_3d_repository: Renderer3D
     imgui_renderer_repository: Callable[..., ImGuiRendererRepository]
 
 
@@ -43,6 +45,7 @@ def _build_dependencies() -> Callable[[], Dependencies]:
     deps = Dependencies(
         display_repository=cast(Display, display_repository),
         renderer_repository=cast(Renderer2D, renderer_2d),
+        renderer_3d_repository=cast(Renderer3D, renderer_3d),
         # imgui backend renderer
         imgui_renderer_repository=(
             cast(

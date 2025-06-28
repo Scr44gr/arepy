@@ -11,6 +11,7 @@ from ..ecs.systems import SystemPipeline
 from ..event_manager import EventManager
 from .display import Display
 from .renderer.renderer_2d import Color, Renderer2D
+from .renderer.renderer_3d import Renderer3D
 
 Resources: Dict[str, Any] = {}
 
@@ -32,11 +33,13 @@ class ArepyEngine:
         self._asset_store = AssetStore()
         self._event_manager = EventManager()
         self.display = dependencies().display_repository
-        self.renderer = dependencies().renderer_repository
+        self.renderer_2d = dependencies().renderer_repository
+        self.renderer_3d = dependencies().renderer_3d_repository
         self.input = dependencies().input_repository
         self.audio_device = dependencies().audio_device_repository
         Resources[Display.__name__] = self.display
-        Resources[Renderer2D.__name__] = self.renderer
+        Resources[Renderer2D.__name__] = self.renderer_2d
+        Resources[Renderer3D.__name__] = self.renderer_3d
         Resources[AssetStore.__name__] = self._asset_store
         Resources[Input.__name__] = self.input
         Resources[ArepyEngine.__name__] = self
@@ -51,7 +54,7 @@ class ArepyEngine:
 
         self.display.set_vsync(self.vsync)
         self.display.create_window(self.window_width, self.window_height, self.title)
-        self.renderer.set_max_framerate(self.max_frame_rate)
+        self.renderer_2d.set_max_framerate(self.max_frame_rate)
         if self.fullscreen:
             self.display.toggle_fullscreen()
         # init audio device
@@ -80,7 +83,7 @@ class ArepyEngine:
 
     def __next_frame(self):
         if not self._current_world:
-            self.renderer.swap_buffers()
+            self.renderer_2d.swap_buffers()
             return
         # Process input, update and render
         self.__input_process()
@@ -105,14 +108,14 @@ class ArepyEngine:
         self.on_update()
 
     def __render_process(self):
-        self.renderer.clear(color=Color(245, 245, 245, 255))
+        # self.renderer_2d.clear(color=Color(245, 245, 245, 255))
         # perform trick
         current_world = self._current_world
         current_world._registry.run(pipeline=SystemPipeline.RENDER)
         current_world._registry.run(pipeline=SystemPipeline.RENDER_UI)
         self.on_render()
         self.imgui_backend.render(self.imgui.get_draw_data())
-        self.renderer.swap_buffers()
+        self.renderer_2d.swap_buffers()
 
     def get_asset_store(self) -> AssetStore:
         """Get the asset store.

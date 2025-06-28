@@ -84,6 +84,14 @@ class Vec3:
     def project(self, other: "Vec3") -> "Vec3":
         return other * (self.dot(other) / other.dot(other))
 
+    def length(self) -> float:
+        """Returns the length of the vector."""
+        return abs(self)
+
+    def to_tuple(self) -> tuple[float, float, float]:
+        """Returns the vector as a tuple."""
+        return (self.x, self.y, self.z)
+
 
 def vec3(x: float, y: float, z: float) -> Vec3:
     assert isinstance(x, (int, float)), "x must be an int or a float"
