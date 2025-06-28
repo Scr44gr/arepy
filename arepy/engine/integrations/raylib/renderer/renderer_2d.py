@@ -360,6 +360,40 @@ def set_texture_filter(texture: ArepyTexture, filter: TextureFilter):
     rl.SetTextureFilter(texture._ref_texture, texture_filter_map[filter])  # type: ignore
 
 
+def set_mouse_position(position: tuple[float, float]) -> None:
+    """
+    Set the mouse position.
+
+    Args:
+        position (tuple[float, float]): The position to set the mouse to.
+    """
+    rl.SetMousePosition(int(position[0]), int(position[1]))
+
+
+def disable_mouse_cursor() -> None:
+    """
+    Disable the mouse cursor.
+    """
+    rl.HideCursor()
+
+
+def enable_mouse_cursor() -> None:
+    """
+    Enable the mouse cursor.
+    """
+    rl.ShowCursor()
+
+
+def is_mouse_cursor_hidden() -> bool:
+    """
+    Check if the mouse cursor is hidden.
+
+    Returns:
+        bool: True if the mouse cursor is hidden, False otherwise.
+    """
+    return rl.IsCursorHidden()
+
+
 # Camera methods
 def add_camera(camera: Camera2D) -> None:
     """
