@@ -70,6 +70,8 @@ omit = [
     "*/engine/*",
     "*/event_manager/*",
     "*/math/*",
+    "*/bundle/*",
+    "*/container.py",
 ]
 
 [tool.coverage.report]

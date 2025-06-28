@@ -20,3 +20,4 @@ ignore:
   - "arepy/event_manager/"
   - "arepy/math/"
   - "arepy/container.py"
+  - "arepy/bundle/"
