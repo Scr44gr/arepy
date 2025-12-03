@@ -326,12 +326,12 @@ def spawn_cubes_3d(world: World, count: int) -> None:
 
 
 def main() -> None:
-    game: ArepyEngine = ArepyEngine()
-    game.title = "Arepy CubeMark 3D"
-    game.window_width = 1024
-    game.window_height = 768
-    game.max_frame_rate = 0  # Unlimited
-    game.init()
+    game: ArepyEngine = ArepyEngine(
+        title="Arepy CubeMark 3D",
+        width=1024,
+        height=768,
+        max_frame_rate=0,
+    )
 
     world: World = game.create_world("cubemark_3d")
 

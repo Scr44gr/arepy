@@ -1,5 +1,6 @@
 import asyncio
-from typing import Any, Dict
+from os import PathLike
+from typing import Any, Dict, Optional, Type, TypeVar
 
 from arepy.arepy_imgui.imgui_repository import Imgui
 from arepy.ecs.world import World
@@ -15,20 +16,32 @@ from .renderer.renderer_3d import Renderer3D
 
 Resources: Dict[str, Any] = {}
 
+T = TypeVar("T")
+
 
 class ArepyEngine:
-    title: str = "Arepy Engine"
-    window_width: int = 1920 // 3
-    window_height: int = 1080 // 3
-    max_frame_rate: int = 800
-    debug: bool = False
-    fullscreen: bool = False
-    vsync: bool = False
 
-    def __init__(self):
+    def __init__(
+        self,
+        title: str = "Arepy Engine",
+        width: int = 1920 // 3,
+        height: int = 1080 // 3,
+        max_frame_rate: int = 800,
+        fullscreen: bool = False,
+        vsync: bool = False,
+        icon_path: Optional[PathLike[str]] = None,
+    ):
         from ..container import dependencies
 
         global Resources
+
+        self.title = title
+        self.window_width = width
+        self.window_height = height
+        self.max_frame_rate = max_frame_rate
+        self.fullscreen = fullscreen
+        self.vsync = vsync
+        self.icon_path = icon_path
 
         self._asset_store = AssetStore()
         self._event_manager = EventManager()
@@ -49,7 +62,9 @@ class ArepyEngine:
         self._current_world: World = None  # type: ignore
         self._next_world_to_set: str = None  # type: ignore
 
-    def init(self):
+        self._init_window()
+
+    def _init_window(self) -> None:
         from ..container import dependencies
 
         self.display.set_vsync(self.vsync)
@@ -57,10 +72,10 @@ class ArepyEngine:
         self.renderer_2d.set_max_framerate(self.max_frame_rate)
         if self.fullscreen:
             self.display.toggle_fullscreen()
-        # init audio device
+        if self.icon_path:
+            self.display.set_window_icon(self.icon_path)
         self.audio_device.init_device()
 
-        # Imgui
         self.imgui = dependencies().imgui_repository
         self.imgui_backend = dependencies().imgui_renderer_repository()
         Resources[Imgui.__name__] = self.imgui
@@ -118,20 +133,55 @@ class ArepyEngine:
         self.renderer_2d.swap_buffers()
 
     def get_asset_store(self) -> AssetStore:
-        """Get the asset store.
-
-        Returns:
-            The asset store.
-        """
+        """Get the asset store."""
         return self._asset_store
 
     def get_event_manager(self) -> EventManager:
-        """Get the event manager.
+        """Get the event manager."""
+        return self._event_manager
+
+    def add_resource(self, resource: object) -> None:
+        """Add a custom resource to the engine.
+
+        Resources are shared across all worlds and can be accessed by systems.
+        Only class instances are allowed (no primitives or functions).
+
+        Args:
+            resource: An instance of a class to be added as a resource.
+
+        Raises:
+            TypeError: If resource is not a class instance or is a function.
+            ValueError: If a resource with the same class name already exists.
+        """
+        if not isinstance(resource, object) or isinstance(
+            resource, (int, float, str, bool, type(None))
+        ):
+            raise TypeError("Resource must be a class instance")
+        if callable(resource) and not hasattr(resource, "__class__"):
+            raise TypeError("Resource cannot be a function")
+        global Resources
+        resource_name = resource.__class__.__name__
+        if resource_name in Resources:
+            raise ValueError(f"Resource '{resource_name}' already exists")
+        Resources[resource_name] = resource
+
+    def get_resource(self, resource_type: Type[T]) -> T:
+        """Get a resource by its type.
+
+        Args:
+            resource_type: The class type of the resource to retrieve.
 
         Returns:
-            The event manager.
+            The resource instance.
+
+        Raises:
+            KeyError: If the resource is not found.
         """
-        return self._event_manager
+        global Resources
+        resource_name = resource_type.__name__
+        if resource_name not in Resources:
+            raise KeyError(f"Resource '{resource_name}' not found")
+        return Resources[resource_name]
 
     def create_world(self, name: str) -> World:
         """Add a world to the engine.

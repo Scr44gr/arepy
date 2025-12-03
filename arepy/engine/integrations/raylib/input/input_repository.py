@@ -45,6 +45,10 @@ def get_keys_pressed() -> Iterator[Key]:
         yield Key(key)
 
 
+def get_char_pressed() -> int:
+    return rl.GetCharPressed()
+
+
 def is_mouse_button_pressed(button: MouseButton) -> bool:
     """Check if a mouse button is pressed."""
     return rl.IsMouseButtonPressed(button.value)

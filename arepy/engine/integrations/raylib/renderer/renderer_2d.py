@@ -1,12 +1,12 @@
 from os import PathLike
-from typing import cast
+from typing import Optional, cast
 
 import raylib as rl
 from pyray import Camera2D as rlCamera2D
 from pyray import Vector2 as rlVector2
 
 from arepy.bundle.components.camera import Camera2D
-from arepy.engine.renderer import ArepyTexture, Color, Rect, TextureFilter
+from arepy.engine.renderer import ArepyFont, ArepyTexture, Color, Rect, TextureFilter
 
 
 def create_render_texture(width: int, height: int) -> ArepyTexture:
@@ -442,3 +442,118 @@ def update_camera(camera: Camera2D) -> None:
     camera._ref.offset = rlVector2(camera.offset.x, camera.offset.y)  # type: ignore
     camera._ref.rotation = camera.rotation  # type: ignore
     camera._ref.zoom = camera.zoom  # type: ignore
+
+
+def draw_rectangle_rounded(
+    rect: Rect, roundness: float, segments: int, color: Color
+) -> None:
+    rl.DrawRectangleRounded(
+        (rect.x, rect.y, rect.width, rect.height),
+        roundness,
+        segments,
+        (color.r, color.g, color.b, color.a),
+    )
+
+
+def draw_rectangle_rounded_lines(
+    rect: Rect, roundness: float, segments: int, color: Color
+) -> None:
+    rl.DrawRectangleRoundedLinesEx(
+        (rect.x, rect.y, rect.width, rect.height),
+        roundness,
+        segments,
+        1.0,
+        (color.r, color.g, color.b, color.a),
+    )
+
+
+def draw_rectangle_lines_ex(rect: Rect, line_thickness: float, color: Color) -> None:
+    rl.DrawRectangleLinesEx(
+        (rect.x, rect.y, rect.width, rect.height),
+        line_thickness,
+        (color.r, color.g, color.b, color.a),
+    )
+
+
+def draw_line_ex(
+    start: tuple[float, float],
+    end: tuple[float, float],
+    thickness: float,
+    color: Color,
+) -> None:
+    rl.DrawLineEx(
+        (start[0], start[1]),
+        (end[0], end[1]),
+        thickness,
+        (color.r, color.g, color.b, color.a),
+    )
+
+
+def begin_scissor_mode(x: int, y: int, width: int, height: int) -> None:
+    rl.BeginScissorMode(x, y, width, height)
+
+
+def end_scissor_mode() -> None:
+    rl.EndScissorMode()
+
+
+def measure_text(text: str, font_size: int) -> int:
+    return rl.MeasureText(text.encode("utf-8"), font_size)
+
+
+def load_font_ex(
+    path: PathLike[str],
+    base_size: int,
+    codepoints: Optional[list[int]],
+    count: int,
+) -> ArepyFont:
+    font = rl.LoadFontEx(
+        str(path).encode("utf-8"),
+        base_size,
+        codepoints,
+        count,
+    )
+    arepy_font = ArepyFont(base_size)
+    arepy_font._ref_font = font
+    return arepy_font
+
+
+def get_font_default() -> ArepyFont:
+    font = rl.GetFontDefault()
+    arepy_font = ArepyFont(font.baseSize)
+    arepy_font._ref_font = font
+    return arepy_font
+
+
+def unload_font(font: ArepyFont) -> None:
+    rl.UnloadFont(font._ref_font)  # type: ignore
+
+
+def measure_text_ex(
+    font: ArepyFont, text: str, font_size: float, spacing: float
+) -> tuple[float, float]:
+    result = rl.MeasureTextEx(
+        font._ref_font,  # type: ignore
+        text.encode("utf-8"),
+        font_size,
+        spacing,
+    )
+    return (result.x, result.y)
+
+
+def draw_text_ex(
+    font: ArepyFont,
+    text: str,
+    position: tuple[float, float],
+    font_size: float,
+    spacing: float,
+    color: Color,
+) -> None:
+    rl.DrawTextEx(
+        font._ref_font,  # type: ignore
+        text.encode("utf-8"),
+        (position[0], position[1]),
+        font_size,
+        spacing,
+        (color.r, color.g, color.b, color.a),
+    )

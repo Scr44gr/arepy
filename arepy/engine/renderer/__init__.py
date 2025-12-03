@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
+from typing import Optional
 
 
 class TextureFilter(Enum):
@@ -23,6 +24,17 @@ class ArepyTexture:
 
     def get_size(self) -> tuple[int, int]:
         return self._texture_size
+
+    def unload(self) -> None: ...
+
+
+class ArepyFont:
+    def __init__(
+        self,
+        base_size: int,
+    ):
+        self.base_size = base_size
+        self._ref_font: object = None
 
     def unload(self) -> None: ...
 

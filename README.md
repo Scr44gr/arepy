@@ -74,10 +74,9 @@ def render_system(query: Query[Entities, With[Transform, RigidBody2D]], renderer
     renderer.end_frame()
 
 if __name__ == "__main__":
-    # Initialize the game engine
-    game = ArepyEngine()
-    game.title = "Arepy Example"
-    game.init()
+    game = ArepyEngine(
+        title="Arepy Example",
+    )
     
     # Create a world
     world = game.create_world("main_world")

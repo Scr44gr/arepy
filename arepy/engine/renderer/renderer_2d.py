@@ -2,7 +2,7 @@ from os import PathLike
 from typing import Optional, Protocol
 
 from ...bundle.components.camera import Camera2D
-from . import ArepyTexture, Color, Rect, TextureFilter
+from . import ArepyFont, ArepyTexture, Color, Rect, TextureFilter
 
 
 class Renderer2D(Protocol):
@@ -34,14 +34,43 @@ class Renderer2D(Protocol):
     def draw_circle(
         self, center: tuple[float, float], radius: float, color: Color
     ) -> None: ...
+    def draw_rectangle_rounded(
+        self, rect: Rect, roundness: float, segments: int, color: Color
+    ) -> None: ...
+    def draw_rectangle_rounded_lines(
+        self, rect: Rect, roundness: float, segments: int, color: Color
+    ) -> None: ...
+    def draw_rectangle_lines_ex(
+        self, rect: Rect, line_thickness: float, color: Color
+    ) -> None: ...
+    def draw_line_ex(
+        self,
+        start: tuple[float, float],
+        end: tuple[float, float],
+        thickness: float,
+        color: Color,
+    ) -> None: ...
 
     def draw_text(
         self, text: str, position: tuple[float, float], font_size: int, color: Color
+    ) -> None: ...
+    def draw_text_ex(
+        self,
+        font: ArepyFont,
+        text: str,
+        position: tuple[float, float],
+        font_size: float,
+        spacing: float,
+        color: Color,
     ) -> None: ...
     def draw_fps(
         self,
         position: tuple[int, int],
     ) -> None: ...
+    def measure_text(self, text: str, font_size: int) -> int: ...
+    def measure_text_ex(
+        self, font: ArepyFont, text: str, font_size: float, spacing: float
+    ) -> tuple[float, float]: ...
     def screen_to_world(
         self, position: tuple[float, float], camera: Camera2D
     ) -> tuple[float, float]: ...
@@ -72,3 +101,16 @@ class Renderer2D(Protocol):
     def enable_mouse_cursor(self) -> None: ...
     def is_mouse_cursor_hidden(self) -> bool: ...
     def set_mouse_position(self, position: tuple[float, float]) -> None: ...
+
+    def begin_scissor_mode(self, x: int, y: int, width: int, height: int) -> None: ...
+    def end_scissor_mode(self) -> None: ...
+
+    def load_font_ex(
+        self,
+        path: PathLike[str],
+        base_size: int,
+        codepoints: Optional[list[int]],
+        count: int,
+    ) -> ArepyFont: ...
+    def get_font_default(self) -> ArepyFont: ...
+    def unload_font(self, font: ArepyFont) -> None: ...

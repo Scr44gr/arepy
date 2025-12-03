@@ -91,12 +91,12 @@ def spawn_bunnies(world: World, count: int) -> None:
 
 
 def main() -> None:
-    game: ArepyEngine = ArepyEngine()
-    game.title = "Arepy BunnyMark"
-    game.window_width = WINDOW_WIDTH
-    game.window_height = WINDOW_HEIGHT
-    game.max_frame_rate = 0  # Unlimited
-    game.init()
+    game: ArepyEngine = ArepyEngine(
+        title="Arepy BunnyMark",
+        width=WINDOW_WIDTH,
+        height=WINDOW_HEIGHT,
+        max_frame_rate=0,
+    )
     world: World = game.create_world("bunnymark")
     asset_store = game.get_asset_store()
     renderer = game.renderer_2d
