@@ -13,6 +13,7 @@ from typing import (
     TypeVar,
     Union,
     cast,
+    get_type_hints,
 )
 
 from ..components import Component, ComponentIndex
@@ -155,8 +156,20 @@ def sign_queries(
 
 
 def get_annotations(function: Callable) -> OrderedDict[str, Any]:
-    """Get the annotations of a function in order"""
-    return OrderedDict(function.__annotations__)
+    """Get the annotations of a function in order.
+    
+    Uses typing.get_type_hints() to properly resolve string annotations
+    that occur when using 'from __future__ import annotations'.
+    """
+    try:
+        hints = get_type_hints(function)
+        return OrderedDict(
+            (key, hints[key])
+            for key in function.__annotations__
+            if key in hints
+        )
+    except Exception:
+        return OrderedDict(function.__annotations__)
 
 
 def get_queries_from_arguments(
