@@ -3,63 +3,26 @@ from os.path import exists
 
 import raylib as rl
 
-window_size: tuple[int, int]
-
 
 def create_window(width: int, height: int, title: str) -> None:
-    """
-    Create a window.
-
-    Args:
-        width (int): The window width.
-        height (int): The window height.
-        title (str): The window title.
-    """
-    global window_size
     rl.glfwInit()
     rl.InitWindow(width, height, title.encode("utf-8"))
-    window_size = (width, height)
 
 
 def window_should_close() -> bool:
-    """
-    Check if the window should close.
-
-    Returns:
-        bool: True if the window should close.
-    """
     return rl.WindowShouldClose()
 
 
 def destroy_window() -> None:
-    """
-    Destroy the window.
-    """
     rl.CloseWindow()
 
 
 def set_window_size(width: int, height: int) -> None:
-    """
-    Set the window size.
-
-    Args:
-        width (int): The window width.
-        height (int): The window height.
-    """
-    global window_size
-    window_size = (width, height)
     rl.SetWindowSize(width, height)
 
 
 def get_window_size() -> tuple[int, int]:
-    """
-    Get the window size.
-
-    Returns:
-        tuple[int, int]: The window size.
-    """
-    global window_size
-    return window_size
+    return (rl.GetScreenWidth(), rl.GetScreenHeight())
 
 
 def get_window_position() -> tuple[float, float]:
