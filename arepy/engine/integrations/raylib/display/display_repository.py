@@ -15,8 +15,10 @@ def create_window(width: int, height: int, title: str) -> None:
         height (int): The window height.
         title (str): The window title.
     """
+    global window_size
     rl.glfwInit()
     rl.InitWindow(width, height, title.encode("utf-8"))
+    window_size = (width, height)
 
 
 def window_should_close() -> bool:
@@ -56,6 +58,7 @@ def get_window_size() -> tuple[int, int]:
     Returns:
         tuple[int, int]: The window size.
     """
+    global window_size
     return window_size
 
 
