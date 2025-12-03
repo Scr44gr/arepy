@@ -150,11 +150,73 @@ def set_window_position(x: int, y: int) -> None:
 
 
 def set_vsync(enabled: bool) -> None:
-    """SHOULD CALL BEFORE `create_window`
-
-    Set vsync.
-
-    Args:
-        enabled (bool): True if vsync should be enabled.
-    """
     rl.SetConfigFlags(rl.FLAG_VSYNC_HINT if enabled else 0)
+
+
+def is_window_resized() -> bool:
+    return rl.IsWindowResized()
+
+
+def set_window_min_size(width: int, height: int) -> None:
+    rl.SetWindowMinSize(width, height)
+
+
+def set_window_max_size(width: int, height: int) -> None:
+    rl.SetWindowMaxSize(width, height)
+
+
+def set_window_state(flags: int) -> None:
+    rl.SetWindowState(flags)
+
+
+def clear_window_state(flags: int) -> None:
+    rl.ClearWindowState(flags)
+
+
+def is_window_state(flag: int) -> bool:
+    return rl.IsWindowState(flag)
+
+
+def maximize_window() -> None:
+    rl.MaximizeWindow()
+
+
+def minimize_window() -> None:
+    rl.MinimizeWindow()
+
+
+def restore_window() -> None:
+    rl.RestoreWindow()
+
+
+def is_window_maximized() -> bool:
+    return rl.IsWindowMaximized()
+
+
+def is_window_minimized() -> bool:
+    return rl.IsWindowMinimized()
+
+
+def is_window_focused() -> bool:
+    return rl.IsWindowFocused()
+
+
+def set_window_focused() -> None:
+    rl.SetWindowFocused()
+
+
+def is_window_hidden() -> bool:
+    return rl.IsWindowHidden()
+
+
+def set_window_opacity(opacity: float) -> None:
+    rl.SetWindowOpacity(opacity)
+
+
+def get_window_scale_dpi() -> tuple[float, float]:
+    scale = rl.GetWindowScaleDPI()
+    return (scale.x, scale.y)
+
+
+def toggle_borderless() -> None:
+    rl.ToggleBorderlessWindowed()
