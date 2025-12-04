@@ -557,3 +557,378 @@ def draw_text_ex(
         spacing,
         (color.r, color.g, color.b, color.a),
     )
+
+
+# Additional shape drawing functions
+
+
+def draw_circle_lines(
+    center: tuple[float, float], radius: float, color: Color
+) -> None:
+    """
+    Draw circle outline.
+
+    Args:
+        center (tuple[float, float]): The center of the circle.
+        radius (float): The radius of the circle.
+        color (Color): The color of the circle.
+    """
+    rl.DrawCircleLines(
+        int(center[0]),
+        int(center[1]),
+        radius,
+        (color.r, color.g, color.b, color.a),
+    )
+
+
+def draw_ellipse(
+    center: tuple[float, float],
+    radius_h: float,
+    radius_v: float,
+    color: Color,
+) -> None:
+    """
+    Draw a filled ellipse.
+
+    Args:
+        center (tuple[float, float]): The center of the ellipse.
+        radius_h (float): The horizontal radius.
+        radius_v (float): The vertical radius.
+        color (Color): The color of the ellipse.
+    """
+    rl.DrawEllipse(
+        int(center[0]),
+        int(center[1]),
+        radius_h,
+        radius_v,
+        (color.r, color.g, color.b, color.a),
+    )
+
+
+def draw_ellipse_lines(
+    center: tuple[float, float],
+    radius_h: float,
+    radius_v: float,
+    color: Color,
+) -> None:
+    """
+    Draw ellipse outline.
+
+    Args:
+        center (tuple[float, float]): The center of the ellipse.
+        radius_h (float): The horizontal radius.
+        radius_v (float): The vertical radius.
+        color (Color): The color of the ellipse.
+    """
+    rl.DrawEllipseLines(
+        int(center[0]),
+        int(center[1]),
+        radius_h,
+        radius_v,
+        (color.r, color.g, color.b, color.a),
+    )
+
+
+def draw_triangle(
+    v1: tuple[float, float],
+    v2: tuple[float, float],
+    v3: tuple[float, float],
+    color: Color,
+) -> None:
+    """
+    Draw a filled triangle.
+
+    Args:
+        v1 (tuple[float, float]): First vertex.
+        v2 (tuple[float, float]): Second vertex.
+        v3 (tuple[float, float]): Third vertex.
+        color (Color): The color of the triangle.
+    """
+    rl.DrawTriangle(
+        (v1[0], v1[1]),
+        (v2[0], v2[1]),
+        (v3[0], v3[1]),
+        (color.r, color.g, color.b, color.a),
+    )
+
+
+def draw_triangle_lines(
+    v1: tuple[float, float],
+    v2: tuple[float, float],
+    v3: tuple[float, float],
+    color: Color,
+) -> None:
+    """
+    Draw triangle outline.
+
+    Args:
+        v1 (tuple[float, float]): First vertex.
+        v2 (tuple[float, float]): Second vertex.
+        v3 (tuple[float, float]): Third vertex.
+        color (Color): The color of the triangle.
+    """
+    rl.DrawTriangleLines(
+        (v1[0], v1[1]),
+        (v2[0], v2[1]),
+        (v3[0], v3[1]),
+        (color.r, color.g, color.b, color.a),
+    )
+
+
+def draw_poly(
+    center: tuple[float, float],
+    sides: int,
+    radius: float,
+    rotation: float,
+    color: Color,
+) -> None:
+    """
+    Draw a regular polygon (filled).
+
+    Args:
+        center (tuple[float, float]): The center of the polygon.
+        sides (int): Number of sides.
+        radius (float): The radius of the polygon.
+        rotation (float): Rotation angle in degrees.
+        color (Color): The color of the polygon.
+    """
+    rl.DrawPoly(
+        (center[0], center[1]),
+        sides,
+        radius,
+        rotation,
+        (color.r, color.g, color.b, color.a),
+    )
+
+
+def draw_poly_lines(
+    center: tuple[float, float],
+    sides: int,
+    radius: float,
+    rotation: float,
+    color: Color,
+) -> None:
+    """
+    Draw a regular polygon outline.
+
+    Args:
+        center (tuple[float, float]): The center of the polygon.
+        sides (int): Number of sides.
+        radius (float): The radius of the polygon.
+        rotation (float): Rotation angle in degrees.
+        color (Color): The color of the polygon.
+    """
+    rl.DrawPolyLinesEx(
+        (center[0], center[1]),
+        sides,
+        radius,
+        rotation,
+        1.0,
+        (color.r, color.g, color.b, color.a),
+    )
+
+
+def draw_poly_lines_ex(
+    center: tuple[float, float],
+    sides: int,
+    radius: float,
+    rotation: float,
+    line_thickness: float,
+    color: Color,
+) -> None:
+    """
+    Draw a regular polygon outline with extended parameters.
+
+    Args:
+        center (tuple[float, float]): The center of the polygon.
+        sides (int): Number of sides.
+        radius (float): The radius of the polygon.
+        rotation (float): Rotation angle in degrees.
+        line_thickness (float): The thickness of the lines.
+        color (Color): The color of the polygon.
+    """
+    rl.DrawPolyLinesEx(
+        (center[0], center[1]),
+        sides,
+        radius,
+        rotation,
+        line_thickness,
+        (color.r, color.g, color.b, color.a),
+    )
+
+
+def draw_ring(
+    center: tuple[float, float],
+    inner_radius: float,
+    outer_radius: float,
+    start_angle: float,
+    end_angle: float,
+    segments: int,
+    color: Color,
+) -> None:
+    """
+    Draw a filled ring (donut shape).
+
+    Args:
+        center (tuple[float, float]): The center of the ring.
+        inner_radius (float): Inner radius of the ring.
+        outer_radius (float): Outer radius of the ring.
+        start_angle (float): Start angle in degrees.
+        end_angle (float): End angle in degrees.
+        segments (int): Number of segments.
+        color (Color): The color of the ring.
+    """
+    rl.DrawRing(
+        (center[0], center[1]),
+        inner_radius,
+        outer_radius,
+        start_angle,
+        end_angle,
+        segments,
+        (color.r, color.g, color.b, color.a),
+    )
+
+
+def draw_ring_lines(
+    center: tuple[float, float],
+    inner_radius: float,
+    outer_radius: float,
+    start_angle: float,
+    end_angle: float,
+    segments: int,
+    color: Color,
+) -> None:
+    """
+    Draw ring outline.
+
+    Args:
+        center (tuple[float, float]): The center of the ring.
+        inner_radius (float): Inner radius of the ring.
+        outer_radius (float): Outer radius of the ring.
+        start_angle (float): Start angle in degrees.
+        end_angle (float): End angle in degrees.
+        segments (int): Number of segments.
+        color (Color): The color of the ring.
+    """
+    rl.DrawRingLines(
+        (center[0], center[1]),
+        inner_radius,
+        outer_radius,
+        start_angle,
+        end_angle,
+        segments,
+        (color.r, color.g, color.b, color.a),
+    )
+
+
+def draw_line_bezier(
+    start: tuple[float, float],
+    end: tuple[float, float],
+    thickness: float,
+    color: Color,
+) -> None:
+    """
+    Draw a cubic bezier line.
+
+    Args:
+        start (tuple[float, float]): Start position.
+        end (tuple[float, float]): End position.
+        thickness (float): Line thickness.
+        color (Color): The color of the line.
+    """
+    rl.DrawLineBezier(
+        (start[0], start[1]),
+        (end[0], end[1]),
+        thickness,
+        (color.r, color.g, color.b, color.a),
+    )
+
+
+def draw_rectangle_gradient_v(
+    rect: Rect,
+    top_color: Color,
+    bottom_color: Color,
+) -> None:
+    """
+    Draw a rectangle with vertical gradient.
+
+    Args:
+        rect (Rect): The rectangle to draw.
+        top_color (Color): Color at the top.
+        bottom_color (Color): Color at the bottom.
+    """
+    rl.DrawRectangleGradientV(
+        int(rect.x),
+        int(rect.y),
+        int(rect.width),
+        int(rect.height),
+        (top_color.r, top_color.g, top_color.b, top_color.a),
+        (bottom_color.r, bottom_color.g, bottom_color.b, bottom_color.a),
+    )
+
+
+def draw_rectangle_gradient_h(
+    rect: Rect,
+    left_color: Color,
+    right_color: Color,
+) -> None:
+    """
+    Draw a rectangle with horizontal gradient.
+
+    Args:
+        rect (Rect): The rectangle to draw.
+        left_color (Color): Color at the left.
+        right_color (Color): Color at the right.
+    """
+    rl.DrawRectangleGradientH(
+        int(rect.x),
+        int(rect.y),
+        int(rect.width),
+        int(rect.height),
+        (left_color.r, left_color.g, left_color.b, left_color.a),
+        (right_color.r, right_color.g, right_color.b, right_color.a),
+    )
+
+
+def draw_rectangle_gradient_ex(
+    rect: Rect,
+    top_left: Color,
+    bottom_left: Color,
+    top_right: Color,
+    bottom_right: Color,
+) -> None:
+    """
+    Draw a rectangle with 4-corner gradient.
+
+    Args:
+        rect (Rect): The rectangle to draw.
+        top_left (Color): Color at the top-left corner.
+        bottom_left (Color): Color at the bottom-left corner.
+        top_right (Color): Color at the top-right corner.
+        bottom_right (Color): Color at the bottom-right corner.
+    """
+    rl.DrawRectangleGradientEx(
+        (rect.x, rect.y, rect.width, rect.height),
+        (top_left.r, top_left.g, top_left.b, top_left.a),
+        (bottom_left.r, bottom_left.g, bottom_left.b, bottom_left.a),
+        (top_right.r, top_right.g, top_right.b, top_right.a),
+        (bottom_right.r, bottom_right.g, bottom_right.b, bottom_right.a),
+    )
+
+
+def draw_pixel(
+    position: tuple[float, float],
+    color: Color,
+) -> None:
+    """
+    Draw a single pixel.
+
+    Args:
+        position (tuple[float, float]): Position of the pixel.
+        color (Color): The color of the pixel.
+    """
+    rl.DrawPixel(
+        int(position[0]),
+        int(position[1]),
+        (color.r, color.g, color.b, color.a),
+    )

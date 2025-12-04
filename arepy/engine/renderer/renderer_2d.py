@@ -114,3 +114,103 @@ class Renderer2D(Protocol):
     ) -> ArepyFont: ...
     def get_font_default(self) -> ArepyFont: ...
     def unload_font(self, font: ArepyFont) -> None: ...
+
+    # Additional shape drawing methods
+    def draw_circle_lines(
+        self, center: tuple[float, float], radius: float, color: Color
+    ) -> None: ...
+    def draw_ellipse(
+        self,
+        center: tuple[float, float],
+        radius_h: float,
+        radius_v: float,
+        color: Color,
+    ) -> None: ...
+    def draw_ellipse_lines(
+        self,
+        center: tuple[float, float],
+        radius_h: float,
+        radius_v: float,
+        color: Color,
+    ) -> None: ...
+    def draw_triangle(
+        self,
+        v1: tuple[float, float],
+        v2: tuple[float, float],
+        v3: tuple[float, float],
+        color: Color,
+    ) -> None: ...
+    def draw_triangle_lines(
+        self,
+        v1: tuple[float, float],
+        v2: tuple[float, float],
+        v3: tuple[float, float],
+        color: Color,
+    ) -> None: ...
+    def draw_poly(
+        self,
+        center: tuple[float, float],
+        sides: int,
+        radius: float,
+        rotation: float,
+        color: Color,
+    ) -> None: ...
+    def draw_poly_lines(
+        self,
+        center: tuple[float, float],
+        sides: int,
+        radius: float,
+        rotation: float,
+        color: Color,
+    ) -> None: ...
+    def draw_poly_lines_ex(
+        self,
+        center: tuple[float, float],
+        sides: int,
+        radius: float,
+        rotation: float,
+        line_thickness: float,
+        color: Color,
+    ) -> None: ...
+    def draw_ring(
+        self,
+        center: tuple[float, float],
+        inner_radius: float,
+        outer_radius: float,
+        start_angle: float,
+        end_angle: float,
+        segments: int,
+        color: Color,
+    ) -> None: ...
+    def draw_ring_lines(
+        self,
+        center: tuple[float, float],
+        inner_radius: float,
+        outer_radius: float,
+        start_angle: float,
+        end_angle: float,
+        segments: int,
+        color: Color,
+    ) -> None: ...
+    def draw_line_bezier(
+        self,
+        start: tuple[float, float],
+        end: tuple[float, float],
+        thickness: float,
+        color: Color,
+    ) -> None: ...
+    def draw_rectangle_gradient_v(
+        self, rect: Rect, top_color: Color, bottom_color: Color
+    ) -> None: ...
+    def draw_rectangle_gradient_h(
+        self, rect: Rect, left_color: Color, right_color: Color
+    ) -> None: ...
+    def draw_rectangle_gradient_ex(
+        self,
+        rect: Rect,
+        top_left: Color,
+        bottom_left: Color,
+        top_right: Color,
+        bottom_right: Color,
+    ) -> None: ...
+    def draw_pixel(self, position: tuple[float, float], color: Color) -> None: ...
