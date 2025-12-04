@@ -8,6 +8,7 @@ from pyray import Vector2 as rlVector2
 from arepy.bundle.components.camera import Camera2D
 from arepy.engine.renderer import ArepyFont, ArepyTexture, Color, Rect, TextureFilter
 from arepy.engine.integrations.raylib.renderer import stencil as _stencil
+from arepy.engine.integrations.raylib.renderer import streaming as _streaming
 
 
 def create_render_texture(width: int, height: int) -> ArepyTexture:
@@ -990,3 +991,83 @@ def end_stencil_mode() -> None:
     Call this after you're done drawing masked content.
     """
     _stencil.end_stencil_mode()
+
+
+# Streaming texture functions (PBO-based for video/dynamic content)
+
+
+def init_streaming() -> bool:
+    """
+    Initialize PBO streaming functions.
+    Must be called after the OpenGL context is created.
+
+    Returns:
+        bool: True if initialization was successful.
+    """
+    return _streaming.init_streaming()
+
+
+def is_streaming_available() -> bool:
+    """
+    Check if PBO streaming is initialized and available.
+
+    Returns:
+        bool: True if streaming is available.
+    """
+    return _streaming.is_streaming_available()
+
+
+def create_streaming_texture(
+    width: int, height: int, channels: int = 4
+) -> Optional[_streaming.StreamingTexture]:
+    """
+    Create a streaming texture with double-buffered PBOs for async updates.
+
+    Args:
+        width: Texture width in pixels.
+        height: Texture height in pixels.
+        channels: Number of color channels (3 for RGB, 4 for RGBA).
+
+    Returns:
+        StreamingTexture object or None if failed.
+    """
+    return _streaming.create_streaming_texture(width, height, channels)
+
+
+def update_streaming_texture(
+    streaming: _streaming.StreamingTexture, pixels: bytes
+) -> bool:
+    """
+    Update a streaming texture with new pixel data using PBO double buffering.
+
+    Args:
+        streaming: The StreamingTexture to update.
+        pixels: Raw pixel data (RGB or RGBA bytes).
+
+    Returns:
+        bool: True if update was successful.
+    """
+    return _streaming.update_streaming_texture(streaming, pixels)
+
+
+def get_streaming_texture(streaming: _streaming.StreamingTexture) -> ArepyTexture:
+    """
+    Get the ArepyTexture for drawing.
+
+    Args:
+        streaming: The StreamingTexture.
+
+    Returns:
+        ArepyTexture that can be used with draw_texture().
+    """
+    return _streaming.get_texture(streaming)
+
+
+def destroy_streaming_texture(streaming: _streaming.StreamingTexture) -> None:
+    """
+    Clean up streaming texture resources.
+
+    Args:
+        streaming: The StreamingTexture to destroy.
+    """
+    _streaming.destroy_streaming_texture(streaming)
