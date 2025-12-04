@@ -7,6 +7,7 @@ from pyray import Vector2 as rlVector2
 
 from arepy.bundle.components.camera import Camera2D
 from arepy.engine.renderer import ArepyFont, ArepyTexture, Color, Rect, TextureFilter
+from arepy.engine.integrations.raylib.renderer import stencil as _stencil
 
 
 def create_render_texture(width: int, height: int) -> ArepyTexture:
@@ -932,3 +933,60 @@ def draw_pixel(
         int(position[1]),
         (color.r, color.g, color.b, color.a),
     )
+
+
+# Stencil mask functions
+
+
+def init_stencil() -> bool:
+    """
+    Initialize stencil buffer functions.
+    Must be called after the OpenGL context is created.
+
+    Returns:
+        bool: True if initialization was successful.
+    """
+    return _stencil.init_stencil()
+
+
+def is_stencil_available() -> bool:
+    """
+    Check if stencil buffer is initialized and available.
+
+    Returns:
+        bool: True if stencil is available.
+    """
+    return _stencil.is_stencil_available()
+
+
+def begin_stencil_mask() -> None:
+    """
+    Begin defining a stencil mask.
+    Draw shapes after this call to define the mask area.
+    The shapes drawn will not be visible - only the mask is written.
+    """
+    _stencil.begin_stencil_mask()
+
+
+def end_stencil_mask() -> None:
+    """
+    End defining the stencil mask.
+    After this call, subsequent draws will only appear where the mask was drawn.
+    """
+    _stencil.end_stencil_mask()
+
+
+def end_stencil_mask_inverse() -> None:
+    """
+    End defining the stencil mask with inverse mode.
+    After this call, subsequent draws will only appear where the mask was NOT drawn.
+    """
+    _stencil.end_stencil_mask_inverse()
+
+
+def end_stencil_mode() -> None:
+    """
+    Disable stencil testing and return to normal rendering.
+    Call this after you're done drawing masked content.
+    """
+    _stencil.end_stencil_mode()
