@@ -1,6 +1,20 @@
-from enum import IntFlag
+from enum import IntEnum, IntFlag
 from os import PathLike
 from typing import Protocol
+
+
+class CursorType(IntEnum):
+    DEFAULT = 0
+    ARROW = 1
+    IBEAM = 2
+    CROSSHAIR = 3
+    POINTING_HAND = 4
+    RESIZE_EW = 5
+    RESIZE_NS = 6
+    RESIZE_NWSE = 7
+    RESIZE_NESW = 8
+    RESIZE_ALL = 9
+    NOT_ALLOWED = 10
 
 
 class WindowFlag(IntFlag):
@@ -58,3 +72,12 @@ class Display(Protocol):
     def set_window_opacity(self, opacity: float) -> None: ...
     def get_window_scale_dpi(self) -> tuple[float, float]: ...
     def toggle_borderless(self) -> None: ...
+    def set_mouse_cursor(self, cursor: CursorType) -> None: ...
+
+    def set_clipboard_text(self, text: str) -> None: ...
+    def get_clipboard_text(self) -> str: ...
+
+    def get_monitor_count(self) -> int: ...
+    def get_current_monitor(self) -> int: ...
+    def get_monitor_size(self, monitor: int) -> tuple[int, int]: ...
+    def get_monitor_refresh_rate(self, monitor: int) -> int: ...

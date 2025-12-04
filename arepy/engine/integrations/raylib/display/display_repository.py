@@ -183,3 +183,31 @@ def get_window_scale_dpi() -> tuple[float, float]:
 
 def toggle_borderless() -> None:
     rl.ToggleBorderlessWindowed()
+
+
+def set_mouse_cursor(cursor: int) -> None:
+    rl.SetMouseCursor(cursor)
+
+
+def set_clipboard_text(text: str) -> None:
+    rl.SetClipboardText(text.encode("utf-8"))
+
+
+def get_clipboard_text() -> str:
+    return rl.GetClipboardText().decode("utf-8")
+
+
+def get_monitor_count() -> int:
+    return rl.GetMonitorCount()
+
+
+def get_current_monitor() -> int:
+    return rl.GetCurrentMonitor()
+
+
+def get_monitor_size(monitor: int) -> tuple[int, int]:
+    return (rl.GetMonitorWidth(monitor), rl.GetMonitorHeight(monitor))
+
+
+def get_monitor_refresh_rate(monitor: int) -> int:
+    return rl.GetMonitorRefreshRate(monitor)
