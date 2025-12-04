@@ -84,6 +84,10 @@ def stop_music(music: ArepyMusic) -> None:
     rl.StopMusicStream(music._ref)  # type: ignore
 
 
+def pause_music(music: ArepyMusic) -> None:
+    rl.PauseMusicStream(music._ref)  # type: ignore
+
+
 def resume_music(music: ArepyMusic) -> None:
     rl.ResumeMusicStream(music._ref)  # type: ignore
 
