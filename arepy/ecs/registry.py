@@ -3,7 +3,7 @@ import logging
 from collections import deque
 from dataclasses import dataclass, field
 from inspect import isclass, isfunction
-from typing import Dict, List, Optional, Sequence, Set, Type, cast
+from typing import Dict, List, Optional, Set, Type, cast
 
 from .components import (
     Component,
@@ -22,6 +22,12 @@ from .utils import Signature
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class ResourceMarker:
+    name: str
+    index: int
+
+
 @dataclass(slots=True)
 class Registry:
     number_of_entities: int = 0
@@ -37,7 +43,8 @@ class Registry:
             for state in SystemState
         }
     )
-    queries: dict[System, Sequence[object]] = field(default_factory=dict)
+    queries: dict[System, List[object]] = field(default_factory=dict)
+    resource_markers: dict[System, List[ResourceMarker]] = field(default_factory=dict)
 
     entity_component_signatures: List[Signature] = field(default_factory=list)
 
@@ -52,7 +59,6 @@ class Registry:
 
     free_entity_ids: deque[int] = field(default_factory=deque)
 
-    # resources
     resources: dict[str, object] = field(default_factory=dict)
 
     def create_entity(self) -> Entity:
@@ -151,15 +157,13 @@ class Registry:
         component_id: int = ComponentIndex.get_id(component_type.__name__)
         return self.entity_component_signatures[entity_id - 1].test(component_id)
 
-    # System management
     def add_system(
         self, pipeline: SystemPipeline, state: SystemState, system: System
     ) -> None:
-
         arguments = get_signed_query_arguments(system)
-        self._fill_arguments_with_resources(arguments)
+        markers = self._extract_resource_markers(arguments)
         self.queries[system] = list(arguments.values())
-        #  System Pipeline -> State -> (System, arguments)
+        self.resource_markers[system] = markers
 
         if self.systems.get(pipeline) is None:
             self.systems[pipeline] = dict()
@@ -169,12 +173,15 @@ class Registry:
         self.systems[pipeline].setdefault(state, set()).add(system)
         self.number_of_systems += 1
 
-    def _fill_arguments_with_resources(self, arguments: dict) -> None:
-        for key, value in arguments.copy().items():
-            for resource_name, _ in self.resources.items():
-                if isclass(value) and resource_name == value.__name__:
-                    resource_value = self.resources[resource_name]
-                    arguments[key] = resource_value
+    def _extract_resource_markers(self, arguments: dict[str, object]) -> List[ResourceMarker]:
+        markers: List[ResourceMarker] = []
+        for idx, (key, value) in enumerate(arguments.items()):
+            if isclass(value):
+                resource_name = value.__name__
+                if resource_name in self.resources:
+                    markers.append(ResourceMarker(resource_name, idx))
+                    arguments[key] = None
+        return markers
 
     def add_entity_to_systems(self, entity: Entity) -> None:
         entity_id: int = entity.get_id()
@@ -268,16 +275,19 @@ class Registry:
     def run(self, pipeline: SystemPipeline) -> None:
         pipeline_systems = self.systems.get(pipeline, {})
         for state, systems in pipeline_systems.items():
-            # Need to improve the threading system by handling concurrency issues and optimizing performance
-            # maybe spliting the queries in chunks of entities
-            # if pipeline == SystemPipeline.UPDATE:
-            #   ECS_EXECUTOR_QUEUE.put_nowait((system, self.queries[system]))
             if state == SystemState.OFF:
                 continue
 
             for system in systems:
-                # is is a coroutine, use asyncio.run
+                args = self._resolve_system_args(system)
                 if asyncio.iscoroutinefunction(system):
-                    asyncio.create_task(system(*self.queries[system]))  # type: ignore
+                    asyncio.create_task(system(*args))
                     continue
-                system(*self.queries[system])
+                system(*args)
+
+    def _resolve_system_args(self, system: System) -> List[object]:
+        args = self.queries[system].copy()
+        markers = self.resource_markers.get(system, [])
+        for marker in markers:
+            args[marker.index] = self.resources.get(marker.name)
+        return args

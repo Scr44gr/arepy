@@ -150,4 +150,164 @@ def test_entity_signature_management(registry):
     assert signature.test(pos_id)
 
 
+class MockRenderer:
+    def __init__(self, name: str = "default"):
+        self.name = name
+        self.draw_count = 0
+
+    def draw(self) -> None:
+        self.draw_count += 1
+
+
+class MockInput:
+    def __init__(self):
+        self.keys_pressed: list[str] = []
+
+    def is_key_pressed(self, key: str) -> bool:
+        return key in self.keys_pressed
+
+
+class TestResourceInjection:
+
+    def test_resource_injection_basic(self):
+        registry = Registry()
+        renderer = MockRenderer("test_renderer")
+        registry.resources["MockRenderer"] = renderer
+
+        call_count = 0
+
+        def render_system(r: MockRenderer) -> None:
+            nonlocal call_count
+            call_count += 1
+            r.draw()
+
+        from arepy.ecs.systems import SystemPipeline, SystemState
+
+        registry.add_system(SystemPipeline.RENDER, SystemState.ON, render_system)
+        registry.run(SystemPipeline.RENDER)
+
+        assert call_count == 1
+        assert renderer.draw_count == 1
+
+    def test_resource_injection_multiple_resources(self):
+        registry = Registry()
+        renderer = MockRenderer("multi_test")
+        input_device = MockInput()
+        registry.resources["MockRenderer"] = renderer
+        registry.resources["MockInput"] = input_device
+
+        received_resources: list[object] = []
+
+        def system_with_multiple_resources(r: MockRenderer, i: MockInput) -> None:
+            received_resources.append(r)
+            received_resources.append(i)
+
+        from arepy.ecs.systems import SystemPipeline, SystemState
+
+        registry.add_system(
+            SystemPipeline.UPDATE, SystemState.ON, system_with_multiple_resources
+        )
+        registry.run(SystemPipeline.UPDATE)
+
+        assert len(received_resources) == 2
+        assert received_resources[0] is renderer
+        assert received_resources[1] is input_device
+
+    def test_resource_lazy_resolution(self):
+        registry = Registry()
+        renderer = MockRenderer("initial")
+        registry.resources["MockRenderer"] = renderer
+
+        received_renderers: list[MockRenderer] = []
+
+        def capture_renderer(r: MockRenderer) -> None:
+            received_renderers.append(r)
+
+        from arepy.ecs.systems import SystemPipeline, SystemState
+
+        registry.add_system(SystemPipeline.UPDATE, SystemState.ON, capture_renderer)
+
+        registry.run(SystemPipeline.UPDATE)
+        assert received_renderers[0] is renderer
+
+        new_renderer = MockRenderer("replaced")
+        registry.resources["MockRenderer"] = new_renderer
+
+        registry.run(SystemPipeline.UPDATE)
+        assert received_renderers[1] is new_renderer
+
+    def test_resource_added_after_system_registration(self):
+        registry = Registry()
+        registry.resources["MockRenderer"] = MockRenderer("placeholder")
+
+        received_input: list[MockInput] = []
+
+        def system_needing_input(i: MockInput) -> None:
+            received_input.append(i)
+
+        from arepy.ecs.systems import SystemPipeline, SystemState
+
+        registry.resources["MockInput"] = MockInput()
+        registry.add_system(SystemPipeline.UPDATE, SystemState.ON, system_needing_input)
+
+        late_input = MockInput()
+        late_input.keys_pressed = ["W", "A", "S", "D"]
+        registry.resources["MockInput"] = late_input
+
+        registry.run(SystemPipeline.UPDATE)
+
+        assert len(received_input) == 1
+        assert received_input[0] is late_input
+        assert received_input[0].is_key_pressed("W")
+
+    def test_resource_markers_created_correctly(self):
+        registry = Registry()
+        renderer = MockRenderer()
+        registry.resources["MockRenderer"] = renderer
+
+        def system_with_resource(r: MockRenderer) -> None:
+            pass
+
+        from arepy.ecs.systems import SystemPipeline, SystemState
+
+        registry.add_system(SystemPipeline.UPDATE, SystemState.ON, system_with_resource)
+
+        assert system_with_resource in registry.resource_markers
+        markers = registry.resource_markers[system_with_resource]
+        assert len(markers) == 1
+        assert markers[0].name == "MockRenderer"
+        assert markers[0].index == 0
+
+    def test_resource_with_query_arguments(self):
+        registry = Registry()
+        renderer = MockRenderer()
+        registry.resources["MockRenderer"] = renderer
+
+        from arepy.ecs.entities import Entity
+        from arepy.ecs.query import Query, With
+
+        entities_processed: list[int] = []
+        renderer_received: list[MockRenderer] = []
+
+        def mixed_system(r: MockRenderer, q: Query[Entity, With[Position]]) -> None:
+            renderer_received.append(r)
+            for entity in q.get_entities():
+                entities_processed.append(entity.get_id())
+
+        from arepy.ecs.systems import SystemPipeline, SystemState
+
+        registry.add_system(SystemPipeline.UPDATE, SystemState.ON, mixed_system)
+
+        entity = registry.create_entity()
+        registry.add_component(entity, Position, Position(10, 20))
+        registry.update()
+
+        registry.run(SystemPipeline.UPDATE)
+
+        assert len(renderer_received) == 1
+        assert renderer_received[0] is renderer
+        assert len(entities_processed) == 1
+        assert entities_processed[0] == entity.get_id()
+
+
 # to run: pytest tests/test_registry.py

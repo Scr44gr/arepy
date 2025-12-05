@@ -141,18 +141,6 @@ class ArepyEngine:
         return self._event_manager
 
     def add_resource(self, resource: object) -> None:
-        """Add a custom resource to the engine.
-
-        Resources are shared across all worlds and can be accessed by systems.
-        Only class instances are allowed (no primitives or functions).
-
-        Args:
-            resource: An instance of a class to be added as a resource.
-
-        Raises:
-            TypeError: If resource is not a class instance or is a function.
-            ValueError: If a resource with the same class name already exists.
-        """
         if not isinstance(resource, object) or isinstance(
             resource, (int, float, str, bool, type(None))
         ):
@@ -191,6 +179,7 @@ class ArepyEngine:
         """
         if name in self.worlds:
             raise ValueError(f"World with name {name} already exists")
+        global Resources
 
         world = World(name)
         # Add resources to the world
