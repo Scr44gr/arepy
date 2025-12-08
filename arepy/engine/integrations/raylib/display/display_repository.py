@@ -194,7 +194,10 @@ def set_clipboard_text(text: str) -> None:
 
 
 def get_clipboard_text() -> str:
-    return rl.GetClipboardText().decode("utf-8")
+    result = rl.GetClipboardText()
+    if result:
+        return rl.ffi.string(result).decode("utf-8")
+    return ""
 
 
 def get_monitor_count() -> int:
