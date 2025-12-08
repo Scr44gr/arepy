@@ -1,41 +1,49 @@
-# Arepy 🎮
+<p align="center">
+    <img width="450" alt="image" src="https://github.com/user-attachments/assets/ac97e33d-7b04-48b5-8bce-8c95d8c30a81" alt="Arepy Logo"/>
+</p>
+
 [![Upload Python Package](https://github.com/Scr44gr/arepy/actions/workflows/python-publish.yml/badge.svg)](https://github.com/Scr44gr/arepy/actions/workflows/python-publish.yml)
 [![codecov](https://codecov.io/gh/Scr44gr/arepy/branch/main/graph/badge.svg)](https://codecov.io/gh/Scr44gr/arepy)
 [![PyPI package](https://img.shields.io/pypi/v/arepy?color=%2334D058&label=pypi%20package)](https://pypi.org/project/arepy)
 [![Python versions](https://img.shields.io/pypi/pyversions/arepy.svg?color=%2334D058)](https://pypi.org/project/arepy)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Arepy** is a modern ECS (Entity Component System) game engine written in Python, featuring seamless integration with Raylib for graphics and ImGui for debugging interfaces.
+**Arepy** is a lightweight and expressive ECS game engine built in Python, designed to make building 2D games simple, fast, and enjoyable. It provides a clean API, a modern architecture, and first-class integration with Raylib and ImGui.
 
-## ✨ Features
+---
 
-- 🚀 **High-performance ECS architecture** - Optimized entity-component-system design
-- 🎨 **Raylib integration** - Hardware-accelerated 2D graphics
-- 🛠️ **ImGui debugging** - Real-time debugging and profiling tools
-- 🔧 **Component pools** - Memory-efficient component management
-- 🎯 **Query system** - Flexible entity filtering with `With`/`Without` queries
-- 📦 **Easy to use** - Simple and intuitive API design
-- 🏗️ **Entity builder** - Fluent interface for entity creation
+## Features
 
-## 📖 Installation
+- High-performance ECS architecture optimized for games  
+- Raylib integration for hardware-accelerated 2D graphics  
+- ImGui debugging overlay with real-time tools  
+- Memory-efficient component pools  
+- Flexible query system with `With` / `Without` filters  
+- Simple and intuitive API design  
+- Fluent entity builder system  
+
+---
+
+## Installation
 
 ### From PyPI
 ```bash
 pip install arepy
-```
+````
 
 ### Development Installation
+
 ```bash
 git clone https://github.com/Scr44gr/arepy.git
 cd arepy
 pip install -e ".[testing]"
 ```
 
-## 🚀 Quick Start
+---
 
-### Basic Example - Moving Square
+## Quick Start
 
-Create a simple red square that moves across the screen:
+### Basic Example – Moving Square
 
 ```python
 from arepy import ArepyEngine, Color, Rect, Renderer2D, SystemPipeline
@@ -49,19 +57,16 @@ WHITE = Color(255, 255, 255, 255)
 RED = Color(255, 0, 0, 255)
 
 def movement_system(query: Query[Entities, With[Transform, RigidBody2D]], renderer: Renderer2D):
-    """System that updates entity positions based on velocity."""
     delta_time = renderer.get_delta_time()
     
     for entity in query.get_entities():
         transform = entity.get_component(Transform)
         velocity = entity.get_component(RigidBody2D).velocity
         
-        # Update position
         transform.position.x += velocity.x * delta_time
         transform.position.y += velocity.y * delta_time
 
 def render_system(query: Query[Entities, With[Transform, RigidBody2D]], renderer: Renderer2D):
-    """System that renders all entities with transform and rigidbody components."""
     renderer.start_frame()
     renderer.clear(color=WHITE)
     
@@ -74,40 +79,35 @@ def render_system(query: Query[Entities, With[Transform, RigidBody2D]], renderer
     renderer.end_frame()
 
 if __name__ == "__main__":
-    game = ArepyEngine(
-        title="Arepy Example",
-    )
+    game = ArepyEngine(title="Arepy Example")
     
-    # Create a world
     world = game.create_world("main_world")
     
-    # Create an entity with components
     entity = (world.create_entity()
               .with_component(Transform(position=Vec2(0, 0)))
               .with_component(RigidBody2D(velocity=Vec2(50, 10)))
               .build())
     
-    # Register systems
     world.add_system(SystemPipeline.UPDATE, movement_system)
     world.add_system(SystemPipeline.RENDER, render_system)
     
-    # Set as current world and run
     game.set_current_world("main_world")
     game.run()
 ```
 
 ![Demo](https://github.com/user-attachments/assets/c23a6af6-14a0-4afc-b335-7702815a7777)
 
-## 🏗️ Core Concepts
+---
+
+## Core Concepts
 
 ### Entities
-Entities are lightweight identifiers that represent game objects:
+
+Lightweight identifiers that represent objects in the game world:
 
 ```python
-# Create an entity
 entity = world.create_entity()
 
-# Or use the builder pattern
 player = (world.create_entity()
           .with_component(Transform(position=Vec2(100, 100)))
           .with_component(PlayerController())
@@ -115,7 +115,8 @@ player = (world.create_entity()
 ```
 
 ### Components
-Components are pure data containers:
+
+Pure data containers attached to entities:
 
 ```python
 from arepy.ecs import Component
@@ -132,89 +133,92 @@ class Weapon(Component):
 ```
 
 ### Systems
-Systems contain the game logic and operate on entities with specific components:
+
+Systems implement game logic:
 
 ```python
 def damage_system(query: Query[Entity, With[Health, Weapon]]):
-    """System that processes combat between entities."""
     for entity in query.get_entities():
         health = entity.get_component(Health)
         weapon = entity.get_component(Weapon)
         
-        # Game logic here
         if health.value <= 0:
             entity.kill()
 ```
 
 ### Queries
-Queries allow you to filter entities based on their components:
+
+Filter entities based on their components:
 
 ```python
-# Entities WITH specific components
 Query[Entity, With[Transform, Velocity]]
-
-# Entities WITHOUT specific components  
 Query[Entity, Without[Dead]]
 
-# Complex combinations (planned feature)
+# Planned:
 Query[Entity, With[Transform, Velocity], Without[Frozen]]
 ```
 
-## 🧪 Testing
+---
 
-Run the comprehensive test suite:
+## Testing
 
 ```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=arepy --cov-report=html
-
-# Run specific test file
+pytest                   # Run all tests
+pytest --cov=arepy       # Coverage report
 pytest tests/test_registry.py -v
 ```
 
-## 🤝 Contributing
+---
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+## Contributing
+
+We welcome contributions. Refer to the [Contributing Guide](CONTRIBUTING.md).
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes and add tests
-4. Ensure tests pass (`pytest`)
-5. Commit your changes (`git commit -m 'Add amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
+2. Create a feature branch
+3. Implement your changes and tests
+4. Ensure tests pass
+5. Commit and push
+6. Open a Pull Request
 
-## 📋 Requirements
+---
 
-- Python 3.10+
-- Raylib 5.5.0+
-- Bitarray 3.4.2+
+## Requirements
 
-## 🗺️ Roadmap
+* Python 3.10+
+* Raylib 5.5.0+
+* Bitarray 3.4.2+
 
-- [ ] **Advanced Query System** - Support for complex component combinations
-- [ ] **Scene Management** - Built-in scene loading and transitions  
-- [ ] **Asset Pipeline** - Better streamlined asset loading and management
-- [ ] **Physics Integration** - Built-in 2D/3D physics systems
-- [ ] **Audio System** - Comprehensive audio management
-- [ ] **Networking** - Multiplayer game support
-- [ ] **Visual Editor** - GUI editor for game development
+---
+
+## Roadmap
+
+* [ ] Advanced query system
+* [ ] Scene management
+* [ ] Asset pipeline improvements
+* [ ] Physics integration
+* [ ] Audio system
+* [ ] Networking support
+* [ ] Visual editor
+
+---
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License – see the [LICENSE](LICENSE) file for details.
+
+---
 
 ## 🙏 Acknowledgments
 
-- [Raylib](https://www.raylib.com/) - Amazing C library for 2D/3D graphics
-- [ImGui](https://github.com/ocornut/imgui) - Fantastic debugging interface
-- [EnTT](https://github.com/skypjack/entt) - Inspiration for ECS design
-- [Bevy Engine](https://github.com/bevyengine/bevy) - Inspiration for ECS Query system
-- [Pikuma](https://pikuma.com/courses/cpp-2d-game-engine-development) - Educational resources :)
-- [raylib-python-cffi](https://github.com/electronstudio/raylib-python-cffi) - Python bindings for Raylib
+* [Raylib](https://www.raylib.com/)
+* [ImGui](https://github.com/ocornut/imgui)
+* [EnTT](https://github.com/skypjack/entt)
+* [Bevy Engine](https://github.com/bevyengine/bevy)
+* [Pikuma](https://pikuma.com/courses/cpp-2d-game-engine-development)
+* [raylib-python-cffi](https://github.com/electronstudio/raylib-python-cffi)
+
 ---
 
 **Made with ❤️ by [Abrahan Gil](https://github.com/Scr44gr)**
+
