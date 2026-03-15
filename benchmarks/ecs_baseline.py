@@ -7,11 +7,16 @@ from dataclasses import dataclass
 from time import perf_counter
 from typing import Callable, Iterable, cast
 
+from arepy.bundle.components import RigidBody2D, Transform
+from arepy.bundle.systems.movement_system import (
+    movement_system as bundle_movement_system,
+)
 from arepy.ecs.components import Component, ComponentIndex, ComponentPool
 from arepy.ecs.entities import Entity
 from arepy.ecs.query import Query, With
 from arepy.ecs.registry import Registry
 from arepy.ecs.systems import SystemPipeline, SystemState
+from arepy.math import Vec2
 
 BenchmarkAction = Callable[[], None]
 BenchmarkFactory = Callable[[int], BenchmarkAction]
@@ -110,6 +115,34 @@ def create_registry_with_position_velocity_query(
 
     registry.update()
     query = get_registered_query(registry, movement_system)
+    return registry, entities, query
+
+
+class DummyRenderer:
+    def get_delta_time(self) -> float:
+        return 0.016
+
+
+def create_registry_with_bundle_movement_query(
+    entity_count: int,
+    system: Callable[..., None],
+) -> tuple[Registry, list[Entity], Query]:
+    registry = Registry()
+    registry.add_system(SystemPipeline.UPDATE, SystemState.ON, system)
+
+    entities = [registry.create_entity() for _ in range(entity_count)]
+    for index, entity in enumerate(entities):
+        registry.add_component(
+            entity,
+            Transform,
+            Transform(position=Vec2(float(index), float(index))),
+        )
+        registry.add_component(
+            entity, RigidBody2D, RigidBody2D(velocity=Vec2(1.0, -1.0))
+        )
+
+    registry.update()
+    query = get_registered_query(registry, system)
     return registry, entities, query
 
 
@@ -318,15 +351,13 @@ def make_benchmark_query_iter_components(entity_count: int) -> BenchmarkAction:
     def action() -> None:
         total = 0
         for position, velocity in query.iter_components(Position, Velocity):
-            typed_position = cast(Position, position)
-            typed_velocity = cast(Velocity, velocity)
-            typed_position.x += typed_velocity.x
-            typed_position.y += typed_velocity.y
+            position.x += velocity.x
+            position.y += velocity.y
             total += int(
-                typed_position.x
-                + typed_position.y
-                + typed_velocity.x
-                + typed_velocity.y
+                position.x
+                + position.y
+                + velocity.x
+                + velocity.y
             )
         consume(total)
 
@@ -339,15 +370,13 @@ def make_benchmark_system_move_with_view(entity_count: int) -> BenchmarkAction:
     def movement_system(query: Query[Entity, With[Position, Velocity]]) -> None:
         total = 0
         for position, velocity in query.iter_components(Position, Velocity):
-            typed_position = cast(Position, position)
-            typed_velocity = cast(Velocity, velocity)
-            typed_position.x += typed_velocity.x
-            typed_position.y += typed_velocity.y
+            position.x += velocity.x
+            position.y += velocity.y
             total += int(
-                typed_position.x
-                + typed_position.y
-                + typed_velocity.x
-                + typed_velocity.y
+                position.x
+                + position.y
+                + velocity.x
+                + velocity.y
             )
         consume(total)
 
@@ -401,6 +430,57 @@ def make_benchmark_prebuilt_component_pairs(entity_count: int) -> BenchmarkActio
             position.y += velocity.y
             total += int(position.x + position.y + velocity.x + velocity.y)
         consume(total)
+
+    return action
+
+
+def make_benchmark_bundle_movement_legacy(entity_count: int) -> BenchmarkAction:
+    renderer = DummyRenderer()
+
+    def legacy_movement_system(
+        query: Query[Entity, With[Transform, RigidBody2D]],
+        renderer: DummyRenderer,
+    ) -> None:
+        delta_time = renderer.get_delta_time()
+        for entity in query.get_entities():
+            transform = entity.get_component(Transform)
+            velocity = entity.get_component(RigidBody2D).velocity
+            transform.position += velocity * delta_time
+
+            if transform.position.x < 0:
+                transform.position.x = 0
+                velocity.x = -velocity.x
+
+            if transform.position.y < 0:
+                transform.position.y = 0
+                velocity.y = -velocity.y
+
+            if transform.position.x > 640 - 32:
+                transform.position.x = 640 - 32
+                velocity.x = -velocity.x
+
+            if transform.position.y > 480 - 32:
+                transform.position.y = 480 - 32
+                velocity.y = -velocity.y
+
+    _, _, query = create_registry_with_bundle_movement_query(
+        entity_count, legacy_movement_system
+    )
+
+    def action() -> None:
+        legacy_movement_system(query, renderer)
+
+    return action
+
+
+def make_benchmark_bundle_movement_optimized(entity_count: int) -> BenchmarkAction:
+    renderer = DummyRenderer()
+    _, _, query = create_registry_with_bundle_movement_query(
+        entity_count, bundle_movement_system
+    )
+
+    def action() -> None:
+        bundle_movement_system(query, renderer)
 
     return action
 
@@ -468,7 +548,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--mode",
-        choices=["baseline", "detailed", "view", "all"],
+        choices=["baseline", "detailed", "view", "bundle", "all"],
         default="all",
         help="Which benchmark suite to run.",
     )
@@ -499,6 +579,10 @@ def main() -> None:
         ("dense_pool_scan", make_benchmark_dense_pool_scan),
         ("prebuilt_component_pairs", make_benchmark_prebuilt_component_pairs),
     ]
+    bundle_scenarios: list[tuple[str, BenchmarkFactory]] = [
+        ("bundle_move_legacy", make_benchmark_bundle_movement_legacy),
+        ("bundle_move_optimized", make_benchmark_bundle_movement_optimized),
+    ]
 
     scenarios: list[tuple[str, BenchmarkFactory]] = []
     if args.mode in ("baseline", "all"):
@@ -507,6 +591,8 @@ def main() -> None:
         scenarios.extend(detailed_scenarios)
     if args.mode in ("view", "all"):
         scenarios.extend(view_scenarios)
+    if args.mode in ("bundle", "all"):
+        scenarios.extend(bundle_scenarios)
 
     results: list[BenchmarkResult] = []
     for entity_count in args.entities:

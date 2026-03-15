@@ -68,6 +68,8 @@ class Query(Generic[TEntity, TFilter]):
         "_signature",
         "_excluded_signature",
         "_entities",
+        "_ordered_entities_cache",
+        "_is_order_dirty",
         "_kind",
         "_thread_id",
         "_registry",
@@ -77,6 +79,8 @@ class Query(Generic[TEntity, TFilter]):
         self._signature = Signature(MAX_COMPONENTS)
         self._excluded_signature = Signature(MAX_COMPONENTS)
         self._entities: set["Entity"] = set()
+        self._ordered_entities_cache: tuple["Entity", ...] = ()
+        self._is_order_dirty = False
         self._kind: object = None
         self._thread_id: Optional[int] = None
         self._registry: Optional["Registry"] = None
@@ -97,16 +101,19 @@ class Query(Generic[TEntity, TFilter]):
         return self._entities
 
     def add_entity(self, entity: "Entity") -> None:
-        self._entities.add(entity)
+        if entity not in self._entities:
+            self._entities.add(entity)
+            self._is_order_dirty = True
 
     def remove_entity(self, entity: "Entity") -> None:
         try:
             self._entities.remove(entity)
+            self._is_order_dirty = True
         except KeyError:
             pass
 
     def __iter__(self) -> Iterable["Entity"]:
-        return iter(self._entities)
+        return iter(self._get_ordered_entities())
 
     def set_registry(self, registry: "Registry") -> None:
         self._registry = registry
@@ -115,7 +122,7 @@ class Query(Generic[TEntity, TFilter]):
         self, *component_types: Type[Component]
     ) -> Iterator[tuple[Component, ...]]:
         component_pools = self._get_component_pools(component_types)
-        for entity in self._entities:
+        for entity in self._get_ordered_entities():
             entity_id = entity.get_id() - 1
             components: list[Component] = []
             for component_pool in component_pools:
@@ -130,7 +137,7 @@ class Query(Generic[TEntity, TFilter]):
         self, *component_types: Type[Component]
     ) -> Iterator[tuple["Entity", *tuple[Component, ...]]]:
         component_pools = self._get_component_pools(component_types)
-        for entity in self._entities:
+        for entity in self._get_ordered_entities():
             entity_id = entity.get_id() - 1
             components: list[Component] = []
             for component_pool in component_pools:
@@ -163,6 +170,15 @@ class Query(Generic[TEntity, TFilter]):
 
             component_pools.append(cast(ComponentPool[Component], component_pool))
         return component_pools
+
+    def _get_ordered_entities(self) -> tuple["Entity", ...]:
+        if self._is_order_dirty:
+            self._ordered_entities_cache = tuple(
+                sorted(self._entities, key=lambda entity: entity.get_id())
+            )
+            self._is_order_dirty = False
+
+        return self._ordered_entities_cache
 
     def fetch(self) -> TEntity: ...
 

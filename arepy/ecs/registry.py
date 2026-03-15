@@ -2,7 +2,7 @@ import asyncio
 import logging
 from collections import deque
 from dataclasses import dataclass, field
-from inspect import isclass, isfunction
+from inspect import isclass, iscoroutinefunction, isfunction
 from typing import Dict, List, Optional, Set, Type, cast
 
 from .components import (
@@ -255,7 +255,7 @@ class Registry:
 
             for system in systems:
                 args = self._resolve_system_args(system)
-                if asyncio.iscoroutinefunction(system):
+                if iscoroutinefunction(system):
                     asyncio.create_task(system(*args))
                     continue
                 system(*args)

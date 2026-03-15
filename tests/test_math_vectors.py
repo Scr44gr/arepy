@@ -1,3 +1,5 @@
+import math
+
 from arepy.bundle.components.transform import Transform
 from arepy.math import Vec2, Vec3
 
@@ -63,6 +65,20 @@ def test_vec3_scale_ip_matches_scalar_multiplication():
     vector.scale_ip(0.5)
 
     assert vector == Vec3(1, 1.5, 2)
+
+
+def test_vec3_angle_zero_vector_is_safe():
+    assert Vec3(0, 0, 0).angle(Vec3(1, 0, 0)) == 0.0
+
+
+def test_vec3_angle_clamps_floating_point_drift():
+    angle = Vec3(1, 0, 0).angle(Vec3(1, 0, 0))
+
+    assert math.isclose(angle, 0.0)
+
+
+def test_vec3_project_zero_vector_target_is_safe():
+    assert Vec3(1, 2, 3).project(Vec3(0, 0, 0)) == Vec3(0, 0, 0)
 
 
 def test_transform_default_vectors_are_not_shared_between_instances():

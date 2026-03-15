@@ -144,10 +144,28 @@ class Vec3:
         self.z /= length
 
     def angle(self, other: "Vec3") -> float:
-        return math.acos(self.dot(other) / (abs(self) * abs(other)))
+        if not isinstance(other, Vec3):
+            return NotImplemented
+
+        self_length = abs(self)
+        other_length = abs(other)
+        denominator = self_length * other_length
+        if math.isclose(denominator, 0.0):
+            return 0.0
+
+        cosine = self.dot(other) / denominator
+        clamped_cosine = max(-1.0, min(1.0, cosine))
+        return math.acos(clamped_cosine)
 
     def project(self, other: "Vec3") -> "Vec3":
-        return other * (self.dot(other) / other.dot(other))
+        if not isinstance(other, Vec3):
+            return NotImplemented
+
+        denominator = other.dot(other)
+        if math.isclose(denominator, 0.0):
+            return Vec3(0, 0, 0)
+
+        return other * (self.dot(other) / denominator)
 
     def length(self) -> float:
         """Returns the length of the vector."""

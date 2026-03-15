@@ -277,6 +277,19 @@ def test_query_iter_entities_components_returns_entity_and_components(registry):
     assert velocity.y == 8.0
 
 
+def test_query_iteration_is_deterministic_by_entity_id(registry):
+    query = Query[Entity, With[Position]]()
+    entities = [registry.create_entity() for _ in range(3)]
+
+    query.add_entity(entities[2])
+    query.add_entity(entities[0])
+    query.add_entity(entities[1])
+
+    ordered_ids = [entity.get_id() for entity in query]
+
+    assert ordered_ids == sorted(ordered_ids)
+
+
 def test_query_signature_matching():
     """Test signature matching logic."""
     from arepy.ecs.constants import MAX_COMPONENTS
