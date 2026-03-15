@@ -216,7 +216,7 @@ We welcome contributions. Refer to the [Contributing Guide](CONTRIBUTING.md).
 
 ## Requirements
 
-* Python 3.10+
+* Python 3.11+
 * Raylib 5.5.0+
 * Bitarray 3.4.2+
 

@@ -1,5 +1,6 @@
 from collections import OrderedDict
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Generic,
@@ -12,7 +13,6 @@ from typing import (
     Sequence,
     Type,
     TypeVar,
-    TYPE_CHECKING,
     Union,
     cast,
     get_type_hints,
@@ -237,14 +237,15 @@ def _extract_filter_groups(filter_definition: object) -> tuple[object, ...]:
         return (filter_definition,)
 
     if filter_origin is tuple:
-        filter_groups = cast(tuple[object, ...], getattr(filter_definition, "__args__", ()))
+        filter_groups = cast(
+            tuple[object, ...], getattr(filter_definition, "__args__", ())
+        )
         if not filter_groups:
             raise TypeError("Tuple query filters must not be empty.")
         for filter_group in filter_groups:
-            if (
-                not hasattr(filter_group, "__origin__")
-                or getattr(filter_group, "__origin__") not in (With, Without)
-            ):
+            if not hasattr(filter_group, "__origin__") or getattr(
+                filter_group, "__origin__"
+            ) not in (With, Without):
                 raise TypeError(
                     f"Invalid query kind: {filter_group}. Expected `With` or `Without`."
                 )
@@ -264,16 +265,14 @@ def _extract_component_types(filter_group: object) -> tuple[Type[Component], ...
 
 def get_annotations(function: Callable) -> OrderedDict[str, Any]:
     """Get the annotations of a function in order.
-    
+
     Uses typing.get_type_hints() to properly resolve string annotations
     that occur when using 'from __future__ import annotations'.
     """
     try:
         hints = get_type_hints(function)
         return OrderedDict(
-            (key, hints[key])
-            for key in function.__annotations__
-            if key in hints
+            (key, hints[key]) for key in function.__annotations__ if key in hints
         )
     except Exception:
         return OrderedDict(function.__annotations__)

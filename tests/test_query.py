@@ -230,7 +230,9 @@ def test_query_iter_components_uses_registry_pools(registry):
     registry.update()
 
     query = next(
-        argument for argument in registry.queries[movement_system] if isinstance(argument, Query)
+        argument
+        for argument in registry.queries[movement_system]
+        if isinstance(argument, Query)
     )
 
     components = list(query.iter_components(Position, Velocity))
@@ -259,7 +261,9 @@ def test_query_iter_entities_components_returns_entity_and_components(registry):
     registry.update()
 
     query = next(
-        argument for argument in registry.queries[movement_system] if isinstance(argument, Query)
+        argument
+        for argument in registry.queries[movement_system]
+        if isinstance(argument, Query)
     )
 
     rows = list(query.iter_entities_components(Position, Velocity))
@@ -311,8 +315,9 @@ def test_query_empty_results():
 
 def test_query_with_without_combinations(registry):
     """Test queries with With and Without combinations."""
+
     def filtered_system(
-        query: Query[Entity, tuple[With[Position], Without[Health]]]
+        query: Query[Entity, tuple[With[Position], Without[Health]]],
     ) -> None:
         pass
 
@@ -336,7 +341,9 @@ def test_query_with_without_combinations(registry):
     registry.update()
 
     query = next(
-        argument for argument in registry.queries[filtered_system] if isinstance(argument, Query)
+        argument
+        for argument in registry.queries[filtered_system]
+        if isinstance(argument, Query)
     )
     entities = list(query.get_entities())
 
@@ -361,7 +368,9 @@ def test_query_without_matches_entities_missing_component(registry):
     registry.update()
 
     query = next(
-        argument for argument in registry.queries[static_system] if isinstance(argument, Query)
+        argument
+        for argument in registry.queries[static_system]
+        if isinstance(argument, Query)
     )
     entities = list(query.get_entities())
 
@@ -382,7 +391,9 @@ def test_query_without_syncs_on_component_add_and_remove(registry):
     registry.update()
 
     query = next(
-        argument for argument in registry.queries[static_system] if isinstance(argument, Query)
+        argument
+        for argument in registry.queries[static_system]
+        if isinstance(argument, Query)
     )
 
     assert entity in query.get_entities()

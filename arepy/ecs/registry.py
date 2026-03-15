@@ -169,7 +169,9 @@ class Registry:
         self.systems[pipeline].setdefault(state, set()).add(system)
         self.number_of_systems += 1
 
-    def _extract_resource_markers(self, arguments: dict[str, object]) -> List[ResourceMarker]:
+    def _extract_resource_markers(
+        self, arguments: dict[str, object]
+    ) -> List[ResourceMarker]:
         markers: List[ResourceMarker] = []
         for idx, (key, value) in enumerate(arguments.items()):
             if isclass(value):

@@ -4,6 +4,9 @@ from arepy.ecs.query import Query, With
 from arepy.ecs.registry import Entity
 from arepy.engine.renderer.renderer_2d import Color, Rect, Renderer2D
 
+WHITE = Color(255, 255, 255, 255)
+CLEAR_COLOR = Color(245, 245, 245, 255)
+
 COLORS = [
     Color(255, 0, 0, 255),  # red
     Color(0, 255, 0, 255),  # green
@@ -22,10 +25,9 @@ def render_system(
     asset_store: AssetStore,
 ):
     renderer.start_frame()
-    renderer.clear(color=Color(245, 245, 245, 255))
-    for entity in query.get_entities():
-        position = entity.get_component(Transform).position
-        sprite = entity.get_component(Sprite)
+    renderer.clear(color=CLEAR_COLOR)
+    for transform, sprite in query.iter_components(Transform, Sprite):
+        position = transform.position
         texture = asset_store.get_texture(sprite.asset_id)
         texture_size = texture.get_size()
         dst_rect = Rect(
@@ -44,7 +46,7 @@ def render_system(
             texture,
             src_rect,
             dst_rect,
-            Color(255, 255, 255, 255),
+            WHITE,
         )
     renderer.draw_fps((10, 10))
     renderer.end_frame()

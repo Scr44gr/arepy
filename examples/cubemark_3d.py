@@ -138,16 +138,12 @@ def camera_system_3d(
     # Initialize angles if first time
     if cached_input.needs_update:
         # Calculate initial spherical coordinates
-        distance_vec = Vec3(
-            camera.position.x - camera.target.x,
-            camera.position.y - camera.target.y,
-            camera.position.z - camera.target.z,
-        )
-        cached_input.distance = math.sqrt(
-            distance_vec.x**2 + distance_vec.y**2 + distance_vec.z**2
-        )
-        cached_input.horizontal_angle = math.atan2(distance_vec.x, distance_vec.z)
-        cos_vertical = max(-1.0, min(1.0, distance_vec.y / cached_input.distance))
+        dx = camera.position.x - camera.target.x
+        dy = camera.position.y - camera.target.y
+        dz = camera.position.z - camera.target.z
+        cached_input.distance = math.hypot(dx, dy, dz)
+        cached_input.horizontal_angle = math.atan2(dx, dz)
+        cos_vertical = max(-1.0, min(1.0, dy / cached_input.distance))
         cached_input.vertical_angle = math.acos(cos_vertical)
 
         cached_input.target_horizontal = cached_input.horizontal_angle
@@ -197,9 +193,7 @@ def camera_system_3d(
     )
 
     # Smart mouse recentering - only when mouse gets too far from center
-    distance_from_center = math.sqrt(
-        (mouse_pos[0] - center_x) ** 2 + (mouse_pos[1] - center_y) ** 2
-    )
+    distance_from_center = math.hypot(mouse_pos[0] - center_x, mouse_pos[1] - center_y)
 
     if distance_from_center > cached_input.center_threshold:
         game.renderer_2d.set_mouse_position((center_x, center_y))

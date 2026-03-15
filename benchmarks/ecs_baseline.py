@@ -113,11 +113,15 @@ def create_registry_with_position_velocity_query(
     return registry, entities, query
 
 
-def get_component_pool(registry: Registry, component_type: type[Component]) -> ComponentPool:
+def get_component_pool(
+    registry: Registry, component_type: type[Component]
+) -> ComponentPool:
     component_id = ComponentIndex.get_id(component_type.__name__)
     pool = registry.component_pools[component_id - 1]
     if pool is None:
-        raise ValueError(f"Component pool for {component_type.__name__} is not initialized.")
+        raise ValueError(
+            f"Component pool for {component_type.__name__} is not initialized."
+        )
     return cast(ComponentPool, pool)
 
 
@@ -135,7 +139,9 @@ def make_benchmark_add_components(entity_count: int) -> BenchmarkAction:
 
     def action() -> None:
         for index, entity in enumerate(entities):
-            registry.add_component(entity, Position, Position(float(index), float(index)))
+            registry.add_component(
+                entity, Position, Position(float(index), float(index))
+            )
             registry.add_component(entity, Velocity, Velocity(1.0, -1.0))
             registry.add_component(entity, Health, Health(100))
 
@@ -505,7 +511,9 @@ def main() -> None:
     results: list[BenchmarkResult] = []
     for entity_count in args.entities:
         for name, benchmark_factory in scenarios:
-            results.append(run_benchmark(name, entity_count, args.runs, benchmark_factory))
+            results.append(
+                run_benchmark(name, entity_count, args.runs, benchmark_factory)
+            )
 
     print(format_results(results))
 

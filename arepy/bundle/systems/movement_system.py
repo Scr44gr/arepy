@@ -11,28 +11,25 @@ def movement_system(
     renderer: Renderer2D,
 ):
     delta_time = renderer.get_delta_time()
-    entities = query.get_entities()
-    for entity in entities:
-        transform = entity.get_component(Transform)
-        velocity = entity.get_component(RigidBody2D).velocity
+    for transform, rigidbody in query.iter_components(Transform, RigidBody2D):
+        position = transform.position
+        velocity = rigidbody.velocity
 
-        transform.position += velocity * delta_time
+        position.x += velocity.x * delta_time
+        position.y += velocity.y * delta_time
 
-        if transform.position.x < 0:
-            transform.position.x = 0
+        if position.x < 0:
+            position.x = 0
             velocity.x = -velocity.x
 
-        if transform.position.y < 0:
-
-            transform.position.y = 0
+        if position.y < 0:
+            position.y = 0
             velocity.y = -velocity.y
 
-        if transform.position.x > LIMITS[0]:
-
-            transform.position.x = LIMITS[0]
+        if position.x > LIMITS[0]:
+            position.x = LIMITS[0]
             velocity.x = -velocity.x
 
-        if transform.position.y > LIMITS[1]:
-
-            transform.position.y = LIMITS[1]
+        if position.y > LIMITS[1]:
+            position.y = LIMITS[1]
             velocity.y = -velocity.y
