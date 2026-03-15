@@ -23,9 +23,7 @@ def movement_system(
     delta_time: float = renderer.get_delta_time()
     sprite_size: int = 16
 
-    for entity in query.get_entities():
-        transform = entity.get_component(Transform)
-        rigidbody = entity.get_component(RigidBody2D)
+    for transform, rigidbody in query.iter_components(Transform, RigidBody2D):
 
         # Update position
         transform.position.x += rigidbody.velocity.x * delta_time
@@ -56,8 +54,7 @@ def render_system(
     renderer.clear(color=WHITE_COLOR)
     texture = game.get_asset_store().get_texture(BUNNY_ASSET)
     number_of_entities: int = 0
-    for entity in query.get_entities():
-        transform = entity.get_component(Transform)
+    for (transform,) in query.iter_components(Transform):
         renderer.draw_texture_ex(
             texture,
             Rect(0, 0, 32, 32),

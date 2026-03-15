@@ -69,3 +69,23 @@ def test_multiple_queries_with_future_annotations():
     assert "static" in arguments
     assert isinstance(arguments["moving"], Query)
     assert isinstance(arguments["static"], Query)
+
+
+def test_combined_with_without_future_annotations():
+    """Test tuple-based With/Without query filters with future annotations."""
+
+    def filtered_system(
+        query: Query[Entity, tuple[With[Position], Without[Velocity]]]
+    ) -> None:
+        pass
+
+    arguments = get_signed_query_arguments(filtered_system)
+    query = arguments["query"]
+
+    from arepy.ecs.components import ComponentIndex
+
+    assert isinstance(query, Query)
+    assert query.get_component_signature().test(ComponentIndex.get_id(Position.__name__))
+    assert query.get_excluded_component_signature().test(
+        ComponentIndex.get_id(Velocity.__name__)
+    )

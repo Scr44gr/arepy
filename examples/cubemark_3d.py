@@ -64,9 +64,7 @@ def movement_system_3d(
     """3D movement system with bouncing physics - optimized version"""
     delta_time: float = renderer.get_delta_time()
 
-    for entity in query.get_entities():
-        transform = entity.get_component(Transform3D)
-        rigidbody = entity.get_component(RigidBody3D)
+    for transform, rigidbody in query.iter_components(Transform3D, RigidBody3D):
 
         pos = transform.position
         vel = rigidbody.velocity
@@ -104,19 +102,20 @@ def movement_system_3d(
 
 
 def camera_system_3d(
-    camera_query: Query[Entities, With[Camera3D]],
+    camera_query: Query[Entities, With[Camera3D, CachedInput]],
     renderer_3d: Renderer3D,
     input_device: Input,
     game: ArepyEngine,
 ) -> None:
     """Smooth camera system with smart mouse centering"""
-    camera_entities = list(camera_query.get_entities())
-    if not camera_entities:
+    camera_components = next(
+        camera_query.iter_components(Camera3D, CachedInput),
+        None,
+    )
+    if camera_components is None:
         return
 
-    camera_entity = camera_entities[0]
-    camera = camera_entity.get_component(Camera3D)
-    cached_input = camera_entity.get_component(CachedInput)
+    camera, cached_input = camera_components
 
     # Get current mouse position and calculate center
     center_x = game.window_width // 2
@@ -220,12 +219,12 @@ def render_system_3d(
     renderer_2d.clear(color=Color(30, 30, 50, 255))
 
     # Get camera
-    camera_entities = list(camera_query.get_entities())
-    if not camera_entities:
+    camera = next(camera_query.iter_components(Camera3D), None)
+    if camera is None:
         renderer_2d.end_frame()
         return
 
-    camera = camera_entities[0].get_component(Camera3D)
+    camera = camera[0]
 
     # Begin 3D mode
     renderer.begin_mode_3d(camera)
@@ -247,8 +246,7 @@ def render_system_3d(
     number_of_entities: int = 0
 
     # Optimized rendering loop - minimize object creation
-    for entity in query.get_entities():
-        transform = entity.get_component(Transform3D)
+    for (transform,) in query.iter_components(Transform3D):
 
         # Use fast color cycling
         color = CUBE_COLORS[number_of_entities % color_count]

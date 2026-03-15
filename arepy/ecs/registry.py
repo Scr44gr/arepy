@@ -50,12 +50,8 @@ class Registry:
 
     entities_to_be_added: Set[Entity] = field(default_factory=set)
     entities_to_be_removed: Set[Entity] = field(default_factory=set)
-    entities_to_be_synced_on_remove: Set[tuple[Entity, Component]] = field(
-        default_factory=set
-    )
-    entities_to_be_synced_on_add: Set[tuple[Entity, Component]] = field(
-        default_factory=set
-    )
+    entities_to_be_synced_on_remove: Set[Entity] = field(default_factory=set)
+    entities_to_be_synced_on_add: Set[Entity] = field(default_factory=set)
 
     free_entity_ids: deque[int] = field(default_factory=deque)
 
@@ -84,7 +80,7 @@ class Registry:
         sync_queries: bool = False,
     ) -> None:
         if sync_queries:
-            self.entities_to_be_synced_on_add.add((entity, component))
+            self.entities_to_be_synced_on_add.add(entity)
 
         entity_id = entity.get_id()
         component_id = ComponentIndex.get_id(component_type.__name__)
@@ -144,9 +140,7 @@ class Registry:
         component_pool.set(entity.get_id() - 1, None)  # type: ignore
 
         self.entity_component_signatures[entity_id - 1].clear_bit(component_id)
-        self.entities_to_be_synced_on_remove.add(
-            (entity, cast(Component, component_type))
-        )
+        self.entities_to_be_synced_on_remove.add(entity)
 
     def has_component(
         self,
@@ -164,6 +158,8 @@ class Registry:
         markers = self._extract_resource_markers(arguments)
         self.queries[system] = list(arguments.values())
         self.resource_markers[system] = markers
+        for query in get_queries_instance_from_arguments(self.queries[system]):
+            query.set_registry(self)
 
         if self.systems.get(pipeline) is None:
             self.systems[pipeline] = dict()
@@ -184,11 +180,7 @@ class Registry:
         return markers
 
     def add_entity_to_systems(self, entity: Entity) -> None:
-        entity_id: int = entity.get_id()
-        entity_component_signature: Signature = self.entity_component_signatures[
-            entity_id - 1
-        ]
-        self.sync_queries_on_add_component(entity, entity_component_signature)
+        self.sync_entity_queries(entity)
 
     def remove_entity_from_systems(self, entity: Entity) -> None:
         for arguments in self.queries.values():
@@ -196,32 +188,15 @@ class Registry:
             for query in queries:
                 query.remove_entity(entity)
 
-    def sync_queries_on_add_component(
-        self, entity: Entity, component_signature: Signature
-    ) -> None:
+    def sync_entity_queries(self, entity: Entity) -> None:
+        entity_id = entity.get_id()
+        component_signature = self.entity_component_signatures[entity_id - 1]
         for arguments in self.queries.values():
             affected_queries = get_queries_instance_from_arguments(arguments)
             for affected_query in affected_queries:
-                if affected_query.get_component_signature().matches(
-                    component_signature
-                ):
+                if affected_query.matches(component_signature):
                     affected_query.add_entity(entity)
-
-    def sync_queries_on_remove_component(
-        self,
-        entity: Entity,
-        component: Component,
-    ) -> None:
-        component_signature = Signature(MAX_COMPONENTS)
-        component_id = ComponentIndex.get_id(component.__name__)  # type: ignore
-        component_signature.set(component_id, True)
-
-        for query in self.queries.values():
-            affected_queries = get_queries_instance_from_arguments(query)
-            for affected_query in affected_queries:
-                if component_signature.matches(
-                    affected_query.get_component_signature()
-                ):
+                else:
                     affected_query.remove_entity(entity)
 
     def kill_entity(self, entity: Entity) -> None:
@@ -249,15 +224,13 @@ class Registry:
     def update(self) -> None:
 
         if self.entities_to_be_synced_on_add:
-            for entity, component in self.entities_to_be_synced_on_add:
-                self.sync_queries_on_add_component(
-                    entity, self.entity_component_signatures[entity.get_id() - 1]
-                )
+            for entity in self.entities_to_be_synced_on_add:
+                self.sync_entity_queries(entity)
             self.entities_to_be_synced_on_add.clear()
 
         if self.entities_to_be_synced_on_remove:
-            for entity, component in self.entities_to_be_synced_on_remove:
-                self.sync_queries_on_remove_component(entity, component)
+            for entity in self.entities_to_be_synced_on_remove:
+                self.sync_entity_queries(entity)
             self.entities_to_be_synced_on_remove.clear()
 
         if self.entities_to_be_added:

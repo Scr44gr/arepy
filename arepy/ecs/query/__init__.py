@@ -4,6 +4,7 @@ from typing import (
     Callable,
     Generic,
     Iterable,
+    Iterator,
     List,
     Mapping,
     Optional,
@@ -11,19 +12,20 @@ from typing import (
     Sequence,
     Type,
     TypeVar,
+    TYPE_CHECKING,
     Union,
     cast,
     get_type_hints,
 )
 
-from ..components import Component, ComponentIndex
+from ..components import Component, ComponentIndex, ComponentPool
 from ..constants import MAX_COMPONENTS
+from ..exceptions import RegistryNotSetError
 from ..utils import Signature
 
-try:
-    from .. import Entity
-except ImportError:
-    ...
+if TYPE_CHECKING:
+    from ..entities import Entity
+    from ..registry import Registry
 
 TEntity = TypeVar("TEntity")
 TFilter = TypeVar("TFilter")
@@ -62,19 +64,34 @@ class Query(Generic[TEntity, TFilter]):
         and the threads will process every entity(in chunks) instead of processing a loop of entities.
     """
 
-    __slots__ = ["_signature", "_entities", "_kind", "_thread_id"]
+    __slots__ = [
+        "_signature",
+        "_excluded_signature",
+        "_entities",
+        "_kind",
+        "_thread_id",
+        "_registry",
+    ]
 
     def __init__(self) -> None:
         self._signature = Signature(MAX_COMPONENTS)
+        self._excluded_signature = Signature(MAX_COMPONENTS)
         self._entities: set["Entity"] = set()
-        self._kind: Union[With, Without] = None  # type: ignore
+        self._kind: object = None
         self._thread_id: Optional[int] = None
+        self._registry: Optional["Registry"] = None
 
     def get_component_signature(self) -> Signature:
-        if self._kind is With and not self._signature.was_flipped:
-            self._signature.flip()
-
         return self._signature
+
+    def get_excluded_component_signature(self) -> Signature:
+        return self._excluded_signature
+
+    def matches(self, entity_signature: Signature) -> bool:
+        required_matches = self._signature.matches(entity_signature)
+        excluded_bits = self._excluded_signature.get_bits()
+        has_excluded_components = (entity_signature.get_bits() & excluded_bits).any()
+        return required_matches and not has_excluded_components
 
     def get_entities(self) -> set["Entity"]:
         return self._entities
@@ -90,6 +107,62 @@ class Query(Generic[TEntity, TFilter]):
 
     def __iter__(self) -> Iterable["Entity"]:
         return iter(self._entities)
+
+    def set_registry(self, registry: "Registry") -> None:
+        self._registry = registry
+
+    def iter_components(
+        self, *component_types: Type[Component]
+    ) -> Iterator[tuple[Component, ...]]:
+        component_pools = self._get_component_pools(component_types)
+        for entity in self._entities:
+            entity_id = entity.get_id() - 1
+            components: list[Component] = []
+            for component_pool in component_pools:
+                component = component_pool.get(entity_id)
+                if component is None:
+                    break
+                components.append(component)
+            else:
+                yield tuple(components)
+
+    def iter_entities_components(
+        self, *component_types: Type[Component]
+    ) -> Iterator[tuple["Entity", *tuple[Component, ...]]]:
+        component_pools = self._get_component_pools(component_types)
+        for entity in self._entities:
+            entity_id = entity.get_id() - 1
+            components: list[Component] = []
+            for component_pool in component_pools:
+                component = component_pool.get(entity_id)
+                if component is None:
+                    break
+                components.append(component)
+            else:
+                yield (entity, *components)
+
+    def _get_component_pools(
+        self, component_types: Sequence[Type[Component]]
+    ) -> list[ComponentPool[Component]]:
+        if self._registry is None:
+            raise RegistryNotSetError
+
+        component_pools: list[ComponentPool[Component]] = []
+        for component_type in component_types:
+            component_id = ComponentIndex.get_id(component_type.__name__)
+            if component_id > len(self._registry.component_pools):
+                raise ValueError(
+                    f"Component pool for {component_type.__name__} is not initialized."
+                )
+
+            component_pool = self._registry.component_pools[component_id - 1]
+            if component_pool is None:
+                raise ValueError(
+                    f"Component pool for {component_type.__name__} is not initialized."
+                )
+
+            component_pools.append(cast(ComponentPool[Component], component_pool))
+        return component_pools
 
     def fetch(self) -> TEntity: ...
 
@@ -131,28 +204,62 @@ def sign_queries(
             raise TypeError(f"Query {query_factory} does not have args.")
 
         kind_of_result = query_factory.__args__[1]
-        if not hasattr(
-            kind_of_result, "__origin__"
-        ) or kind_of_result.__origin__ not in (With, Without):
-            raise TypeError(
-                f"Invalid query kind: {kind_of_result}. Expected `With` or `Without`."
-            )
-
-        required_components: tuple[Type[Component], ...] = kind_of_result.__args__[0]
+        filter_groups = _extract_filter_groups(kind_of_result)
         query: Query = query_factory()
         query._kind = kind_of_result
 
-        for component_type in required_components:
-            if not issubclass(component_type, Component):
-                raise TypeError(
-                    f"Query {name} has an invalid component type: {component_type.__name__}. "
-                    "Make sure to use a valid component type."
-                )
-            component_id = ComponentIndex.get_id(component_type.__name__)
-            query._signature.set(component_id, True)
+        for filter_group in filter_groups:
+            filter_origin = filter_group.__origin__
+            component_signature = (
+                query._signature if filter_origin is With else query._excluded_signature
+            )
+            for component_type in _extract_component_types(filter_group):
+                if not issubclass(component_type, Component):
+                    raise TypeError(
+                        f"Query {name} has an invalid component type: {component_type.__name__}. "
+                        "Make sure to use a valid component type."
+                    )
+                component_id = ComponentIndex.get_id(component_type.__name__)
+                component_signature.set(component_id, True)
 
         signed_queries.append((name, query))
     return signed_queries
+
+
+def _extract_filter_groups(filter_definition: object) -> tuple[object, ...]:
+    if not hasattr(filter_definition, "__origin__"):
+        raise TypeError(
+            f"Invalid query kind: {filter_definition}. Expected `With` or `Without`."
+        )
+
+    filter_origin = getattr(filter_definition, "__origin__")
+    if filter_origin in (With, Without):
+        return (filter_definition,)
+
+    if filter_origin is tuple:
+        filter_groups = cast(tuple[object, ...], getattr(filter_definition, "__args__", ()))
+        if not filter_groups:
+            raise TypeError("Tuple query filters must not be empty.")
+        for filter_group in filter_groups:
+            if (
+                not hasattr(filter_group, "__origin__")
+                or getattr(filter_group, "__origin__") not in (With, Without)
+            ):
+                raise TypeError(
+                    f"Invalid query kind: {filter_group}. Expected `With` or `Without`."
+                )
+        return filter_groups
+
+    raise TypeError(
+        f"Invalid query kind: {filter_definition}. Expected `With` or `Without`."
+    )
+
+
+def _extract_component_types(filter_group: object) -> tuple[Type[Component], ...]:
+    raw_args = cast(tuple[object, ...], getattr(filter_group, "__args__", ()))
+    if len(raw_args) == 1 and isinstance(raw_args[0], (tuple, list)):
+        return cast(tuple[Type[Component], ...], tuple(raw_args[0]))
+    return cast(tuple[Type[Component], ...], raw_args)
 
 
 def get_annotations(function: Callable) -> OrderedDict[str, Any]:

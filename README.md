@@ -47,8 +47,7 @@ pip install -e ".[testing]"
 
 ```python
 from arepy import ArepyEngine, Color, Rect, Renderer2D, SystemPipeline
-from arepy.bundle.components.rigidbody_component import RigidBody2D
-from arepy.bundle.components.transform_component import Transform
+from arepy.bundle.components import RigidBody2D, Transform
 from arepy.ecs import Entities, Query, With
 from arepy.math import Vec2
 
@@ -59,19 +58,17 @@ RED = Color(255, 0, 0, 255)
 def movement_system(query: Query[Entities, With[Transform, RigidBody2D]], renderer: Renderer2D):
     delta_time = renderer.get_delta_time()
     
-    for entity in query.get_entities():
-        transform = entity.get_component(Transform)
-        velocity = entity.get_component(RigidBody2D).velocity
+    for transform, rigidbody in query.iter_components(Transform, RigidBody2D):
+        velocity = rigidbody.velocity
         
         transform.position.x += velocity.x * delta_time
         transform.position.y += velocity.y * delta_time
 
-def render_system(query: Query[Entities, With[Transform, RigidBody2D]], renderer: Renderer2D):
+def render_system(query: Query[Entities, With[Transform]], renderer: Renderer2D):
     renderer.start_frame()
     renderer.clear(color=WHITE)
     
-    for entity in query.get_entities():
-        transform = entity.get_component(Transform)
+    for transform, in query.iter_components(Transform):
         renderer.draw_rectangle(
             Rect(transform.position.x, transform.position.y, 50, 50),
             color=RED
@@ -112,6 +109,8 @@ player = (world.create_entity()
           .with_component(Transform(position=Vec2(100, 100)))
           .with_component(PlayerController())
           .build())
+
+empty_entity = world.create_entity().build()
 ```
 
 ### Components
@@ -123,11 +122,13 @@ from arepy.ecs import Component
 
 class Health(Component):
     def __init__(self, value: int = 100):
+        super().__init__()
         self.value = value
         self.max_value = value
 
 class Weapon(Component):
     def __init__(self, damage: int = 10, range: float = 100.0):
+        super().__init__()
         self.damage = damage
         self.range = range
 ```
@@ -138,9 +139,7 @@ Systems implement game logic:
 
 ```python
 def damage_system(query: Query[Entity, With[Health, Weapon]]):
-    for entity in query.get_entities():
-        health = entity.get_component(Health)
-        weapon = entity.get_component(Weapon)
+    for entity, health, weapon in query.iter_entities_components(Health, Weapon):
         
         if health.value <= 0:
             entity.kill()
@@ -153,9 +152,32 @@ Filter entities based on their components:
 ```python
 Query[Entity, With[Transform, Velocity]]
 Query[Entity, Without[Dead]]
+Query[Entity, tuple[With[Transform, Velocity], Without[Frozen]]]
+```
 
-# Planned:
-Query[Entity, With[Transform, Velocity], Without[Frozen]]
+Use `iter_components(...)` when you only need component data in the hot path:
+
+```python
+def movement_system(
+    query: Query[Entity, tuple[With[Transform, Velocity], Without[Frozen]]],
+    renderer: Renderer2D,
+) -> None:
+    delta_time = renderer.get_delta_time()
+
+    for transform, velocity in query.iter_components(Transform, Velocity):
+        transform.position.x += velocity.x * delta_time
+        transform.position.y += velocity.y * delta_time
+```
+
+Use `Without[...]` to exclude entities that should not be processed:
+
+```python
+def active_projectiles_system(
+    query: Query[Entity, tuple[With[Transform, Velocity], Without[Destroyed]]],
+) -> None:
+    for transform, velocity in query.iter_components(Transform, Velocity):
+        transform.position.x += velocity.x
+        transform.position.y += velocity.y
 ```
 
 ---
@@ -166,6 +188,15 @@ Query[Entity, With[Transform, Velocity], Without[Frozen]]
 pytest                   # Run all tests
 pytest --cov=arepy       # Coverage report
 pytest tests/test_registry.py -v
+```
+
+## Benchmarking
+
+```bash
+uv run python benchmarks/ecs_baseline.py
+uv run python benchmarks/ecs_baseline.py --entities 1000 5000 10000 --runs 10
+uv run python benchmarks/ecs_baseline.py --mode detailed --entities 1000 5000 10000 --runs 10
+uv run python benchmarks/ecs_baseline.py --mode view --entities 1000 5000 10000 --runs 10
 ```
 
 ---
