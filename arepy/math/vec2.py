@@ -9,21 +9,64 @@ class Vec2:
         self.y = y
 
     def __add__(self, other: "Vec2") -> "Vec2":
+        if not isinstance(other, Vec2):
+            return NotImplemented
         return Vec2(self.x + other.x, self.y + other.y)
 
     def __sub__(self, other: "Vec2") -> "Vec2":
+        if not isinstance(other, Vec2):
+            return NotImplemented
         return Vec2(self.x - other.x, self.y - other.y)
 
     def __mul__(self, scalar: float) -> "Vec2":
+        if not isinstance(scalar, int | float):
+            return NotImplemented
         return Vec2(self.x * scalar, self.y * scalar)
 
+    def __rmul__(self, scalar: float) -> "Vec2":
+        return self * scalar
+
     def __truediv__(self, scalar: float) -> "Vec2":
+        if not isinstance(scalar, int | float):
+            return NotImplemented
         return Vec2(self.x / scalar, self.y / scalar)
 
+    def __iadd__(self, other: "Vec2") -> "Vec2":
+        if not isinstance(other, Vec2):
+            return NotImplemented
+        self.x += other.x
+        self.y += other.y
+        return self
+
+    def __isub__(self, other: "Vec2") -> "Vec2":
+        if not isinstance(other, Vec2):
+            return NotImplemented
+        self.x -= other.x
+        self.y -= other.y
+        return self
+
+    def __imul__(self, scalar: float) -> "Vec2":
+        if not isinstance(scalar, int | float):
+            return NotImplemented
+        self.x *= scalar
+        self.y *= scalar
+        return self
+
+    def __itruediv__(self, scalar: float) -> "Vec2":
+        if not isinstance(scalar, int | float):
+            return NotImplemented
+        self.x /= scalar
+        self.y /= scalar
+        return self
+
     def __eq__(self, other: "Vec2") -> bool:
+        if not isinstance(other, Vec2):
+            return NotImplemented
         return self.x == other.x and self.y == other.y
 
     def __ne__(self, other: "Vec2") -> bool:
+        if not isinstance(other, Vec2):
+            return NotImplemented
         return self.x != other.x or self.y != other.y
 
     def __neg__(self) -> "Vec2":
@@ -69,42 +112,51 @@ class Vec2:
         yield self.y
 
     def dot(self, other: "Vec2") -> float:
+        if not isinstance(other, Vec2):
+            return NotImplemented
         return self.x * other.x + self.y * other.y
 
     def length_squared(self) -> float:
-        return self.x**2 + self.y**2
+        return self.x * self.x + self.y * self.y
 
     def normalize(self) -> "Vec2":
         length = abs(self)
-        if length == 0:
+        if math.isclose(length, 0.0):
             return Vec2(0, 0)
         return Vec2(self.x / length, self.y / length)
 
     def normalize_ip(self) -> None:
         length = abs(self)
-        if length == 0:
+        if math.isclose(length, 0.0):
             self.x, self.y = 0, 0
         else:
             self.x /= length
             self.y /= length
 
     def lerp(self, other: "Vec2", t: float) -> "Vec2":
+        if not isinstance(other, Vec2):
+            return NotImplemented
         return Vec2(self.x + (other.x - self.x) * t, self.y + (other.y - self.y) * t)
 
     def distance_to(self, other: "Vec2") -> float:
+        if not isinstance(other, Vec2):
+            return NotImplemented
         return math.hypot(self.x - other.x, self.y - other.y)
 
     def angle_to(self, other: "Vec2") -> float:
+        if not isinstance(other, Vec2):
+            return NotImplemented
         return math.atan2(other.y - self.y, other.x - self.x)
 
     def rotate(self, angle: float) -> "Vec2":
+        x = self.x
+        y = self.y
         cos_a = math.cos(angle)
         sin_a = math.sin(angle)
-        return Vec2(self.x * cos_a - self.y * sin_a, self.x * sin_a + self.y * cos_a)
+        return Vec2(x * cos_a - y * sin_a, x * sin_a + y * cos_a)
 
     def scale_ip(self, scalar: float) -> None:
-        self.x *= scalar
-        self.y *= scalar
+        self *= scalar
 
     def copy(self) -> "Vec2":
         return Vec2(self.x, self.y)

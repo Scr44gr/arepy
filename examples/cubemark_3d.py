@@ -64,9 +64,7 @@ def movement_system_3d(
     """3D movement system with bouncing physics - optimized version"""
     delta_time: float = renderer.get_delta_time()
 
-    for entity in query.get_entities():
-        transform = entity.get_component(Transform3D)
-        rigidbody = entity.get_component(RigidBody3D)
+    for transform, rigidbody in query.iter_components(Transform3D, RigidBody3D):
 
         pos = transform.position
         vel = rigidbody.velocity
@@ -104,19 +102,20 @@ def movement_system_3d(
 
 
 def camera_system_3d(
-    camera_query: Query[Entities, With[Camera3D]],
+    camera_query: Query[Entities, With[Camera3D, CachedInput]],
     renderer_3d: Renderer3D,
     input_device: Input,
     game: ArepyEngine,
 ) -> None:
     """Smooth camera system with smart mouse centering"""
-    camera_entities = list(camera_query.get_entities())
-    if not camera_entities:
+    camera_components = next(
+        camera_query.iter_components(Camera3D, CachedInput),
+        None,
+    )
+    if camera_components is None:
         return
 
-    camera_entity = camera_entities[0]
-    camera = camera_entity.get_component(Camera3D)
-    cached_input = camera_entity.get_component(CachedInput)
+    camera, cached_input = camera_components
 
     # Get current mouse position and calculate center
     center_x = game.window_width // 2
@@ -139,16 +138,12 @@ def camera_system_3d(
     # Initialize angles if first time
     if cached_input.needs_update:
         # Calculate initial spherical coordinates
-        distance_vec = Vec3(
-            camera.position.x - camera.target.x,
-            camera.position.y - camera.target.y,
-            camera.position.z - camera.target.z,
-        )
-        cached_input.distance = math.sqrt(
-            distance_vec.x**2 + distance_vec.y**2 + distance_vec.z**2
-        )
-        cached_input.horizontal_angle = math.atan2(distance_vec.x, distance_vec.z)
-        cos_vertical = max(-1.0, min(1.0, distance_vec.y / cached_input.distance))
+        dx = camera.position.x - camera.target.x
+        dy = camera.position.y - camera.target.y
+        dz = camera.position.z - camera.target.z
+        cached_input.distance = math.hypot(dx, dy, dz)
+        cached_input.horizontal_angle = math.atan2(dx, dz)
+        cos_vertical = max(-1.0, min(1.0, dy / cached_input.distance))
         cached_input.vertical_angle = math.acos(cos_vertical)
 
         cached_input.target_horizontal = cached_input.horizontal_angle
@@ -198,9 +193,7 @@ def camera_system_3d(
     )
 
     # Smart mouse recentering - only when mouse gets too far from center
-    distance_from_center = math.sqrt(
-        (mouse_pos[0] - center_x) ** 2 + (mouse_pos[1] - center_y) ** 2
-    )
+    distance_from_center = math.hypot(mouse_pos[0] - center_x, mouse_pos[1] - center_y)
 
     if distance_from_center > cached_input.center_threshold:
         game.renderer_2d.set_mouse_position((center_x, center_y))
@@ -220,12 +213,12 @@ def render_system_3d(
     renderer_2d.clear(color=Color(30, 30, 50, 255))
 
     # Get camera
-    camera_entities = list(camera_query.get_entities())
-    if not camera_entities:
+    camera = next(camera_query.iter_components(Camera3D), None)
+    if camera is None:
         renderer_2d.end_frame()
         return
 
-    camera = camera_entities[0].get_component(Camera3D)
+    camera = camera[0]
 
     # Begin 3D mode
     renderer.begin_mode_3d(camera)
@@ -247,8 +240,7 @@ def render_system_3d(
     number_of_entities: int = 0
 
     # Optimized rendering loop - minimize object creation
-    for entity in query.get_entities():
-        transform = entity.get_component(Transform3D)
+    for (transform,) in query.iter_components(Transform3D):
 
         # Use fast color cycling
         color = CUBE_COLORS[number_of_entities % color_count]

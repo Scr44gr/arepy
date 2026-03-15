@@ -27,7 +27,7 @@ This project adheres to a Code of Conduct that we expect all contributors to fol
 
 ### Prerequisites
 
-- Python 3.10 or higher
+- Python 3.11 or higher
 - Git
 - Basic knowledge of Python and game development concepts
 - Familiarity with ECS (Entity Component System) architecture is helpful

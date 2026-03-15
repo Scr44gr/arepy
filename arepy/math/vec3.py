@@ -11,16 +11,59 @@ class Vec3:
         self.z = z
 
     def __add__(self, other: "Vec3") -> "Vec3":
+        if not isinstance(other, Vec3):
+            return NotImplemented
         return Vec3(self.x + other.x, self.y + other.y, self.z + other.z)
 
     def __sub__(self, other: "Vec3") -> "Vec3":
+        if not isinstance(other, Vec3):
+            return NotImplemented
         return Vec3(self.x - other.x, self.y - other.y, self.z - other.z)
 
     def __mul__(self, other: float) -> "Vec3":
+        if not isinstance(other, int | float):
+            return NotImplemented
         return Vec3(self.x * other, self.y * other, self.z * other)
 
+    def __rmul__(self, other: float) -> "Vec3":
+        return self * other
+
     def __truediv__(self, other: float) -> "Vec3":
+        if not isinstance(other, int | float):
+            return NotImplemented
         return Vec3(self.x / other, self.y / other, self.z / other)
+
+    def __iadd__(self, other: "Vec3") -> "Vec3":
+        if not isinstance(other, Vec3):
+            return NotImplemented
+        self.x += other.x
+        self.y += other.y
+        self.z += other.z
+        return self
+
+    def __isub__(self, other: "Vec3") -> "Vec3":
+        if not isinstance(other, Vec3):
+            return NotImplemented
+        self.x -= other.x
+        self.y -= other.y
+        self.z -= other.z
+        return self
+
+    def __imul__(self, other: float) -> "Vec3":
+        if not isinstance(other, int | float):
+            return NotImplemented
+        self.x *= other
+        self.y *= other
+        self.z *= other
+        return self
+
+    def __itruediv__(self, other: float) -> "Vec3":
+        if not isinstance(other, int | float):
+            return NotImplemented
+        self.x /= other
+        self.y /= other
+        self.z /= other
+        return self
 
     def __str__(self):
         return f"({self.x}, {self.y}, {self.z})"
@@ -29,17 +72,20 @@ class Vec3:
         return f"Vec3({self.x}, {self.y}, {self.z})"
 
     def __eq__(self, other: "Vec3"):
+        if not isinstance(other, Vec3):
+            return NotImplemented
         return self.x == other.x and self.y == other.y and self.z == other.z
 
     def __ne__(self, other: "Vec3"):
+        if not isinstance(other, Vec3):
+            return NotImplemented
         return self.x != other.x or self.y != other.y or self.z != other.z
 
     def __len__(self):
         return 3  # Vec3 is a 3D vector :p
 
     def __getitem__(self, index: int):
-        items = [self.x, self.y, self.z]
-        return items[index]
+        return (self.x, self.y, self.z)[index]
 
     def __setitem__(self, key: int, value: float):
         if key == 0:
@@ -63,9 +109,11 @@ class Vec3:
         return Vec3(self.x, self.y, self.z)
 
     def __abs__(self):
-        return (self.x**2 + self.y**2 + self.z**2) ** 0.5
+        return math.hypot(self.x, self.y, self.z)
 
     def cross(self, other: "Vec3") -> "Vec3":
+        if not isinstance(other, Vec3):
+            return NotImplemented
         return Vec3(
             self.y * other.z - self.z * other.y,
             self.z * other.x - self.x * other.z,
@@ -73,20 +121,64 @@ class Vec3:
         )
 
     def dot(self, other: "Vec3") -> float:
+        if not isinstance(other, Vec3):
+            return NotImplemented
         return self.x * other.x + self.y * other.y + self.z * other.z
 
     def normalize(self) -> "Vec3":
-        return self / abs(self)
+        length = abs(self)
+        if math.isclose(length, 0.0):
+            return Vec3(0, 0, 0)
+        return self / length
+
+    def normalize_ip(self) -> None:
+        length = abs(self)
+        if math.isclose(length, 0.0):
+            self.x = 0
+            self.y = 0
+            self.z = 0
+            return
+
+        self.x /= length
+        self.y /= length
+        self.z /= length
 
     def angle(self, other: "Vec3") -> float:
-        return math.acos(self.dot(other) / (abs(self) * abs(other)))
+        if not isinstance(other, Vec3):
+            return NotImplemented
+
+        self_length = abs(self)
+        other_length = abs(other)
+        denominator = self_length * other_length
+        if math.isclose(denominator, 0.0):
+            return 0.0
+
+        cosine = self.dot(other) / denominator
+        clamped_cosine = max(-1.0, min(1.0, cosine))
+        return math.acos(clamped_cosine)
 
     def project(self, other: "Vec3") -> "Vec3":
-        return other * (self.dot(other) / other.dot(other))
+        if not isinstance(other, Vec3):
+            return NotImplemented
+
+        denominator = other.dot(other)
+        if math.isclose(denominator, 0.0):
+            return Vec3(0, 0, 0)
+
+        return other * (self.dot(other) / denominator)
 
     def length(self) -> float:
         """Returns the length of the vector."""
         return abs(self)
+
+    def length_squared(self) -> float:
+        return self.x * self.x + self.y * self.y + self.z * self.z
+
+    def scale_ip(self, scalar: float) -> None:
+        self *= scalar
+
+    def copy(self) -> "Vec3":
+        return Vec3(self.x, self.y, self.z)
 
     def to_tuple(self) -> tuple[float, float, float]:
         """Returns the vector as a tuple."""

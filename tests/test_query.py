@@ -44,6 +44,7 @@ def test_query_creation():
     assert query._signature is not None
     assert len(query._entities) == 0
     assert query._kind is None
+    assert query._registry is None
 
 
 def test_query_add_remove_entities(registry):
@@ -211,6 +212,84 @@ def test_query_with_registry_sync(registry):
     assert len(query_args) > 0
 
 
+def test_query_iter_components_uses_registry_pools(registry):
+    """Test query can iterate components directly from pools."""
+
+    def movement_system(query: Query[Entity, With[Position, Velocity]]) -> None:
+        return None
+
+    from arepy.ecs.systems import SystemPipeline, SystemState
+
+    registry.add_system(SystemPipeline.UPDATE, SystemState.ON, movement_system)
+
+    moving_entity = registry.create_entity()
+    static_entity = registry.create_entity()
+    registry.add_component(moving_entity, Position, Position(10.0, 20.0))
+    registry.add_component(moving_entity, Velocity, Velocity(1.0, 2.0))
+    registry.add_component(static_entity, Position, Position(30.0, 40.0))
+    registry.update()
+
+    query = next(
+        argument
+        for argument in registry.queries[movement_system]
+        if isinstance(argument, Query)
+    )
+
+    components = list(query.iter_components(Position, Velocity))
+
+    assert len(components) == 1
+    position, velocity = components[0]
+    assert position.x == 10.0
+    assert position.y == 20.0
+    assert velocity.x == 1.0
+    assert velocity.y == 2.0
+
+
+def test_query_iter_entities_components_returns_entity_and_components(registry):
+    """Test query can yield entities alongside resolved components."""
+
+    def movement_system(query: Query[Entity, With[Position, Velocity]]) -> None:
+        return None
+
+    from arepy.ecs.systems import SystemPipeline, SystemState
+
+    registry.add_system(SystemPipeline.UPDATE, SystemState.ON, movement_system)
+
+    entity = registry.create_entity()
+    registry.add_component(entity, Position, Position(5.0, 6.0))
+    registry.add_component(entity, Velocity, Velocity(7.0, 8.0))
+    registry.update()
+
+    query = next(
+        argument
+        for argument in registry.queries[movement_system]
+        if isinstance(argument, Query)
+    )
+
+    rows = list(query.iter_entities_components(Position, Velocity))
+
+    assert len(rows) == 1
+    resolved_entity, position, velocity = rows[0]
+    assert resolved_entity is entity
+    assert position.x == 5.0
+    assert position.y == 6.0
+    assert velocity.x == 7.0
+    assert velocity.y == 8.0
+
+
+def test_query_iteration_is_deterministic_by_entity_id(registry):
+    query = Query[Entity, With[Position]]()
+    entities = [registry.create_entity() for _ in range(3)]
+
+    query.add_entity(entities[2])
+    query.add_entity(entities[0])
+    query.add_entity(entities[1])
+
+    ordered_ids = [entity.get_id() for entity in query]
+
+    assert ordered_ids == sorted(ordered_ids)
+
+
 def test_query_signature_matching():
     """Test signature matching logic."""
     from arepy.ecs.constants import MAX_COMPONENTS
@@ -249,46 +328,96 @@ def test_query_empty_results():
 
 def test_query_with_without_combinations(registry):
     """Test queries with With and Without combinations."""
+
+    def filtered_system(
+        query: Query[Entity, tuple[With[Position], Without[Health]]],
+    ) -> None:
+        pass
+
+    from arepy.ecs.systems import SystemPipeline, SystemState
+
+    registry.add_system(SystemPipeline.UPDATE, SystemState.ON, filtered_system)
+
     entity1 = registry.create_entity()
     entity2 = registry.create_entity()
     entity3 = registry.create_entity()
 
-    # entity1: Position + Velocity
     registry.add_component(entity1, Position, Position(1.0, 2.0))
     registry.add_component(entity1, Velocity, Velocity(3.0, 4.0))
 
-    # entity2: Position + Health
     registry.add_component(entity2, Position, Position(5.0, 6.0))
     registry.add_component(entity2, Health, Health(50))
 
-    # entity3: Velocity + Health
     registry.add_component(entity3, Velocity, Velocity(7.0, 8.0))
     registry.add_component(entity3, Health, Health(100))
 
     registry.update()
 
-    # Test query for entities with Position but without Health
-    # Note: Combined With/Without syntax is not yet implemented
-    # Using basic Query instead
-    query = Query()
-    from arepy.ecs.components import ComponentIndex
-
-    pos_id = ComponentIndex.get_id(Position.__name__)
-    health_id = ComponentIndex.get_id(Health.__name__)
-
-    query._signature.set(pos_id, True)
-    # For Without, we'd need to handle exclusion logic in the registry
-    # This is a simplified test
-
-    # Manually add entity1 (has Position, no Health initially)
-    if registry.has_component(entity1, Position) and not registry.has_component(
-        entity1, Health
-    ):
-        query.add_entity(entity1)
-
+    query = next(
+        argument
+        for argument in registry.queries[filtered_system]
+        if isinstance(argument, Query)
+    )
     entities = list(query.get_entities())
+
     assert len(entities) == 1
     assert entity1 in entities
+
+
+def test_query_without_matches_entities_missing_component(registry):
+    """Test Without queries include entities that do not have the excluded component."""
+
+    def static_system(query: Query[Entity, Without[Velocity]]) -> None:
+        pass
+
+    from arepy.ecs.systems import SystemPipeline, SystemState
+
+    registry.add_system(SystemPipeline.UPDATE, SystemState.ON, static_system)
+
+    entity_without_velocity = registry.create_entity()
+    entity_with_velocity = registry.create_entity()
+    registry.add_component(entity_with_velocity, Velocity, Velocity(1.0, 2.0))
+
+    registry.update()
+
+    query = next(
+        argument
+        for argument in registry.queries[static_system]
+        if isinstance(argument, Query)
+    )
+    entities = list(query.get_entities())
+
+    assert entity_without_velocity in entities
+    assert entity_with_velocity not in entities
+
+
+def test_query_without_syncs_on_component_add_and_remove(registry):
+    """Test Without queries remove and re-add entities as excluded components change."""
+    entity = registry.create_entity()
+
+    def static_system(query: Query[Entity, Without[Velocity]]) -> None:
+        pass
+
+    from arepy.ecs.systems import SystemPipeline, SystemState
+
+    registry.add_system(SystemPipeline.UPDATE, SystemState.ON, static_system)
+    registry.update()
+
+    query = next(
+        argument
+        for argument in registry.queries[static_system]
+        if isinstance(argument, Query)
+    )
+
+    assert entity in query.get_entities()
+
+    entity.add_component(Velocity(3.0, 4.0))
+    registry.update()
+    assert entity not in query.get_entities()
+
+    entity.remove_component(Velocity)
+    registry.update()
+    assert entity in query.get_entities()
 
 
 def test_query_registry_integration(registry):
