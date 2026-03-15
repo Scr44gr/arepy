@@ -1,5 +1,5 @@
 <p align="center">
-    <img width="450" alt="image" src="https://github.com/user-attachments/assets/ac97e33d-7b04-48b5-8bce-8c95d8c30a81" alt="Arepy Logo"/>
+    <img width="450" alt="image" src="https://github.com/user-attachments/assets/f597ffbc-e4b6-4610-bc00-eaa4973e7fcf" alt="Arepy Logo"/>
 </p>
 
 [![Upload Python Package](https://github.com/Scr44gr/arepy/actions/workflows/python-publish.yml/badge.svg)](https://github.com/Scr44gr/arepy/actions/workflows/python-publish.yml)
