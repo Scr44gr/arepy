@@ -28,7 +28,7 @@ jobs:
     
     - name: Install dependencies
       run: |
-        uv sync --extra testing
+        uv sync --no-dev --extra testing
     
     - name: Run tests with pytest
       run: |
@@ -61,7 +61,7 @@ jobs:
 
     - name: Install docs dependencies
       run: |
-        uv sync --extra docs
+        uv sync --no-dev --extra docs
 
     - name: Build docs with MkDocs
       run: |
