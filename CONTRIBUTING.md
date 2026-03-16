@@ -161,6 +161,20 @@ uv run pytest tests/test_registry.py -v
 uv run pytest -k "test_query" -v
 ```
 
+### Building Documentation
+
+```bash
+# Build the docs site once
+uv run mkdocs build
+
+# Serve docs locally with live reload
+uv run mkdocs serve
+```
+
+- Keep guides aligned with real code in `arepy/`, `examples/`, and `tests/`
+- Prefer updating docs together with public API or behavior changes
+- Make sure the docs build passes before opening a pull request
+
 ### Writing Tests
 
 - **Write tests for all new features**

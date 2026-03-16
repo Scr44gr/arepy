@@ -1,0 +1,133 @@
+site_name: Arepy
+site_description: Lightweight ECS game engine for Python
+site_url: https://scr44gr.github.io/arepy/
+repo_url: https://github.com/Scr44gr/arepy
+repo_name: Scr44gr/arepy
+edit_uri: edit/main/docs/
+strict: true
+
+theme:
+  name: material
+  logo: assets/images/arepy-icon.svg
+  favicon: assets/images/arepy-icon.svg
+  font:
+    text: Inter
+    code: JetBrains Mono
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.indexes
+    - navigation.top
+    - navigation.tracking
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.path
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+    - content.action.edit
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+plugins:
+  - search
+  - tags
+  - autorefs
+  - mkdocstrings:
+      default_handler: python
+      enable_inventory: true
+      handlers:
+        python:
+          paths:
+            - .
+          inventories:
+            - https://docs.python.org/3/objects.inv
+          options:
+            docstring_section_style: list
+            show_source: false
+            show_if_no_docstring: true
+            show_root_heading: true
+            show_root_toc_entry: false
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            heading_level: 2
+            summary: true
+            parameter_headings: true
+            separate_signature: true
+            merge_init_into_class: true
+            show_signature_annotations: true
+            docstring_style: google
+  - api-autonav:
+      modules:
+        - arepy
+      exclude:
+        - arepy.engine.integrations
+      nav_section_title: API Reference
+      api_root_uri: api/reference
+      nav_item_prefix: ""
+      exclude_private: true
+      show_full_namespace: false
+      module_options:
+        ".*":
+          heading_level: 1
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+extra_css:
+  - assets/stylesheets/extra.css
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - getting-started/index.md
+      - Installation: getting-started/installation.md
+      - Quickstart: getting-started/quickstart.md
+  - Guide:
+      - guide/index.md
+      - Engine Lifecycle: guide/engine-lifecycle.md
+      - Engine Services: guide/engine-services.md
+      - ECS Basics: guide/ecs.md
+      - Queries: guide/queries.md
+      - Resources and Systems: guide/resources.md
+      - Built-in Bundle: guide/bundle.md
+      - Math Helpers: guide/math.md
+  - API Reference:
+      - api/index.md
+      - Engine: api/engine.md
+      - Core Services: api/services.md
+      - ECS: api/ecs.md
+      - Bundle: api/bundle.md
+      - Math: api/math.md

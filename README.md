@@ -2,6 +2,8 @@
     <img width="450" alt="image" src="https://github.com/user-attachments/assets/f597ffbc-e4b6-4610-bc00-eaa4973e7fcf" alt="Arepy Logo"/>
 </p>
 
+[![CI](https://github.com/Scr44gr/arepy/actions/workflows/ci.yml/badge.svg)](https://github.com/Scr44gr/arepy/actions/workflows/ci.yml)
+[![Docs](https://github.com/Scr44gr/arepy/actions/workflows/docs.yml/badge.svg)](https://github.com/Scr44gr/arepy/actions/workflows/docs.yml)
 [![Upload Python Package](https://github.com/Scr44gr/arepy/actions/workflows/python-publish.yml/badge.svg)](https://github.com/Scr44gr/arepy/actions/workflows/python-publish.yml)
 [![codecov](https://codecov.io/gh/Scr44gr/arepy/branch/main/graph/badge.svg)](https://codecov.io/gh/Scr44gr/arepy)
 [![PyPI package](https://img.shields.io/pypi/v/arepy?color=%2334D058&label=pypi%20package)](https://pypi.org/project/arepy)
