@@ -29,7 +29,7 @@ imgui = ["imgui-bundle==1.6.0", "moderngl==5.12.0"]
 testing = ["pytest>=8.0.0", "pytest-cov>=4.0.0", "pytest-mock>=3.12.0"]
 docs = [
     "mkdocs>=1.6.1",
-    "mkdocs-material[imaging]>=9.6.0",
+    "mkdocs-material>=9.6.0",
     "mkdocs-api-autonav>=0.4.0",
     "mkdocstrings[python]>=0.28.0",
 ]
@@ -40,7 +40,7 @@ dev-dependencies = [
     "pytest>=8.0.0",
     "pytest-cov>=4.0.0",
     "mkdocs>=1.6.1",
-    "mkdocs-material[imaging]>=9.6.0",
+    "mkdocs-material>=9.6.0",
     "mkdocs-api-autonav>=0.4.0",
     "mkdocstrings[python]>=0.28.0",
 ]
