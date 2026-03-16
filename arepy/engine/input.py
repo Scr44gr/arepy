@@ -1,3 +1,5 @@
+"""Public input protocol and enums for keyboard and mouse state."""
+
 from enum import Enum
 from typing import Iterator, Protocol
 
@@ -119,7 +121,11 @@ class MouseButton(Enum):
 
 
 class Input(Protocol):
-    """Input repository interface."""
+    """Protocol defining keyboard and mouse input queries.
+
+    The engine registers one `Input` implementation as a shared resource,
+    so systems can inspect player input through type-based injection.
+    """
 
     def is_key_pressed(self, key: Key) -> bool:
         """Check if a key is pressed."""
@@ -152,10 +158,12 @@ class Input(Protocol):
         ...
 
     def get_keys_pressed(self) -> Iterator[Key]:
-        """Get the keys that are pressed."""
+        """Iterate over keys pressed during the current polling step."""
         ...
 
-    def get_char_pressed(self) -> int: ...
+    def get_char_pressed(self) -> int:
+        """Return the next typed Unicode codepoint, or a backend-specific empty value."""
+        ...
 
     def is_mouse_button_pressed(self, button: MouseButton) -> bool:
         """Check if a mouse button is pressed."""
@@ -182,13 +190,13 @@ class Input(Protocol):
         ...
 
     def get_mouse_wheel_delta(self) -> float:
-        """Get the mouse amount of scroll in the y-axis."""
+        """Return vertical mouse-wheel movement since the previous frame."""
         ...
 
     def set_exit_key(self, key: Key) -> None:
-        """Set the key that closes the window."""
+        """Set the keyboard shortcut that closes the window."""
         ...
 
     def pool_events(self) -> None:
-        """Pool events."""
+        """Poll the backend for fresh input events."""
         ...

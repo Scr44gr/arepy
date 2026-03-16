@@ -1,0 +1,234 @@
+:root {
+  --md-text-font-size: 0.72rem;
+  --md-typeset-a-color: #9a6700;
+  --md-primary-fg-color: #6d28d9;
+  --md-primary-fg-color--dark: #5b21b6;
+  --md-primary-bg-color: #ffffff;
+  --md-accent-fg-color: #d18a00;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: #11151c;
+  --md-default-fg-color: rgba(235, 239, 244, 0.9);
+  --md-default-fg-color--light: rgba(235, 239, 244, 0.68);
+  --md-default-fg-color--lighter: rgba(235, 239, 244, 0.42);
+  --md-default-fg-color--lightest: rgba(235, 239, 244, 0.14);
+  --md-typeset-a-color: #f5c768;
+  --md-primary-fg-color: #6d28d9;
+  --md-primary-fg-color--dark: #5b21b6;
+  --md-primary-bg-color: #f3f4f6;
+  --md-accent-fg-color: #ffcb6b;
+  --md-code-bg-color: #161b22;
+}
+
+.md-typeset {
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.md-typeset p,
+.md-typeset ul,
+.md-typeset ol,
+.md-typeset dl,
+.md-typeset blockquote {
+  margin: 0 0 0.8em;
+}
+
+.md-typeset h1 {
+  margin: 0 0 0.7rem;
+  font-size: 1.68rem;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.md-typeset h2 {
+  margin: 1.45rem 0 0.65rem;
+  font-size: 1.08rem;
+  font-weight: 700;
+}
+
+.md-typeset h3 {
+  margin: 1.05rem 0 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.md-typeset code {
+  font-size: 0.68rem;
+}
+
+.md-typeset pre > code {
+  font-size: 0.66rem;
+  line-height: 1.45;
+}
+
+.md-grid {
+  max-width: 66rem;
+}
+
+.md-main__inner {
+  margin-top: 0.8rem;
+}
+
+.md-content__inner {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding-bottom: 2.75rem;
+}
+
+.md-header__title,
+.md-header__topic,
+.md-ellipsis {
+  font-size: 0.72rem;
+}
+
+.md-header {
+  box-shadow: none;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.md-header,
+.md-tabs {
+  background: linear-gradient(90deg, #6d28d9 0%, #7c3aed 100%);
+}
+
+.md-header__button,
+.md-header__title,
+.md-header__topic,
+.md-header__topic .md-ellipsis,
+.md-search__icon,
+.md-search__input::placeholder {
+  color: #f8fafc;
+}
+
+.md-search__form {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.md-search__input {
+  color: #f8fafc;
+}
+
+.md-search__input + .md-search__icon {
+  color: #f8fafc;
+}
+
+[data-md-color-scheme="slate"] .md-header {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+.md-typeset .grid.cards > ul > li,
+.md-typeset .grid.cards > ol > li {
+  border-radius: 0.9rem;
+  border: 1px solid var(--md-default-fg-color--lightest, rgba(15, 23, 42, 0.12));
+  box-shadow: none;
+  background: color-mix(in srgb, var(--md-default-bg-color) 92%, white 8%);
+}
+
+.md-typeset .grid.cards > ul > li:hover,
+.md-typeset .grid.cards > ol > li:hover {
+  border-color: var(--md-accent-fg-color);
+  box-shadow: 0 12px 30px rgba(209, 138, 0, 0.08);
+}
+
+.arepy-hero {
+  display: grid;
+  gap: 1rem;
+  justify-items: center;
+  text-align: center;
+  padding: 0.35rem 0 1.05rem;
+}
+
+.arepy-hero__logo {
+  display: block;
+  margin: 0 auto;
+  max-width: 300px;
+  width: min(100%, 300px);
+}
+
+.arepy-hero__lead {
+  max-width: 34rem;
+  font-size: 0.8rem;
+  color: var(--md-default-fg-color--light);
+}
+
+.arepy-hero__title {
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--md-default-fg-color--lighter);
+}
+
+.arepy-hero__badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.45rem;
+  margin: 0.1rem 0 0;
+}
+
+.arepy-hero__badges img {
+  height: 18px;
+}
+
+.arepy-section-intro {
+  color: var(--md-default-fg-color--light);
+  max-width: 34rem;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.arepy-subsection-intro {
+  margin: -0.15rem 0 0.8rem;
+  color: var(--md-default-fg-color--light);
+}
+
+.arepy-feature-list ul,
+.arepy-reading-list {
+  margin-top: 0.4rem;
+}
+
+.arepy-feature-list li,
+.arepy-reading-list li {
+  margin-bottom: 0.45rem;
+}
+
+.md-typeset .admonition,
+.md-typeset details {
+  font-size: 0.7rem;
+}
+
+.md-nav,
+.md-tabs {
+  font-size: 0.69rem;
+}
+
+.md-search__form {
+  border-radius: 999px;
+}
+
+.md-sidebar,
+.md-nav__title,
+.md-nav__link {
+  font-size: 0.69rem;
+}
+
+[data-md-color-scheme="slate"] .md-typeset .grid.cards > ul > li,
+[data-md-color-scheme="slate"] .md-typeset .grid.cards > ol > li {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+@media screen and (max-width: 76.2344em) {
+  .md-typeset h1 {
+    font-size: 1.5rem;
+  }
+
+  .arepy-hero__logo {
+    max-width: 260px;
+  }
+
+  .md-content__inner {
+    max-width: 100%;
+  }
+}

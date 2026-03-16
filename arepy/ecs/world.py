@@ -11,7 +11,7 @@ class World:
         self._registry = Registry()
         self.name = name
 
-    def create_entity(self):
+    def create_entity(self) -> EntityBuilder:
         """Create an entity builder.
 
         Returns:
