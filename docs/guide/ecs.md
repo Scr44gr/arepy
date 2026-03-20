@@ -14,12 +14,12 @@ builder = world.create_entity()
 world.add_system(pipeline: SystemPipeline, system: Callable[..., object])
 ```
 
-Its tested responsibilities are:
+In day-to-day gameplay code, `World` is where you:
 
-- create entities through `create_entity()`
-- add one or many systems to a pipeline
-- change the state of a system
-- expose the underlying registry when you need lower-level access
+- create entities
+- register systems
+- attach world-specific resources
+- group scene-specific lifecycle hooks
 
 ## Entities and `EntityBuilder`
 
@@ -36,17 +36,15 @@ player = (
 )
 ```
 
-The builder collects components until `build()` is called. Tests currently verify that:
+The builder collects components until `build()` is called.
 
-- only `Component` instances can be added
-- the same component type cannot be added twice to one builder
-- `build()` inserts every queued component into the registry
+That makes entity setup read like scene construction instead of manual registry plumbing.
 
 ## Components
 
 Components are intended to be data holders.
 
-That guidance is visible both in the project structure and in the existing tests. Typical examples include:
+Typical examples include:
 
 - `Transform`
 - `RigidBody2D`
@@ -72,6 +70,16 @@ def movement_system(
 ```
 
 The registry inspects function annotations at registration time. Query parameters become signed `Query` objects, and class-typed parameters can be resolved from the resource container.
+
+## World hooks and ECS systems
+
+World hooks are not a replacement for ECS systems. They are best used for small scene-level actions such as:
+
+- initializing world-only state when a scene becomes active
+- updating menu or overlay state that is not entity-driven
+- running teardown logic when leaving a scene
+
+For gameplay that naturally operates on entities and components, prefer regular systems in `UPDATE`, `RENDER`, or `INPUT` pipelines.
 
 ## Registry update model
 

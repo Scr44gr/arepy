@@ -90,7 +90,7 @@ engine.set_current_world("main")
 
 `set_current_world(name: str)` also expects the world name as a string. You pass the name of a world that was already created.
 
-`create_world(name)` also copies the engine resource map into the world's registry, which is what makes typed resource injection work inside systems.
+`create_world(name)` creates a `World` that can see the engine's shared services, while still keeping room for world-specific resources and callbacks.
 
 ## Current frame order
 
@@ -107,12 +107,51 @@ Inside a frame, the order is:
 1. `INPUT` pipeline
 2. registry `update()`
 3. `UPDATE` pipeline
-4. engine `on_update()` hook
-5. `RENDER` pipeline
-6. `RENDER_UI` pipeline
-7. engine `on_render()` hook
-8. ImGui backend render
-9. renderer buffer swap
+4. world `on_update()` hooks
+5. engine `on_update()` hook
+6. `RENDER` pipeline
+7. `RENDER_UI` pipeline
+8. world `on_render()` hooks
+9. engine `on_render()` hook
+10. ImGui backend render
+11. renderer buffer swap
+
+## World lifecycle hooks
+
+Besides the engine-level hooks, each world can register its own lifecycle callbacks.
+
+```python
+world = engine.create_world("main")
+
+
+@world.on_startup
+def load_scene() -> None:
+   ...
+
+
+@world.on_update
+def update_hud() -> None:
+   ...
+
+
+@world.on_render
+def draw_debug_overlay() -> None:
+   ...
+
+
+@world.on_shutdown
+def release_scene() -> None:
+   ...
+```
+
+These hooks are useful when you want a little world-specific setup or teardown without creating a dedicated ECS system for it.
+
+- `on_startup` runs when that world becomes the current world
+- `on_update` runs once per frame after the `UPDATE` pipeline
+- `on_render` runs once per frame after `RENDER` and `RENDER_UI`
+- `on_shutdown` runs when you leave that world or when the engine closes
+
+`on_update` and `on_render` are optional. They are most useful for glue code, scene orchestration, UI state, or one-off world behaviors that do not fit naturally into a regular ECS system.
 
 ## Pipeline meanings
 
@@ -129,4 +168,4 @@ Only the phases explicitly called by `ArepyEngine` are part of the default frame
 
 ## World switching
 
-`set_current_world(name)` does not switch immediately. It stores the next world name and applies the change after the current frame step. This keeps switching predictable during execution.
+`set_current_world(name)` does not switch immediately. It stores the next world name and applies the change after the current frame step. When the switch happens, the previous world receives `on_shutdown`, and the new world receives `on_startup`.

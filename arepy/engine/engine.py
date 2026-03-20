@@ -11,10 +11,8 @@ from ..asset_store import AssetStore
 from ..ecs.systems import SystemPipeline
 from ..event_manager import EventManager
 from .display import Display
-from .renderer.renderer_2d import Color, Renderer2D
+from .renderer.renderer_2d import Renderer2D
 from .renderer.renderer_3d import Renderer3D
-
-Resources: Dict[str, Any] = {}
 
 T = TypeVar("T")
 
@@ -33,8 +31,6 @@ class ArepyEngine:
     ):
         from ..container import dependencies
 
-        global Resources
-
         self.title = title
         self.window_width = width
         self.window_height = height
@@ -50,14 +46,15 @@ class ArepyEngine:
         self.renderer_3d = dependencies().renderer_3d_repository
         self.input = dependencies().input_repository
         self.audio_device = dependencies().audio_device_repository
-        Resources[Display.__name__] = self.display
-        Resources[Renderer2D.__name__] = self.renderer_2d
-        Resources[Renderer3D.__name__] = self.renderer_3d
-        Resources[AssetStore.__name__] = self._asset_store
-        Resources[Input.__name__] = self.input
-        Resources[ArepyEngine.__name__] = self
-        Resources[AudioDevice.__name__] = self.audio_device
-        Resources[EventManager.__name__] = self._event_manager
+        self._global_resources: Dict[str, Any] = {}
+        self._register_global_resource(self.display)
+        self._register_global_resource(self.renderer_2d)
+        self._register_global_resource(self.renderer_3d)
+        self._register_global_resource(self._asset_store)
+        self._register_global_resource(self.input)
+        self._register_global_resource(self)
+        self._register_global_resource(self.audio_device)
+        self._register_global_resource(self._event_manager)
         self.worlds: Dict[str, World] = {}
         self._current_world: World = None  # type: ignore
         self._next_world_to_set: str = None  # type: ignore
@@ -78,22 +75,29 @@ class ArepyEngine:
 
         self.imgui = dependencies().imgui_repository
         self.imgui_backend = dependencies().imgui_renderer_repository()
-        Resources[Imgui.__name__] = self.imgui
+        self._register_global_resource(self.imgui)
+
+    def _register_global_resource(self, resource: object) -> None:
+        self._global_resources[resource.__class__.__name__] = resource
 
     def run(self):
         self.on_startup()
+        self.__check_and_set_world()
         while not self.display.window_should_close():
             self.__next_frame()
             self.__check_and_set_world()
+        self.__shutdown_current_world()
         self.on_shutdown()
 
     async def run_async(self):
         self.on_startup()
+        self.__check_and_set_world()
         # await run_ecs_thread_executor()
         while not self.display.window_should_close():
             self.__next_frame()
             self.__check_and_set_world()
             await asyncio.sleep(0)
+        self.__shutdown_current_world()
         self.on_shutdown()
 
     def __next_frame(self):
@@ -107,7 +111,18 @@ class ArepyEngine:
 
     def __check_and_set_world(self):
         if self._next_world_to_set:
-            self._current_world = self.worlds[self._next_world_to_set]
+            next_world = self.worlds[self._next_world_to_set]
+            self._next_world_to_set = None  # type: ignore
+            if self._current_world is next_world:
+                return
+            if self._current_world is not None:
+                self._current_world._emit_shutdown()
+            self._current_world = next_world
+            self._current_world._emit_startup()
+
+    def __shutdown_current_world(self):
+        if self._current_world is not None:
+            self._current_world._emit_shutdown()
             self._next_world_to_set = None  # type: ignore
 
     def __input_process(self):
@@ -120,6 +135,7 @@ class ArepyEngine:
         current_world = self._current_world
         current_world._registry.update()
         current_world._registry.run(pipeline=SystemPipeline.UPDATE)
+        current_world._emit_update()
         self.on_update()
 
     def __render_process(self):
@@ -128,6 +144,7 @@ class ArepyEngine:
         current_world = self._current_world
         current_world._registry.run(pipeline=SystemPipeline.RENDER)
         current_world._registry.run(pipeline=SystemPipeline.RENDER_UI)
+        current_world._emit_render()
         self.on_render()
         self.imgui_backend.render(self.imgui.get_draw_data())
         self.renderer_2d.swap_buffers()
@@ -147,11 +164,10 @@ class ArepyEngine:
             raise TypeError("Resource must be a class instance")
         if callable(resource) and not hasattr(resource, "__class__"):
             raise TypeError("Resource cannot be a function")
-        global Resources
         resource_name = resource.__class__.__name__
-        if resource_name in Resources:
+        if resource_name in self._global_resources:
             raise ValueError(f"Resource '{resource_name}' already exists")
-        Resources[resource_name] = resource
+        self._global_resources[resource_name] = resource
 
     def get_resource(self, resource_type: Type[T]) -> T:
         """Get a resource by its type.
@@ -165,11 +181,10 @@ class ArepyEngine:
         Raises:
             KeyError: If the resource is not found.
         """
-        global Resources
         resource_name = resource_type.__name__
-        if resource_name not in Resources:
+        if resource_name not in self._global_resources:
             raise KeyError(f"Resource '{resource_name}' not found")
-        return Resources[resource_name]
+        return self._global_resources[resource_name]
 
     def create_world(self, name: str) -> World:
         """Add a world to the engine.
@@ -179,12 +194,7 @@ class ArepyEngine:
         """
         if name in self.worlds:
             raise ValueError(f"World with name {name} already exists")
-        global Resources
-
-        world = World(name)
-        # Add resources to the world
-        ecs_registry = world.get_registry()
-        ecs_registry.resources = Resources
+        world = World(name, global_resources=self._global_resources)
         self.worlds[name] = world
         return world
 

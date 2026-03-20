@@ -14,20 +14,21 @@ To get Arepy running, you currently need:
 pip install arepy
 ```
 
-## Local development with `uv`
+If you only want to use the engine in a game project, that is enough.
+
+## Local setup with `uv`
 
 ```bash
 git clone https://github.com/Scr44gr/arepy.git
 cd arepy
-uv sync --extra testing --extra docs
+uv sync --extra docs
 ```
 
-This installs the runtime dependencies plus the test and documentation toolchain configured in `pyproject.toml`.
+This gives you the runtime dependencies plus the documentation toolchain used by this site.
 
-## Verify the environment
+## Build the docs locally
 
 ```bash
-uv run pytest
 uv run mkdocs build
 ```
 
@@ -36,8 +37,10 @@ uv run mkdocs build
 If you want to work on the ImGui integration too:
 
 ```bash
-uv sync --extra testing --extra docs --extra imgui
+uv sync --extra docs --extra imgui
 ```
+
+If you are contributing to the project itself and need the full contributor workflow, use [CONTRIBUTING.md](https://github.com/Scr44gr/arepy/blob/main/CONTRIBUTING.md) as the source of truth.
 
 ## Common next steps
 

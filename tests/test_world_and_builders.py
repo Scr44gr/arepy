@@ -28,6 +28,16 @@ class Health(Component):
         self.value = value
 
 
+class WorldService:
+    def __init__(self, value: str):
+        self.value = value
+
+
+class GlobalService:
+    def __init__(self, value: str):
+        self.value = value
+
+
 class TestWorld:
     def test_world_creation(self):
         """Test world creation and basic properties."""
@@ -116,6 +126,65 @@ class TestWorld:
 
         assert isinstance(registry, Registry)
         assert registry is world._registry
+
+    def test_world_add_and_get_local_resource(self):
+        world = World("test_world")
+        service = WorldService("local")
+
+        world.add_resource(service)
+
+        assert world.get_resource(WorldService) is service
+        assert world.get_world_resource(WorldService) is service
+
+    def test_world_get_global_resource_fallback(self):
+        global_resources = {"GlobalService": GlobalService("global")}
+        world = World("test_world", global_resources=global_resources)
+
+        service = world.get_resource(GlobalService)
+
+        assert service is global_resources["GlobalService"]
+        assert world.get_global_resource(GlobalService) is service
+
+    def test_world_local_resources_override_global_resources(self):
+        global_resources = {"WorldService": WorldService("global")}
+        world = World("test_world", global_resources=global_resources)
+        local_service = WorldService("local")
+
+        world.add_resource(local_service)
+
+        assert world.get_resource(WorldService) is local_service
+
+    def test_world_exposes_itself_as_resource(self):
+        world = World("test_world")
+
+        assert world.get_world_resource(World) is world
+
+    def test_world_lifecycle_callbacks(self):
+        world = World("test_world")
+        calls: list[str] = []
+
+        @world.on_startup
+        def startup() -> None:
+            calls.append("startup")
+
+        @world.on_update
+        def update() -> None:
+            calls.append("update")
+
+        @world.on_render
+        def render() -> None:
+            calls.append("render")
+
+        @world.on_shutdown
+        def shutdown() -> None:
+            calls.append("shutdown")
+
+        world._emit_startup()
+        world._emit_update()
+        world._emit_render()
+        world._emit_shutdown()
+
+        assert calls == ["startup", "update", "render", "shutdown"]
 
 
 class TestEntityBuilder:

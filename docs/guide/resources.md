@@ -1,12 +1,12 @@
 # Resources and Systems
 
-Besides queries, systems can receive shared engine resources.
+Besides queries, systems can receive services and state objects through typed resource injection.
 
 ## How resource injection works
 
-When the registry registers a system, it inspects the function annotations. If a parameter is a class and a resource with the same class name exists in the registry resource map, that parameter is resolved at runtime.
+When the registry registers a system, it inspects the function annotations. If a parameter is annotated with a class type such as `Renderer2D`, `AssetStore`, or your own `GameSettings`, Arepy treats that annotation as a resource lookup.
 
-In practice, that means the type annotation is the lookup key. You do not pass a string like `"Renderer2D"`; you annotate the parameter with the class itself.
+In practice, the type annotation is the lookup key. You do not pass a string like `"Renderer2D"`; you annotate the parameter with the class itself.
 
 ```python
 def render_system(renderer: Renderer2D, asset_store: AssetStore) -> None:
@@ -15,12 +15,7 @@ def render_system(renderer: Renderer2D, asset_store: AssetStore) -> None:
 
 When `render_system` runs, Arepy looks for resources registered under `Renderer2D` and `AssetStore` and passes those instances for you.
 
-Tests currently verify that:
-
-- a system can receive one resource
-- a system can receive multiple resources
-- resources are resolved lazily on each run
-- replacing a resource instance affects later system calls
+This keeps system signatures readable: the function tells you what it needs, and the engine provides it.
 
 ## Engine-provided resources
 
@@ -50,6 +45,36 @@ engine.get_resource(resource_type: type[T]) -> T
 
 So the argument you pass is the class object, not an instance.
 
+## Global resources and world resources
+
+Arepy now distinguishes between two layers of resources:
+
+- **Global resources** live on `ArepyEngine` and are shared across every world.
+- **World resources** live on a specific `World` and are only visible inside that world.
+
+When a system asks for a resource, the lookup order is:
+
+1. the current world's local resources
+2. the engine's global resources
+
+That means a world can override a shared service or provide scene-specific state without affecting the rest of the application.
+
+```python
+class ScoreBoard:
+    def __init__(self) -> None:
+        self.total = 0
+
+
+world = engine.create_world("main")
+world.add_resource(ScoreBoard())
+
+
+def hud_system(scoreboard: ScoreBoard, renderer: Renderer2D) -> None:
+    ...
+```
+
+In that example, `ScoreBoard` exists only for `main`.
+
 ## Example
 
 ```python
@@ -71,13 +96,17 @@ def render_system(
 
 ## Custom resources
 
-You can also add your own objects through `ArepyEngine.add_resource(...)`.
+You can add your own objects either globally on the engine or locally on a world.
 
 The method signatures are:
 
 ```python
 engine.add_resource(resource: object) -> None
 engine.get_resource(resource_type: type[T]) -> T
+world.add_resource(resource: object) -> None
+world.get_resource(resource_type: type[T]) -> T
+world.get_world_resource(resource_type: type[T]) -> T
+world.get_global_resource(resource_type: type[T]) -> T
 ```
 
 Example:
@@ -94,4 +123,18 @@ engine.add_resource(settings)
 same_settings = engine.get_resource(GameSettings)
 ```
 
-The current implementation rejects primitive values and duplicate resource names. Retrieval is done with `get_resource(ResourceType)`.
+And the world-scoped version looks like this:
+
+```python
+class DialogueState:
+    def __init__(self) -> None:
+        self.current_line = 0
+
+
+dialogue_world = engine.create_world("dialogue")
+dialogue_world.add_resource(DialogueState())
+
+state = dialogue_world.get_world_resource(DialogueState)
+```
+
+Use engine resources for things that should exist everywhere, such as services, configuration, or global managers. Use world resources for scene state, temporary controllers, and data that should disappear when that world is no longer active.

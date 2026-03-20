@@ -258,7 +258,43 @@ class TestResourceInjection:
 
         assert len(received_input) == 1
         assert received_input[0] is late_input
-        assert received_input[0].is_key_pressed("W")
+
+    def test_world_resources_override_global_resources(self):
+        registry = Registry()
+        global_renderer = MockRenderer("global")
+        world_renderer = MockRenderer("world")
+        registry.global_resources["MockRenderer"] = global_renderer
+        registry.resources["MockRenderer"] = world_renderer
+
+        received_renderers: list[MockRenderer] = []
+
+        def capture_renderer(r: MockRenderer) -> None:
+            received_renderers.append(r)
+
+        from arepy.ecs.systems import SystemPipeline, SystemState
+
+        registry.add_system(SystemPipeline.UPDATE, SystemState.ON, capture_renderer)
+        registry.run(SystemPipeline.UPDATE)
+
+        assert received_renderers == [world_renderer]
+
+    def test_resource_marker_survives_late_resource_registration(self):
+        registry = Registry()
+
+        received_renderers: list[object] = []
+
+        def capture_renderer(r: MockRenderer) -> None:
+            received_renderers.append(r)
+
+        from arepy.ecs.systems import SystemPipeline, SystemState
+
+        registry.add_system(SystemPipeline.UPDATE, SystemState.ON, capture_renderer)
+
+        late_renderer = MockRenderer("late")
+        registry.resources["MockRenderer"] = late_renderer
+        registry.run(SystemPipeline.UPDATE)
+
+        assert received_renderers == [late_renderer]
 
     def test_resource_markers_created_correctly(self):
         registry = Registry()
