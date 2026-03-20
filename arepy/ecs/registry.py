@@ -56,6 +56,7 @@ class Registry:
     free_entity_ids: deque[int] = field(default_factory=deque)
 
     resources: dict[str, object] = field(default_factory=dict)
+    global_resources: dict[str, object] = field(default_factory=dict)
 
     def create_entity(self) -> Entity:
 
@@ -174,12 +175,18 @@ class Registry:
     ) -> List[ResourceMarker]:
         markers: List[ResourceMarker] = []
         for idx, (key, value) in enumerate(arguments.items()):
-            if isclass(value):
+            if isclass(value) and not issubclass(value, Component):
                 resource_name = value.__name__
-                if resource_name in self.resources:
-                    markers.append(ResourceMarker(resource_name, idx))
-                    arguments[key] = None
+                if value.__module__ == "builtins":
+                    continue
+                markers.append(ResourceMarker(resource_name, idx))
+                arguments[key] = None
         return markers
+
+    def get_resource(self, resource_name: str) -> object | None:
+        if resource_name in self.resources:
+            return self.resources[resource_name]
+        return self.global_resources.get(resource_name)
 
     def add_entity_to_systems(self, entity: Entity) -> None:
         self.sync_entity_queries(entity)
@@ -264,5 +271,5 @@ class Registry:
         args = self.queries[system].copy()
         markers = self.resource_markers.get(system, [])
         for marker in markers:
-            args[marker.index] = self.resources.get(marker.name)
+            args[marker.index] = self.get_resource(marker.name)
         return args

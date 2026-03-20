@@ -1,15 +1,30 @@
-from typing import Set
+from typing import Callable, Dict, List, Optional, Set, Type, TypeVar, cast
 
 from .builders import EntityBuilder
 from .registry import Registry
 from .systems import System, SystemPipeline, SystemState
 
 
+T = TypeVar("T")
+WorldCallback = Callable[[], None]
+
+
 class World:
 
-    def __init__(self, name: str):
-        self._registry = Registry()
+    def __init__(
+        self, name: str, global_resources: Optional[Dict[str, object]] = None
+    ):
+        self._resources: Dict[str, object] = {self.__class__.__name__: self}
+        self._global_resources = global_resources if global_resources is not None else {}
+        self._registry = Registry(
+            resources=self._resources,
+            global_resources=self._global_resources,
+        )
         self.name = name
+        self._startup_callbacks: List[WorldCallback] = []
+        self._update_callbacks: List[WorldCallback] = []
+        self._shutdown_callbacks: List[WorldCallback] = []
+        self._render_callbacks: List[WorldCallback] = []
 
     def create_entity(self) -> EntityBuilder:
         """Create an entity builder.
@@ -70,3 +85,68 @@ class World:
             The registry.
         """
         return self._registry
+
+    def add_resource(self, resource: object) -> None:
+        if not isinstance(resource, object) or isinstance(
+            resource, (int, float, str, bool, type(None))
+        ):
+            raise TypeError("Resource must be a class instance")
+        if callable(resource) and not hasattr(resource, "__class__"):
+            raise TypeError("Resource cannot be a function")
+
+        resource_name = resource.__class__.__name__
+        if resource_name in self._resources:
+            raise ValueError(f"Resource '{resource_name}' already exists")
+        self._resources[resource_name] = resource
+
+    def get_resource(self, resource_type: Type[T]) -> T:
+        resource_name = resource_type.__name__
+        if resource_name in self._resources:
+            return cast(T, self._resources[resource_name])
+        if resource_name in self._global_resources:
+            return cast(T, self._global_resources[resource_name])
+        raise KeyError(f"Resource '{resource_name}' not found")
+
+    def get_world_resource(self, resource_type: Type[T]) -> T:
+        resource_name = resource_type.__name__
+        if resource_name not in self._resources:
+            raise KeyError(f"World resource '{resource_name}' not found")
+        return cast(T, self._resources[resource_name])
+
+    def get_global_resource(self, resource_type: Type[T]) -> T:
+        resource_name = resource_type.__name__
+        if resource_name not in self._global_resources:
+            raise KeyError(f"Global resource '{resource_name}' not found")
+        return cast(T, self._global_resources[resource_name])
+
+    def on_startup(self, callback: WorldCallback) -> WorldCallback:
+        self._startup_callbacks.append(callback)
+        return callback
+
+    def on_update(self, callback: WorldCallback) -> WorldCallback:
+        self._update_callbacks.append(callback)
+        return callback
+
+    def on_shutdown(self, callback: WorldCallback) -> WorldCallback:
+        self._shutdown_callbacks.append(callback)
+        return callback
+
+    def on_render(self, callback: WorldCallback) -> WorldCallback:
+        self._render_callbacks.append(callback)
+        return callback
+
+    def _emit_startup(self) -> None:
+        self._emit_callbacks(self._startup_callbacks)
+
+    def _emit_update(self) -> None:
+        self._emit_callbacks(self._update_callbacks)
+
+    def _emit_shutdown(self) -> None:
+        self._emit_callbacks(self._shutdown_callbacks)
+
+    def _emit_render(self) -> None:
+        self._emit_callbacks(self._render_callbacks)
+
+    def _emit_callbacks(self, callbacks: List[WorldCallback]) -> None:
+        for callback in callbacks:
+            callback()

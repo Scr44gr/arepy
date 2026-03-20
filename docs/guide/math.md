@@ -18,7 +18,7 @@ The current public module exports:
 
 `Vec2` is the main 2D vector type used by bundle components such as `Transform` and `RigidBody2D`.
 
-Current tests verify that it supports:
+In practice, `Vec2` is built to handle the operations you reach for constantly in 2D gameplay code:
 
 - scalar multiplication on both sides
 - in-place arithmetic operations
@@ -28,7 +28,7 @@ Current tests verify that it supports:
 
 `Vec3` is the 3D counterpart used by 3D bundle components.
 
-Current tests verify that it supports:
+`Vec3` covers the same day-to-day needs on the 3D side:
 
 - scalar multiplication on both sides
 - in-place arithmetic operations

@@ -66,7 +66,7 @@ For gameplay loops, prefer `iter_components(...)` or `iter_entities_components(.
 
 ## Ordering
 
-Query iteration is deterministic: entities are yielded ordered by entity id. That behavior is covered by tests and helps keep gameplay logic and debugging stable.
+Query iteration is deterministic: entities are yielded ordered by entity id. That makes gameplay logic, replayability, and debugging easier to reason about.
 
 ## Matching rules
 

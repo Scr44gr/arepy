@@ -2,7 +2,7 @@
 
 The fastest way to understand Arepy is:
 
-1. install the project and run the tests
+1. install the project
 2. create an `ArepyEngine`
 3. create a `World`
 4. spawn entities with `world.create_entity()` and `EntityBuilder`
@@ -11,15 +11,9 @@ The fastest way to understand Arepy is:
 
 ## In this section
 
-- [Installation](installation.md) covers package installation and local development with `uv`
+- [Installation](installation.md) covers package installation and local setup with `uv`
 - [Quickstart](quickstart.md) walks through a minimal movement example
 
-## Verify your setup early
-
-Once dependencies are installed, these commands give you a quick health check:
-
-```bash
-uv run pytest
-```
-
 If you want a larger sample project after the quickstart, check [examples/bunnymark.py](https://github.com/Scr44gr/arepy/blob/main/examples/bunnymark.py) in the repository.
+
+The goal of this section is to get you from “installed” to “I have a world running” as quickly as possible.

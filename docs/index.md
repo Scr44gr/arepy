@@ -24,7 +24,7 @@ Arepy is designed for small-to-medium Python games that need an ECS architecture
 
 1. **Small public API** — the core workflow stays centered on `ArepyEngine`, `World`, `EntityBuilder`, and `Query`.
 2. **ECS-first design** — entities, components, and systems are the default way to structure gameplay logic.
-3. **Typed query model** — filters such as `With[...]` and `Without[...]` are part of the public API and documented in tests.
+3. **Typed query model** — filters such as `With[...]` and `Without[...]` are part of the public API and fit naturally into editor hints and readable system signatures.
 4. **Built-in gameplay primitives** — bundles already include types like `Transform`, `RigidBody2D`, and `Sprite`.
 5. **Focused documentation** — the guides stay concise and centered on the public engine workflow.
 
