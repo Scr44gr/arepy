@@ -192,16 +192,6 @@ pytest --cov=arepy       # Coverage report
 pytest tests/test_registry.py -v
 ```
 
-## Benchmarking
-
-```bash
-uv run python benchmarks/ecs_baseline.py
-uv run python benchmarks/ecs_baseline.py --entities 1000 5000 10000 --runs 10
-uv run python benchmarks/ecs_baseline.py --mode detailed --entities 1000 5000 10000 --runs 10
-uv run python benchmarks/ecs_baseline.py --mode view --entities 1000 5000 10000 --runs 10
-uv run python benchmarks/ecs_baseline.py --mode bundle --entities 1000 5000 10000 --runs 10
-```
-
 ---
 
 ## Contributing
@@ -227,7 +217,7 @@ We welcome contributions. Refer to the [Contributing Guide](CONTRIBUTING.md).
 
 ## Roadmap
 
-* [ ] Advanced query system
+* [x] Advanced query system
 * [ ] Scene management
 * [ ] Asset pipeline improvements
 * [ ] Physics integration
