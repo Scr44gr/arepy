@@ -108,6 +108,9 @@ class Display(Protocol):
     def is_window_resized(self) -> bool:
         """Return whether the window size changed recently."""
         ...
+    def set_window_resized(self, resized: bool) -> None:
+        """Manually set the window resized state."""
+        ...
 
     def set_window_min_size(self, width: int, height: int) -> None:
         """Set the minimum allowed window size."""

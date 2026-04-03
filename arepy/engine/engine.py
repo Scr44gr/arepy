@@ -28,6 +28,7 @@ class ArepyEngine:
         fullscreen: bool = False,
         vsync: bool = False,
         icon_path: Optional[PathLike[str]] = None,
+        resizeable: bool = False,
     ):
         from ..container import dependencies
 
@@ -38,7 +39,7 @@ class ArepyEngine:
         self.fullscreen = fullscreen
         self.vsync = vsync
         self.icon_path = icon_path
-
+        self.resizeable = resizeable
         self._asset_store = AssetStore()
         self._event_manager = EventManager()
         self.display = dependencies().display_repository
@@ -47,14 +48,14 @@ class ArepyEngine:
         self.input = dependencies().input_repository
         self.audio_device = dependencies().audio_device_repository
         self._global_resources: Dict[str, Any] = {}
-        self._register_global_resource(self.display)
-        self._register_global_resource(self.renderer_2d)
-        self._register_global_resource(self.renderer_3d)
-        self._register_global_resource(self._asset_store)
-        self._register_global_resource(self.input)
-        self._register_global_resource(self)
-        self._register_global_resource(self.audio_device)
-        self._register_global_resource(self._event_manager)
+        self._register_global_resource(Display.__class__.name, self.display)
+        self._register_global_resource(self.renderer_2d.__class__.__name__, self.renderer_2d)
+        self._register_global_resource(self.renderer_3d.__class__.__name__, self.renderer_3d)
+        self._register_global_resource(self._asset_store.__class__.__name__, self._asset_store)
+        self._register_global_resource(self.input.__class__.__name__, self.input)
+        self._register_global_resource(self.__class__.__name__, self)
+        self._register_global_resource(self.audio_device.__class__.__name__, self.audio_device)
+        self._register_global_resource(self._event_manager.__class__.__name__, self._event_manager)
         self.worlds: Dict[str, World] = {}
         self._current_world: World = None  # type: ignore
         self._next_world_to_set: str = None  # type: ignore
@@ -65,6 +66,7 @@ class ArepyEngine:
         from ..container import dependencies
 
         self.display.set_vsync(self.vsync)
+        self.display.set_window_resized(self.resizeable)
         self.display.create_window(self.window_width, self.window_height, self.title)
         self.renderer_2d.set_max_framerate(self.max_frame_rate)
         if self.fullscreen:
@@ -75,10 +77,11 @@ class ArepyEngine:
 
         self.imgui = dependencies().imgui_repository
         self.imgui_backend = dependencies().imgui_renderer_repository()
-        self._register_global_resource(self.imgui)
+        self._register_global_resource(self.imgui.__class__.__name__, self.imgui)
+        self._register_global_resource(self.imgui_backend.__class__.__name__, self.imgui_backend)
 
-    def _register_global_resource(self, resource: object) -> None:
-        self._global_resources[resource.__class__.__name__] = resource
+    def _register_global_resource(self, class_name: str, resource: object) -> None:
+        self._global_resources[class_name] = resource
 
     def run(self):
         self.on_startup()

@@ -66,6 +66,13 @@ def set_max_framerate(max_frame_rate: int) -> None:
     """
     rl.SetTargetFPS(max_frame_rate)
 
+def set_window_resized(resized: bool) -> None:
+    """
+    Manually set the window resized state.
+    Args:
+        resized (bool): The new resized state.
+    """
+    rl.setWindowState(rl.FLAG_WINDOW_RESIZABLE if resized else 0)
 
 def draw_texture(
     texture: ArepyTexture, src_rect: Rect, dst_rect: Rect, color: Color
