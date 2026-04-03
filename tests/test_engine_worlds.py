@@ -1,6 +1,10 @@
 from types import SimpleNamespace
 
+from arepy.engine.audio import AudioDevice
+from arepy.engine.display import Display
 from arepy.engine.engine import ArepyEngine
+from arepy.engine.input import Input
+from arepy.engine.renderer.renderer_2d import Renderer2D
 
 
 class FakeDisplay:
@@ -126,3 +130,38 @@ class TestEngineWorldLifecycle:
         world = engine.create_world("main")
 
         assert world.get_resource(ArepyEngine) is engine
+
+    def test_world_system_injects_engine_protocol_resources(self, monkeypatch):
+        monkeypatch.setattr("arepy.container.dependencies", lambda: make_fake_dependencies())
+
+        engine = ArepyEngine()
+        world = engine.create_world("main")
+        received: dict[str, object] = {}
+
+        def update_system(
+            engine_resource: ArepyEngine,
+            display: Display,
+            renderer: Renderer2D,
+            input_device: Input,
+            audio_device: AudioDevice,
+        ) -> None:
+            received["engine"] = engine_resource
+            received["display"] = display
+            received["renderer"] = renderer
+            received["input"] = input_device
+            received["audio"] = audio_device
+
+        from arepy.ecs.systems import SystemPipeline
+
+        world.add_system(SystemPipeline.UPDATE, update_system)
+        engine.set_current_world("main")
+        engine._ArepyEngine__check_and_set_world()
+        engine._ArepyEngine__update_process()
+
+        assert received == {
+            "engine": engine,
+            "display": engine.display,
+            "renderer": engine.renderer_2d,
+            "input": engine.input,
+            "audio": engine.audio_device,
+        }

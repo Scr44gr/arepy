@@ -2,7 +2,7 @@ import asyncio
 from os import PathLike
 from typing import Any, Dict, Optional, Type, TypeVar
 
-from arepy.arepy_imgui.imgui_repository import Imgui
+from arepy.arepy_imgui.imgui_repository import ImGuiRendererRepository, Imgui
 from arepy.ecs.world import World
 from arepy.engine.audio import AudioDevice
 from arepy.engine.input import Input
@@ -10,7 +10,7 @@ from arepy.engine.input import Input
 from ..asset_store import AssetStore
 from ..ecs.systems import SystemPipeline
 from ..event_manager import EventManager
-from .display import Display
+from .display import Display, WindowFlag
 from .renderer.renderer_2d import Renderer2D
 from .renderer.renderer_3d import Renderer3D
 
@@ -48,14 +48,14 @@ class ArepyEngine:
         self.input = dependencies().input_repository
         self.audio_device = dependencies().audio_device_repository
         self._global_resources: Dict[str, Any] = {}
-        self._register_global_resource(Display.__class__.name, self.display)
-        self._register_global_resource(self.renderer_2d.__class__.__name__, self.renderer_2d)
-        self._register_global_resource(self.renderer_3d.__class__.__name__, self.renderer_3d)
-        self._register_global_resource(self._asset_store.__class__.__name__, self._asset_store)
-        self._register_global_resource(self.input.__class__.__name__, self.input)
+        self._register_global_resource(Display.__name__, self.display)
+        self._register_global_resource(Renderer2D.__name__, self.renderer_2d)
+        self._register_global_resource(Renderer3D.__name__, self.renderer_3d)
+        self._register_global_resource(AssetStore.__name__, self._asset_store)
+        self._register_global_resource(Input.__name__, self.input)
         self._register_global_resource(self.__class__.__name__, self)
-        self._register_global_resource(self.audio_device.__class__.__name__, self.audio_device)
-        self._register_global_resource(self._event_manager.__class__.__name__, self._event_manager)
+        self._register_global_resource(AudioDevice.__name__, self.audio_device)
+        self._register_global_resource(EventManager.__name__, self._event_manager)
         self.worlds: Dict[str, World] = {}
         self._current_world: World = None  # type: ignore
         self._next_world_to_set: str = None  # type: ignore
@@ -66,7 +66,7 @@ class ArepyEngine:
         from ..container import dependencies
 
         self.display.set_vsync(self.vsync)
-        self.display.set_window_resized(self.resizeable)
+        self._configure_resizeable_window()
         self.display.create_window(self.window_width, self.window_height, self.title)
         self.renderer_2d.set_max_framerate(self.max_frame_rate)
         if self.fullscreen:
@@ -77,8 +77,25 @@ class ArepyEngine:
 
         self.imgui = dependencies().imgui_repository
         self.imgui_backend = dependencies().imgui_renderer_repository()
-        self._register_global_resource(self.imgui.__class__.__name__, self.imgui)
-        self._register_global_resource(self.imgui_backend.__class__.__name__, self.imgui_backend)
+        self._register_global_resource(Imgui.__name__, self.imgui)
+        self._register_global_resource(
+            ImGuiRendererRepository.__name__, self.imgui_backend
+        )
+
+    def _configure_resizeable_window(self) -> None:
+        if not self.resizeable:
+            return
+
+        if hasattr(self.display, "set_window_resized"):
+            self.display.set_window_resized(True)
+            return
+
+        if hasattr(self.display, "set_window_state"):
+            self.display.set_window_state(WindowFlag.WINDOW_RESIZABLE)
+            return
+
+        if hasattr(self.renderer_2d, "set_window_resized"):
+            self.renderer_2d.set_window_resized(True)
 
     def _register_global_resource(self, class_name: str, resource: object) -> None:
         self._global_resources[class_name] = resource
