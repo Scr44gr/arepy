@@ -18,6 +18,7 @@ from .exceptions import MaximumComponentsExceededError
 from .query import get_queries_instance_from_arguments, get_signed_query_arguments
 from .systems import System, SystemPipeline, SystemState
 from .utils import Signature
+from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
@@ -267,8 +268,9 @@ class Registry:
                     continue
                 system(*args)
 
+    @lru_cache(maxsize=None, typed=True)
     def _resolve_system_args(self, system: System) -> List[object]:
-        args = self.queries[system].copy()
+        args = self.queries[system]
         markers = self.resource_markers.get(system, [])
         for marker in markers:
             args[marker.index] = self.get_resource(marker.name)
