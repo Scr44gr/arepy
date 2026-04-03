@@ -122,6 +122,9 @@ class Query(Generic[TEntity, TFilter]):
         self, *component_types: Type[Component]
     ) -> Iterator[tuple[Component, ...]]:
         component_pools = self._get_component_pools(component_types)
+        if component_pools is None:
+            return
+
         for entity in self._get_ordered_entities():
             entity_id = entity.get_id() - 1
             components: list[Component] = []
@@ -137,6 +140,9 @@ class Query(Generic[TEntity, TFilter]):
         self, *component_types: Type[Component]
     ) -> Iterator[tuple["Entity", *tuple[Component, ...]]]:
         component_pools = self._get_component_pools(component_types)
+        if component_pools is None:
+            return
+
         for entity in self._get_ordered_entities():
             entity_id = entity.get_id() - 1
             components: list[Component] = []
@@ -150,7 +156,7 @@ class Query(Generic[TEntity, TFilter]):
 
     def _get_component_pools(
         self, component_types: Sequence[Type[Component]]
-    ) -> list[ComponentPool[Component]]:
+    ) -> list[ComponentPool[Component]] | None:
         if self._registry is None:
             raise RegistryNotSetError
 
@@ -158,15 +164,11 @@ class Query(Generic[TEntity, TFilter]):
         for component_type in component_types:
             component_id = ComponentIndex.get_id(component_type.__name__)
             if component_id > len(self._registry.component_pools):
-                raise ValueError(
-                    f"Component pool for {component_type.__name__} is not initialized."
-                )
+                return None
 
             component_pool = self._registry.component_pools[component_id - 1]
             if component_pool is None:
-                raise ValueError(
-                    f"Component pool for {component_type.__name__} is not initialized."
-                )
+                return None
 
             component_pools.append(cast(ComponentPool[Component], component_pool))
         return component_pools

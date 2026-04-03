@@ -277,6 +277,30 @@ def test_query_iter_entities_components_returns_entity_and_components(registry):
     assert velocity.y == 8.0
 
 
+def test_query_iteration_returns_empty_when_required_pool_is_missing(registry):
+    """Queries should behave as empty until every required component pool exists."""
+
+    def movement_system(query: Query[Entity, With[Position, Velocity]]) -> None:
+        return None
+
+    from arepy.ecs.systems import SystemPipeline, SystemState
+
+    registry.add_system(SystemPipeline.UPDATE, SystemState.ON, movement_system)
+
+    entity = registry.create_entity()
+    registry.add_component(entity, Position, Position(1.0, 2.0))
+    registry.update()
+
+    query = next(
+        argument
+        for argument in registry.queries[movement_system]
+        if isinstance(argument, Query)
+    )
+
+    assert list(query.iter_components(Position, Velocity)) == []
+    assert list(query.iter_entities_components(Position, Velocity)) == []
+
+
 def test_query_iteration_is_deterministic_by_entity_id(registry):
     query = Query[Entity, With[Position]]()
     entities = [registry.create_entity() for _ in range(3)]
