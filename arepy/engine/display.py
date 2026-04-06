@@ -101,15 +101,8 @@ class Display(Protocol):
         """Move the window to a screen position."""
         ...
 
-    def set_vsync(self, enabled: bool) -> None:
-        """Enable or disable vertical sync before or during window use."""
-        ...
-
     def is_window_resized(self) -> bool:
         """Return whether the window size changed recently."""
-        ...
-    def set_window_resized(self, resized: bool) -> None:
-        """Manually set the window resized state."""
         ...
 
     def set_window_min_size(self, width: int, height: int) -> None:

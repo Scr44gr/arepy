@@ -112,14 +112,6 @@ def set_window_position(x: int, y: int) -> None:
     rl.SetWindowPosition(x, y)
 
 
-def set_vsync(enabled: bool) -> None:
-    rl.SetConfigFlags(rl.FLAG_VSYNC_HINT if enabled else 0)
-
-
-def set_window_resized(resized: bool) -> None:
-    rl.SetConfigFlags(rl.FLAG_WINDOW_RESIZABLE if resized else 0)
-
-
 def is_window_resized() -> bool:
     return rl.IsWindowResized()
 

@@ -2,7 +2,7 @@ import asyncio
 from os import PathLike
 from typing import Any, Dict, Optional, Type, TypeVar
 
-from arepy.arepy_imgui.imgui_repository import ImGuiRendererRepository, Imgui
+from arepy.arepy_imgui.imgui_repository import Imgui, ImGuiRendererRepository
 from arepy.ecs.world import World
 from arepy.engine.audio import AudioDevice
 from arepy.engine.input import Input
@@ -26,9 +26,8 @@ class ArepyEngine:
         height: int = 1080 // 3,
         max_frame_rate: int = 800,
         fullscreen: bool = False,
-        vsync: bool = False,
         icon_path: Optional[PathLike[str]] = None,
-        resizeable: bool = False,
+        window_flags: Optional[WindowFlag] = None,
     ):
         from ..container import dependencies
 
@@ -37,9 +36,8 @@ class ArepyEngine:
         self.window_height = height
         self.max_frame_rate = max_frame_rate
         self.fullscreen = fullscreen
-        self.vsync = vsync
         self.icon_path = icon_path
-        self.resizeable = resizeable
+        self.window_flags = window_flags
         self._asset_store = AssetStore()
         self._event_manager = EventManager()
         self.display = dependencies().display_repository
@@ -65,8 +63,7 @@ class ArepyEngine:
     def _init_window(self) -> None:
         from ..container import dependencies
 
-        self.display.set_vsync(self.vsync)
-        self._configure_resizeable_window()
+        self.display.set_window_state(self.window_flags or WindowFlag(0))
         self.display.create_window(self.window_width, self.window_height, self.title)
         self.renderer_2d.set_max_framerate(self.max_frame_rate)
         if self.fullscreen:
@@ -81,21 +78,6 @@ class ArepyEngine:
         self._register_global_resource(
             ImGuiRendererRepository.__name__, self.imgui_backend
         )
-
-    def _configure_resizeable_window(self) -> None:
-        if not self.resizeable:
-            return
-
-        if hasattr(self.display, "set_window_resized"):
-            self.display.set_window_resized(True)
-            return
-
-        if hasattr(self.display, "set_window_state"):
-            self.display.set_window_state(WindowFlag.WINDOW_RESIZABLE)
-            return
-
-        if hasattr(self.renderer_2d, "set_window_resized"):
-            self.renderer_2d.set_window_resized(True)
 
     def _register_global_resource(self, class_name: str, resource: object) -> None:
         self._global_resources[class_name] = resource
