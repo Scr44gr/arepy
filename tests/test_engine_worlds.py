@@ -11,14 +11,14 @@ class FakeDisplay:
     def __init__(self):
         self._should_close = False
 
-    def set_vsync(self, enabled: bool) -> None:
-        self.vsync = enabled
-
     def create_window(self, width: int, height: int, title: str) -> None:
         self.window = (width, height, title)
 
     def toggle_fullscreen(self) -> None:
         self.fullscreen = True
+
+    def set_window_state(self, flags) -> None:
+        self.window_state = flags
 
     def set_window_icon(self, icon_path) -> None:
         self.icon_path = icon_path
@@ -75,7 +75,9 @@ def make_fake_dependencies():
 
 class TestEngineWorldLifecycle:
     def test_world_switch_triggers_startup_and_shutdown(self, monkeypatch):
-        monkeypatch.setattr("arepy.container.dependencies", lambda: make_fake_dependencies())
+        monkeypatch.setattr(
+            "arepy.container.dependencies", lambda: make_fake_dependencies()
+        )
 
         engine = ArepyEngine()
         first_world = engine.create_world("first")
@@ -102,7 +104,9 @@ class TestEngineWorldLifecycle:
         assert calls == ["first_startup", "first_shutdown", "second_startup"]
 
     def test_world_update_and_render_hooks_run_during_frame(self, monkeypatch):
-        monkeypatch.setattr("arepy.container.dependencies", lambda: make_fake_dependencies())
+        monkeypatch.setattr(
+            "arepy.container.dependencies", lambda: make_fake_dependencies()
+        )
 
         engine = ArepyEngine()
         world = engine.create_world("main")
@@ -124,7 +128,9 @@ class TestEngineWorldLifecycle:
         assert calls == ["update", "render"]
 
     def test_world_sees_global_resources_from_engine(self, monkeypatch):
-        monkeypatch.setattr("arepy.container.dependencies", lambda: make_fake_dependencies())
+        monkeypatch.setattr(
+            "arepy.container.dependencies", lambda: make_fake_dependencies()
+        )
 
         engine = ArepyEngine()
         world = engine.create_world("main")
@@ -132,7 +138,9 @@ class TestEngineWorldLifecycle:
         assert world.get_resource(ArepyEngine) is engine
 
     def test_world_system_injects_engine_protocol_resources(self, monkeypatch):
-        monkeypatch.setattr("arepy.container.dependencies", lambda: make_fake_dependencies())
+        monkeypatch.setattr(
+            "arepy.container.dependencies", lambda: make_fake_dependencies()
+        )
 
         engine = ArepyEngine()
         world = engine.create_world("main")
