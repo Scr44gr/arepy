@@ -11,7 +11,7 @@ from arepy.math import Vec2
 WHITE_COLOR = Color(255, 255, 255, 255)
 BUNNY_ASSET = "bunny.png"
 
-BUNNY_COUNT = 5000
+BUNNY_COUNT = 8000
 WINDOW_WIDTH = 640
 WINDOW_HEIGHT = 480
 

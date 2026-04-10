@@ -13,8 +13,9 @@ from typing import (
     Sequence,
     Type,
     TypeVar,
-    Union,
     cast,
+    get_args,
+    get_origin,
     get_type_hints,
 )
 
@@ -215,19 +216,22 @@ def sign_queries(
     """Sign the queries with the components that the query needs and return the queries in order."""
     signed_queries = []
     for name, query_signature in queries_signature:
-        query_factory: Callable[[], Query] = cast(Callable[[], Query], query_signature)
-
-        # Skip expensive type checking in production for performance
-        if not hasattr(query_factory, "__args__"):
+        query_factory = cast(Callable[[], Query], query_signature)
+        query_args = get_args(query_signature)
+        if len(query_args) < 2:
             raise TypeError(f"Query {query_factory} does not have args.")
 
-        kind_of_result = query_factory.__args__[1]
+        kind_of_result = query_args[1]
         filter_groups = _extract_filter_groups(kind_of_result)
         query: Query = query_factory()
         query._kind = kind_of_result
 
         for filter_group in filter_groups:
-            filter_origin = filter_group.__origin__
+            filter_origin = get_origin(filter_group)
+            if filter_origin is None:
+                raise TypeError(
+                    f"Invalid query kind: {filter_group}. Expected `With` or `Without`."
+                )
             component_signature = (
                 query._signature if filter_origin is With else query._excluded_signature
             )
@@ -245,25 +249,16 @@ def sign_queries(
 
 
 def _extract_filter_groups(filter_definition: object) -> tuple[object, ...]:
-    if not hasattr(filter_definition, "__origin__"):
-        raise TypeError(
-            f"Invalid query kind: {filter_definition}. Expected `With` or `Without`."
-        )
-
-    filter_origin = getattr(filter_definition, "__origin__")
+    filter_origin = get_origin(filter_definition)
     if filter_origin in (With, Without):
         return (filter_definition,)
 
     if filter_origin is tuple:
-        filter_groups = cast(
-            tuple[object, ...], getattr(filter_definition, "__args__", ())
-        )
+        filter_groups = cast(tuple[object, ...], get_args(filter_definition))
         if not filter_groups:
             raise TypeError("Tuple query filters must not be empty.")
         for filter_group in filter_groups:
-            if not hasattr(filter_group, "__origin__") or getattr(
-                filter_group, "__origin__"
-            ) not in (With, Without):
+            if get_origin(filter_group) not in (With, Without):
                 raise TypeError(
                     f"Invalid query kind: {filter_group}. Expected `With` or `Without`."
                 )
@@ -275,7 +270,7 @@ def _extract_filter_groups(filter_definition: object) -> tuple[object, ...]:
 
 
 def _extract_component_types(filter_group: object) -> tuple[Type[Component], ...]:
-    raw_args = cast(tuple[object, ...], getattr(filter_group, "__args__", ()))
+    raw_args = cast(tuple[object, ...], get_args(filter_group))
     if len(raw_args) == 1 and isinstance(raw_args[0], (tuple, list)):
         return cast(tuple[Type[Component], ...], tuple(raw_args[0]))
     return cast(tuple[Type[Component], ...], raw_args)
@@ -301,12 +296,12 @@ def get_queries_from_arguments(
 ) -> list[tuple[str, Callable[[], Query]]]:
     """Get the queries from the arguments"""
     results = [
-        (key, value)
+        (key, cast(Callable[[], Query], value))
         for key, value in args.items()
-        if hasattr(value, "__qualname__") and value.__qualname__ == Query.__name__
+        if value is Query or get_origin(value) is Query
     ]
 
-    return cast(list[tuple[str, Callable[[], Query]]], results)
+    return results
 
 
 def get_queries_instance_from_arguments(args: Sequence[object]) -> list[Query]:
