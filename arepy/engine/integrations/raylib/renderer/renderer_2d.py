@@ -1,14 +1,246 @@
+from collections.abc import Sequence
+from numbers import Integral, Real
 from os import PathLike
 from typing import Optional, cast
 
 import raylib as rl
 from pyray import Camera2D as rlCamera2D
+from pyray import Matrix as rlMatrix
 from pyray import Vector2 as rlVector2
 
 from arepy.bundle.components.camera import Camera2D
-from arepy.engine.renderer import ArepyFont, ArepyTexture, Color, Rect, TextureFilter
 from arepy.engine.integrations.raylib.renderer import stencil as _stencil
 from arepy.engine.integrations.raylib.renderer import streaming as _streaming
+from arepy.engine.renderer import (
+    ArepyFont,
+    ArepyShader,
+    ArepyTexture,
+    Color,
+    Rect,
+    ShaderUniformType,
+    ShaderValue,
+    TextureFilter,
+)
+
+_SHADER_UNIFORM_TYPE_MAP = {
+    ShaderUniformType.FLOAT: rl.SHADER_UNIFORM_FLOAT,
+    ShaderUniformType.VEC2: rl.SHADER_UNIFORM_VEC2,
+    ShaderUniformType.VEC3: rl.SHADER_UNIFORM_VEC3,
+    ShaderUniformType.VEC4: rl.SHADER_UNIFORM_VEC4,
+    ShaderUniformType.INT: rl.SHADER_UNIFORM_INT,
+    ShaderUniformType.IVEC2: rl.SHADER_UNIFORM_IVEC2,
+    ShaderUniformType.IVEC3: rl.SHADER_UNIFORM_IVEC3,
+    ShaderUniformType.IVEC4: rl.SHADER_UNIFORM_IVEC4,
+    ShaderUniformType.SAMPLER2D: rl.SHADER_UNIFORM_SAMPLER2D,
+}
+
+_FLOAT_UNIFORM_LENGTHS = {
+    ShaderUniformType.FLOAT: 1,
+    ShaderUniformType.VEC2: 2,
+    ShaderUniformType.VEC3: 3,
+    ShaderUniformType.VEC4: 4,
+}
+
+_INT_UNIFORM_LENGTHS = {
+    ShaderUniformType.INT: 1,
+    ShaderUniformType.IVEC2: 2,
+    ShaderUniformType.IVEC3: 3,
+    ShaderUniformType.IVEC4: 4,
+}
+
+
+def _ensure_shader_stage(
+    vertex_stage: Optional[str | PathLike[str]],
+    fragment_stage: Optional[str | PathLike[str]],
+) -> None:
+    if vertex_stage is None and fragment_stage is None:
+        raise ValueError("At least one shader stage must be provided.")
+
+
+def _encode_optional_text(value: Optional[str | PathLike[str]]) -> object:
+    if value is None:
+        return rl.ffi.NULL
+    return str(value).encode("utf-8")
+
+
+def _wrap_shader(shader_ref: object) -> ArepyShader:
+    arepy_shader = ArepyShader(getattr(shader_ref, "id", 0))
+    arepy_shader._ref_shader = shader_ref
+    return arepy_shader
+
+
+def _get_shader_location(shader: ArepyShader, name: str) -> int:
+    location = shader._uniform_locations.get(name)
+    if location is not None:
+        return location
+
+    location = rl.GetShaderLocation(
+        shader._ref_shader,  # type: ignore[arg-type]
+        name.encode("utf-8"),
+    )
+    if location < 0:
+        raise ValueError(f"Shader uniform '{name}' was not found.")
+
+    shader._uniform_locations[name] = location
+    return location
+
+
+def _coerce_sequence(
+    value: ShaderValue,
+    expected_length: int,
+    numeric_type: type[Real] | type[Integral],
+    caster: type[float] | type[int],
+) -> list[float] | list[int]:
+    if isinstance(value, (Real, Integral)) and not isinstance(value, ArepyTexture):
+        items = [value]
+    else:
+        if not isinstance(value, Sequence) or isinstance(
+            value, (str, bytes, bytearray)
+        ):
+            raise TypeError(
+                "Shader uniform value must be numeric or a numeric sequence."
+            )
+        items = list(value)
+
+    if len(items) != expected_length:
+        raise ValueError(
+            f"Expected {expected_length} values for shader uniform, received {len(items)}."
+        )
+
+    converted: list[float] | list[int] = []
+    for item in items:
+        if not isinstance(item, numeric_type):
+            raise TypeError("Shader uniform value contains a non-numeric entry.")
+        converted.append(caster(item))
+    return converted
+
+
+def _coerce_matrix(value: ShaderValue) -> object:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes, bytearray)):
+        raise TypeError("Matrix uniforms require a sequence of 16 numeric values.")
+
+    items = list(value)
+    if len(items) != 16:
+        raise ValueError(
+            f"Expected 16 values for a MAT4 uniform, received {len(items)}."
+        )
+
+    converted: list[float] = []
+    for item in items:
+        if not isinstance(item, Real):
+            raise TypeError("Matrix uniforms require numeric values.")
+        converted.append(float(item))
+
+    return rlMatrix(*converted)
+
+
+def load_shader(
+    vertex_path: Optional[PathLike[str]] = None,
+    fragment_path: Optional[PathLike[str]] = None,
+) -> ArepyShader:
+    """Load a shader from disk. At least one stage must be provided."""
+    _ensure_shader_stage(vertex_path, fragment_path)
+    shader = rl.LoadShader(
+        _encode_optional_text(vertex_path),
+        _encode_optional_text(fragment_path),
+    )
+    return _wrap_shader(shader)
+
+
+def compile_shader(
+    vertex_source: Optional[str] = None,
+    fragment_source: Optional[str] = None,
+) -> ArepyShader:
+    """Compile a shader from in-memory source strings."""
+    _ensure_shader_stage(vertex_source, fragment_source)
+    shader = rl.LoadShaderFromMemory(
+        _encode_optional_text(vertex_source),
+        _encode_optional_text(fragment_source),
+    )
+    return _wrap_shader(shader)
+
+
+def unload_shader(shader: ArepyShader) -> None:
+    """Unload a shader and clear cached uniform locations."""
+    rl.UnloadShader(shader._ref_shader)  # type: ignore[arg-type]
+    shader._uniform_locations.clear()
+    shader._ref_shader = None
+
+
+def begin_shader_mode(shader: ArepyShader) -> None:
+    """Begin drawing with a shader."""
+    rl.BeginShaderMode(shader._ref_shader)  # type: ignore[arg-type]
+
+
+def end_shader_mode() -> None:
+    """Stop drawing with the current shader."""
+    rl.EndShaderMode()
+
+
+def set_shader_value(
+    shader: ArepyShader,
+    uniform_type: ShaderUniformType,
+    name: str,
+    value: ShaderValue,
+) -> None:
+    """Set a shader uniform by name and cache its backend location."""
+    location = _get_shader_location(shader, name)
+
+    if uniform_type is ShaderUniformType.SAMPLER2D:
+        if not isinstance(value, ArepyTexture):
+            raise TypeError("SAMPLER2D uniforms require an ArepyTexture value.")
+        rl.SetShaderValueTexture(
+            shader._ref_shader,  # type: ignore[arg-type]
+            location,
+            value._ref_texture,  # type: ignore[arg-type]
+        )
+        return
+
+    if uniform_type is ShaderUniformType.MAT4:
+        rl.SetShaderValueMatrix(
+            shader._ref_shader,  # type: ignore[arg-type]
+            location,
+            _coerce_matrix(value),
+        )
+        return
+
+    if uniform_type in _FLOAT_UNIFORM_LENGTHS:
+        buffer = rl.ffi.new(
+            f"float[{_FLOAT_UNIFORM_LENGTHS[uniform_type]}]",
+            _coerce_sequence(
+                value,
+                _FLOAT_UNIFORM_LENGTHS[uniform_type],
+                Real,
+                float,
+            ),
+        )
+        rl.SetShaderValue(
+            shader._ref_shader,  # type: ignore[arg-type]
+            location,
+            buffer,
+            _SHADER_UNIFORM_TYPE_MAP[uniform_type],
+        )
+        return
+
+    if uniform_type in _INT_UNIFORM_LENGTHS:
+        buffer = rl.ffi.new(
+            f"int[{_INT_UNIFORM_LENGTHS[uniform_type]}]",
+            _coerce_sequence(
+                value,
+                _INT_UNIFORM_LENGTHS[uniform_type],
+                Integral,
+                int,
+            ),
+        )
+        rl.SetShaderValue(
+            shader._ref_shader,  # type: ignore[arg-type]
+            location,
+            buffer,
+            _SHADER_UNIFORM_TYPE_MAP[uniform_type],
+        )
+        return
+
+    raise ValueError(f"Unsupported shader uniform type: {uniform_type!r}")
 
 
 def create_render_texture(width: int, height: int) -> ArepyTexture:
@@ -54,7 +286,15 @@ def unload_texture(texture: ArepyTexture) -> None:
     Args:
         texture (ArepyTexture): The texture to unload.
     """
-    rl.UnloadTexture(texture._ref)  # type: ignore
+    if texture._ref_render_texture is not None:
+        rl.UnloadRenderTexture(texture._ref_render_texture)  # type: ignore[arg-type]
+        texture._ref_render_texture = None
+        texture._ref_texture = None
+        return
+
+    if texture._ref_texture is not None:
+        rl.UnloadTexture(texture._ref_texture)  # type: ignore[arg-type]
+        texture._ref_texture = None
 
 
 def set_max_framerate(max_frame_rate: int) -> None:
@@ -66,6 +306,7 @@ def set_max_framerate(max_frame_rate: int) -> None:
     """
     rl.SetTargetFPS(max_frame_rate)
 
+
 def set_window_resized(resized: bool) -> None:
     """
     Manually set the window resized state.
@@ -73,6 +314,7 @@ def set_window_resized(resized: bool) -> None:
         resized (bool): The new resized state.
     """
     rl.setWindowState(rl.FLAG_WINDOW_RESIZABLE if resized else 0)
+
 
 def draw_texture(
     texture: ArepyTexture, src_rect: Rect, dst_rect: Rect, color: Color
@@ -571,9 +813,7 @@ def draw_text_ex(
 # Additional shape drawing functions
 
 
-def draw_circle_lines(
-    center: tuple[float, float], radius: float, color: Color
-) -> None:
+def draw_circle_lines(center: tuple[float, float], radius: float, color: Color) -> None:
     """
     Draw circle outline.
 

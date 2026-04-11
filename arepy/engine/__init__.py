@@ -6,7 +6,15 @@ from .audio import AudioDevice
 from .display import CursorType, Display, WindowFlag
 from .engine import ArepyEngine, SystemPipeline
 from .input import Input, Key, MouseButton
-from .renderer import ArepyFont, ArepyTexture, Color, Rect, TextureFilter
+from .renderer import (
+    ArepyFont,
+    ArepyShader,
+    ArepyTexture,
+    Color,
+    Rect,
+    ShaderUniformType,
+    TextureFilter,
+)
 from .renderer.renderer_2d import Renderer2D
 from .renderer.renderer_3d import ArepyMaterial, ArepyMesh, ArepyModel, Renderer3D
 
@@ -20,8 +28,10 @@ __all__ = [
     "Color",
     "Rect",
     "TextureFilter",
+    "ShaderUniformType",
     "ArepyTexture",
     "ArepyFont",
+    "ArepyShader",
     "ArepyModel",
     "ArepyMesh",
     "ArepyMaterial",

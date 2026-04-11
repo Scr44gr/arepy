@@ -4,7 +4,16 @@ from os import PathLike
 from typing import Optional, Protocol
 
 from ...bundle.components.camera import Camera2D
-from . import ArepyFont, ArepyTexture, Color, Rect, TextureFilter
+from . import (
+    ArepyFont,
+    ArepyShader,
+    ArepyTexture,
+    Color,
+    Rect,
+    ShaderUniformType,
+    ShaderValue,
+    TextureFilter,
+)
 
 
 class Renderer2D(Protocol):
@@ -25,6 +34,45 @@ class Renderer2D(Protocol):
 
     def unload_texture(self, texture: ArepyTexture) -> None:
         """Release a texture when you no longer need it."""
+        ...
+
+    # Shader methods
+    def load_shader(
+        self,
+        vertex_path: Optional[PathLike[str]] = None,
+        fragment_path: Optional[PathLike[str]] = None,
+    ) -> ArepyShader:
+        """Load a shader from files on disk. At least one stage must be provided."""
+        ...
+
+    def compile_shader(
+        self,
+        vertex_source: Optional[str] = None,
+        fragment_source: Optional[str] = None,
+    ) -> ArepyShader:
+        """Compile a shader from in-memory GLSL source strings."""
+        ...
+
+    def unload_shader(self, shader: ArepyShader) -> None:
+        """Release a shader when you no longer need it."""
+        ...
+
+    def begin_shader_mode(self, shader: ArepyShader) -> None:
+        """Route subsequent draw calls through the given shader."""
+        ...
+
+    def end_shader_mode(self) -> None:
+        """Stop using the current shader."""
+        ...
+
+    def set_shader_value(
+        self,
+        shader: ArepyShader,
+        uniform_type: ShaderUniformType,
+        name: str,
+        value: ShaderValue,
+    ) -> None:
+        """Set a shader uniform by name, caching the backend location internally."""
         ...
 
     # Draw methods
@@ -141,9 +189,7 @@ class Renderer2D(Protocol):
         ...
 
     # Frame methods
-    def set_texture_filter(
-        self, texture: ArepyTexture, filter: TextureFilter
-    ) -> None:
+    def set_texture_filter(self, texture: ArepyTexture, filter: TextureFilter) -> None:
         """Set the sampling filter used when a texture is scaled."""
         ...
 

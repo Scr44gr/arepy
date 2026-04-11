@@ -1,11 +1,25 @@
 from dataclasses import dataclass
 from enum import Enum
+from typing import Sequence, TypeAlias
 
 
 class TextureFilter(Enum):
     NEAREST = 0
     BILINEAR = 1
     TRILINEAR = 2
+
+
+class ShaderUniformType(Enum):
+    FLOAT = 0
+    VEC2 = 1
+    VEC3 = 2
+    VEC4 = 3
+    INT = 4
+    IVEC2 = 5
+    IVEC3 = 6
+    IVEC4 = 7
+    SAMPLER2D = 8
+    MAT4 = 9
 
 
 class ArepyTexture:
@@ -25,6 +39,20 @@ class ArepyTexture:
         return self._texture_size
 
     def unload(self) -> None: ...
+
+
+class ArepyShader:
+    def __init__(self, shader_id: int):
+        self.shader_id = shader_id
+        self._ref_shader: object = None
+        self._uniform_locations: dict[str, int] = {}
+
+    def unload(self) -> None: ...
+
+
+ShaderScalar: TypeAlias = int | float
+ShaderSequence: TypeAlias = Sequence[int | float]
+ShaderValue: TypeAlias = ShaderScalar | ShaderSequence | ArepyTexture
 
 
 class ArepyFont:
