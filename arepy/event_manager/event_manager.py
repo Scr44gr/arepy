@@ -1,4 +1,4 @@
-from typing import Callable, Dict, List, Optional, Set, Type, TypeVar
+from typing import Callable, Dict, List, Optional, Type, TypeVar
 
 TEvent = TypeVar("TEvent", bound="Event")
 
@@ -33,7 +33,7 @@ class EventManager:
 
     def __init__(self) -> None:
         self._subscribers: Dict[int, List[Callable]] = {}
-        self._queue_events: Set[tuple[Event, Callable[..., None]]] = set()
+        self._queue_events: List[tuple[Event, Callable[..., None]]] = []
 
     def subscribe(
         self, event: Type[TEvent], callback: Callable[[TEvent], None]
@@ -67,10 +67,11 @@ class EventManager:
         event_id = event.EventId.get_id(event.__class__.__name__)
         if event_id in self._subscribers:
             for callback in self._subscribers[event_id]:
-                self._queue_events.add((event, callback))
+                self._queue_events.append((event, callback))
 
     def process_events(self) -> None:
         """Process all the events in the queue."""
-        for event, callback in self._queue_events:
+        queued_events = self._queue_events
+        self._queue_events = []
+        for event, callback in queued_events:
             callback(event)
-        self._queue_events.clear()

@@ -210,3 +210,7 @@ def get_monitor_size(monitor: int) -> tuple[int, int]:
 
 def get_monitor_refresh_rate(monitor: int) -> int:
     return rl.GetMonitorRefreshRate(monitor)
+
+
+def get_time() -> float:
+    return rl.GetTime()

@@ -17,6 +17,7 @@ from .renderer import (
 )
 from .renderer.renderer_2d import Renderer2D
 from .renderer.renderer_3d import ArepyMaterial, ArepyMesh, ArepyModel, Renderer3D
+from .time import Time, TimerHandle, Timers
 
 __all__ = [
     "ArepyEngine",
@@ -39,6 +40,9 @@ __all__ = [
     "Key",
     "MouseButton",
     "AudioDevice",
+    "Time",
+    "Timers",
+    "TimerHandle",
     "EventManager",
     "Event",
     "Imgui",

@@ -1,3 +1,4 @@
+import pytest
 from types import SimpleNamespace
 
 from arepy.engine.audio import AudioDevice
@@ -5,11 +6,14 @@ from arepy.engine.display import Display
 from arepy.engine.engine import ArepyEngine
 from arepy.engine.input import Input
 from arepy.engine.renderer.renderer_2d import Renderer2D
+from arepy.engine.time import Time, Timers
 
 
 class FakeDisplay:
     def __init__(self):
         self._should_close = False
+        self._time_values = [0.0]
+        self._last_time = 0.0
 
     def create_window(self, width: int, height: int, title: str) -> None:
         self.window = (width, height, title)
@@ -25,6 +29,15 @@ class FakeDisplay:
 
     def window_should_close(self) -> bool:
         return self._should_close
+
+    def set_time_values(self, values: list[float]) -> None:
+        self._time_values = values or [self._last_time]
+        self._last_time = self._time_values[-1]
+
+    def get_time(self) -> float:
+        if self._time_values:
+            self._last_time = self._time_values.pop(0)
+        return self._last_time
 
 
 class FakeRenderer2D:
@@ -152,12 +165,14 @@ class TestEngineWorldLifecycle:
             renderer: Renderer2D,
             input_device: Input,
             audio_device: AudioDevice,
+            time_resource: Time,
         ) -> None:
             received["engine"] = engine_resource
             received["display"] = display
             received["renderer"] = renderer
             received["input"] = input_device
             received["audio"] = audio_device
+            received["time"] = time_resource
 
         from arepy.ecs.systems import SystemPipeline
 
@@ -172,4 +187,41 @@ class TestEngineWorldLifecycle:
             "renderer": engine.renderer_2d,
             "input": engine.input,
             "audio": engine.audio_device,
+            "time": engine.get_resource(Time),
         }
+
+    def test_world_has_world_scoped_timers_resource(self, monkeypatch):
+        monkeypatch.setattr(
+            "arepy.container.dependencies", lambda: make_fake_dependencies()
+        )
+
+        engine = ArepyEngine()
+        world = engine.create_world("main")
+
+        assert isinstance(world.get_world_resource(Timers), Timers)
+
+    def test_engine_advances_time_and_ticks_timers(self, monkeypatch):
+        dependencies = make_fake_dependencies()
+        dependencies.display_repository.set_time_values([10.0, 10.2, 10.6])
+        monkeypatch.setattr("arepy.container.dependencies", lambda: dependencies)
+
+        engine = ArepyEngine()
+        world = engine.create_world("main")
+        callbacks: list[float] = []
+
+        world.get_world_resource(Timers).after(
+            0.5,
+            lambda: callbacks.append(engine.get_resource(Time).elapsed_seconds),
+        )
+
+        engine.set_current_world("main")
+        engine._ArepyEngine__check_and_set_world()
+
+        engine._ArepyEngine__next_frame()
+        assert callbacks == []
+
+        engine._ArepyEngine__next_frame()
+
+        assert callbacks == [pytest.approx(0.6)]
+        assert engine.get_resource(Time).delta_seconds == pytest.approx(0.4)
+        assert engine.get_resource(Time).elapsed_seconds == pytest.approx(0.6)

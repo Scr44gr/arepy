@@ -196,3 +196,7 @@ class Display(Protocol):
     def get_monitor_refresh_rate(self, monitor: int) -> int:
         """Return the refresh rate of a monitor in hertz."""
         ...
+
+    def get_time(self) -> float:
+        """Return the elapsed engine time in seconds from the backend clock."""
+        ...

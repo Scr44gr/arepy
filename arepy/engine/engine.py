@@ -13,6 +13,7 @@ from ..event_manager import EventManager
 from .display import Display, WindowFlag
 from .renderer.renderer_2d import Renderer2D
 from .renderer.renderer_3d import Renderer3D
+from .time import Time
 
 T = TypeVar("T")
 
@@ -59,6 +60,8 @@ class ArepyEngine:
         self._next_world_to_set: str = None  # type: ignore
 
         self._init_window()
+        self._time = Time(self.display.get_time())
+        self._register_global_resource(Time.__name__, self._time)
 
     def _init_window(self) -> None:
         from ..container import dependencies
@@ -103,6 +106,7 @@ class ArepyEngine:
         self.on_shutdown()
 
     def __next_frame(self):
+        self._time.advance(self.display.get_time())
         if not self._current_world:
             self.renderer_2d.swap_buffers()
             return
@@ -135,10 +139,19 @@ class ArepyEngine:
 
     def __update_process(self):
         current_world = self._current_world
+        current_world._advance_frame_services(self._time)
+        self.__process_events_before_update()
         current_world._registry.update()
         current_world._registry.run(pipeline=SystemPipeline.UPDATE)
         current_world._emit_update()
         self.on_update()
+        self.__process_events_after_update()
+
+    def __process_events_before_update(self) -> None:
+        self._event_manager.process_events()
+
+    def __process_events_after_update(self) -> None:
+        self._event_manager.process_events()
 
     def __render_process(self):
         # self.renderer_2d.clear(color=Color(245, 245, 245, 255))

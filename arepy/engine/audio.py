@@ -75,9 +75,7 @@ class AudioDevice(Protocol):
         """Load a streamed music track from disk."""
         ...
 
-    def load_music_from_memory(
-        self, file_type: str, data: bytes
-    ) -> ArepyMusic | None:
+    def load_music_from_memory(self, file_type: str, data: bytes) -> ArepyMusic | None:
         """Load a music stream from bytes already in memory."""
         ...
 
@@ -132,3 +130,6 @@ class AudioDevice(Protocol):
     def close_device(self) -> None:
         """Shut down the audio backend and release device resources."""
         ...
+
+
+__all_ = ["AudioDevice", "ArepySound", "ArepyMusic"]

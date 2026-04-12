@@ -12,12 +12,32 @@ Start here if you want to manage the window, cursor, clipboard, fullscreen state
 
 Useful entry points:
 
-- [Display module reference](reference/arepy/engine/display/)
+- [Display module reference](reference/arepy/engine/display.md)
 - `create_window(width, height, title)`
 - `set_window_title(title)`
 - `toggle_fullscreen()`
 - `set_mouse_cursor(cursor)`
 - `get_monitor_size(monitor)`
+- `get_time()`
+
+## Timing
+
+- `Time`
+- `Timers`
+- `TimerHandle`
+
+Start here if you want stable frame timing, elapsed engine time, cooldowns, delayed callbacks, or repeating world-local timers.
+
+Useful entry points:
+
+- [Time module reference](reference/arepy/engine/time.md)
+- `Display.get_time()`
+- `Time.delta_seconds`
+- `Time.elapsed_seconds`
+- `Timers.after(...)`
+- `Timers.every(...)`
+- `Timers.cooldown(...)`
+- `Timers.cancel(handle)`
 
 ## Rendering
 
@@ -36,13 +56,15 @@ Start here if you want to draw sprites, text, shapes, models, debug primitives, 
 
 Useful entry points:
 
-- [Renderer2D module reference](reference/arepy/engine/renderer/renderer_2d/)
-- [Renderer3D module reference](reference/arepy/engine/renderer/renderer_3d/)
+- [Renderer2D module reference](reference/arepy/engine/renderer/renderer_2d.md)
+- [Renderer3D module reference](reference/arepy/engine/renderer/renderer_3d.md)
 - `draw_texture(...)`
 - `draw_text(...)`
 - `draw_model(...)`
 - `draw_cube(...)`
 - `get_delta_time()`
+
+`Renderer2D.get_delta_time()` is still available, but `Time.delta_seconds` is now the preferred gameplay-facing timing source.
 
 ## Input
 
@@ -54,7 +76,7 @@ Start here if you want keyboard, mouse, wheel, or typed text state.
 
 Useful entry points:
 
-- [Input module reference](reference/arepy/engine/input/)
+- [Input module reference](reference/arepy/engine/input.md)
 - `is_key_pressed(key)`
 - `is_key_down(key)`
 - `is_mouse_button_pressed(button)`
@@ -71,7 +93,7 @@ Start here if you want to play sound effects, stream music, or control volume an
 
 Useful entry points:
 
-- [Audio module reference](reference/arepy/engine/audio/)
+- [Audio module reference](reference/arepy/engine/audio.md)
 - `load_sound(path)`
 - `play_sound(sound)`
 - `load_music(path)`
@@ -86,7 +108,7 @@ Start here if you want a named store for textures, fonts, sounds, music, models,
 
 Useful entry points:
 
-- [Asset store reference](reference/arepy/asset_store/asset_store/)
+- [Asset store reference](reference/arepy/asset_store/asset_store.md)
 - `add_*` and `get_*` methods on `AssetStore`
 
 ## Events
@@ -98,8 +120,10 @@ Start here if you want loose communication between systems or gameplay modules.
 
 Useful entry points:
 
-- [Event manager reference](reference/arepy/event_manager/event_manager/)
+- [Event manager reference](reference/arepy/event_manager/event_manager.md)
 - event subscribe / emit / process methods on `EventManager`
+
+In the normal engine loop, queued events are processed during the update phase.
 
 ## Where to keep reading
 

@@ -10,7 +10,7 @@ This page points you to the main engine entry points.
 
 - open a window and boot the engine with `ArepyEngine(...)`
 - create or switch scenes with `create_world(...)` and `set_current_world(...)`
-- expose shared services such as rendering, input, audio, assets, and events
+- expose shared services such as rendering, input, audio, assets, timing, and events
 - understand when engine hooks and world hooks run during a frame
 
 ## Main concepts
@@ -28,11 +28,13 @@ engine.set_current_world("main")
 engine.run()
 ```
 
-Engine resources are global. They are visible from every world and include objects such as `Display`, `Renderer2D`, `Renderer3D`, `Input`, `AudioDevice`, `AssetStore`, and `EventManager`.
+Engine resources are global. They are visible from every world and include objects such as `Display`, `Time`, `Renderer2D`, `Renderer3D`, `Input`, `AudioDevice`, `AssetStore`, and `EventManager`.
 
 ### Worlds managed by the engine
 
 When you create a world through the engine, that world receives access to the engine's global resources and can also define local resources of its own.
+
+Each world also starts with a built-in `Timers` resource for delayed callbacks, repeating callbacks, and cooldown helpers.
 
 That makes this pattern possible:
 
@@ -74,12 +76,12 @@ Use engine hooks for app-wide behavior. Use world hooks for scene-specific setup
 
 ## Generated reference
 
-- [ArepyEngine module](reference/arepy/engine/engine/)
-- [Display module](reference/arepy/engine/display/)
-- [Renderer2D module](reference/arepy/engine/renderer/renderer_2d/)
-- [Renderer3D module](reference/arepy/engine/renderer/renderer_3d/)
-- [Input module](reference/arepy/engine/input/)
-- [Audio module](reference/arepy/engine/audio/)
+- [ArepyEngine module](reference/arepy/engine/engine.md)
+- [Display module](reference/arepy/engine/display.md)
+- [Renderer2D module](reference/arepy/engine/renderer/renderer_2d.md)
+- [Renderer3D module](reference/arepy/engine/renderer/renderer_3d.md)
+- [Input module](reference/arepy/engine/input.md)
+- [Audio module](reference/arepy/engine/audio.md)
 
 ## Where to keep reading
 
