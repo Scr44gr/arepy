@@ -38,6 +38,85 @@ Common methods to look at first:
 - `toggle_fullscreen()`
 - `set_mouse_cursor(cursor)`
 - `set_clipboard_text(text)`
+- `get_time()`
+
+## Time
+
+`Time` is the engine's shared clock.
+
+You inject it when gameplay logic needs a stable view of frame timing without depending on the renderer.
+
+```python
+from arepy import Time
+
+
+def movement_system(time: Time) -> None:
+	print(time.delta_seconds)
+	print(time.elapsed_seconds)
+```
+
+It gives you values such as:
+
+- scaled delta time for the current frame
+- total elapsed time since the engine started running
+- frame count
+- fixed-step and accumulator fields for future scheduling and physics work
+
+For new gameplay systems, prefer `Time` over asking `Renderer2D` for delta time directly.
+
+Common fields to look at first:
+
+- `delta_seconds`
+- `elapsed_seconds`
+- `frame_count`
+- `fixed_delta_seconds`
+- `accumulator_seconds`
+
+## Timers
+
+`Timers` is the built-in world timer service.
+
+Every new world starts with one local `Timers` resource automatically, and the engine advances it for you once per frame. You do not need to tick it manually.
+
+Typical setup looks like this:
+
+```python
+from arepy import Timers
+
+
+@world.on_startup
+def setup_timers() -> None:
+	timers = world.get_world_resource(Timers)
+	timers.after(1.0, lambda: print("ready"))
+	timers.every(0.5, lambda: print("pulse"))
+```
+
+Or inside a system:
+
+```python
+from arepy import Time, Timers
+
+
+def weapon_system(time: Time, timers: Timers) -> None:
+	if timers.cooldown("player.fire", 0.2):
+		print(f"fire at {time.elapsed_seconds:.2f}s")
+```
+
+Use it for:
+
+- one-shot delays
+- repeating callbacks
+- cooldowns
+- lightweight world-local scheduling
+
+Common methods to look at first:
+
+- `after(delay_seconds, callback)`
+- `every(interval_seconds, callback)`
+- `cancel(handle)`
+- `is_active(handle)`
+- `cooldown(key, duration_seconds)`
+- `clear()`
 
 ## Renderer2D
 
@@ -64,6 +143,8 @@ It can:
 - report delta time and frame rate
 
 For many small games, this is the renderer you will touch the most.
+
+It still exposes `get_delta_time()`, but timing-heavy gameplay code can now depend on `Time` instead.
 
 Common methods to look at first:
 
@@ -207,10 +288,12 @@ It lets you:
 
 This is useful when one part of the game wants to notify another part without calling it directly.
 
+When you run the normal engine loop, Arepy also processes the queued events during the update phase for you.
+
 ## A small example
 
 ```python
-from arepy import ArepyEngine, Input, Renderer2D
+from arepy import ArepyEngine, Input, Renderer2D, Time
 from arepy.asset_store import AssetStore
 
 
@@ -218,6 +301,7 @@ engine = ArepyEngine(title="My Game")
 renderer = engine.get_resource(Renderer2D)
 input_repo = engine.get_resource(Input)
 asset_store = engine.get_resource(AssetStore)
+time = engine.get_resource(Time)
 ```
 
 You usually do not fetch these services by hand inside every system, because Arepy can inject them for you. Still, it helps to know they are there and what each one is for.
@@ -227,8 +311,8 @@ You usually do not fetch these services by hand inside every system, because Are
 - Read [Resources and Systems](resources.md) to see how these services are injected into systems
 - Read [Engine Lifecycle](engine-lifecycle.md) to understand when systems run
 - Open [Core Services API](../api/services.md) for a service-by-service map
-- Open [Display reference](../api/reference/arepy/engine/display/)
-- Open [Renderer2D reference](../api/reference/arepy/engine/renderer/renderer_2d/)
-- Open [Renderer3D reference](../api/reference/arepy/engine/renderer/renderer_3d/)
-- Open [Input reference](../api/reference/arepy/engine/input/)
-- Open [Audio reference](../api/reference/arepy/engine/audio/)
+- Open [Display reference](../api/reference/arepy/engine/display.md)
+- Open [Renderer2D reference](../api/reference/arepy/engine/renderer/renderer_2d.md)
+- Open [Renderer3D reference](../api/reference/arepy/engine/renderer/renderer_3d.md)
+- Open [Input reference](../api/reference/arepy/engine/input.md)
+- Open [Audio reference](../api/reference/arepy/engine/audio.md)

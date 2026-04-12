@@ -22,6 +22,7 @@ This keeps system signatures readable: the function tells you what it needs, and
 `ArepyEngine` registers these shared objects during initialization:
 
 - `Display`
+- `Time`
 - `Renderer2D`
 - `Renderer3D`
 - `AssetStore`
@@ -58,6 +59,19 @@ When a system asks for a resource, the lookup order is:
 2. the engine's global resources
 
 That means a world can override a shared service or provide scene-specific state without affecting the rest of the application.
+
+Each world also starts with a built-in local `Timers` resource. You do not need to register it yourself.
+
+That makes mixed timing injection possible:
+
+```python
+from arepy import Time, Timers
+
+
+def spawn_system(time: Time, timers: Timers) -> None:
+    if timers.cooldown("spawn", 1.0):
+        print(f"spawn at {time.elapsed_seconds:.2f}s")
+```
 
 ```python
 class ScoreBoard:
@@ -137,4 +151,4 @@ dialogue_world.add_resource(DialogueState())
 state = dialogue_world.get_world_resource(DialogueState)
 ```
 
-Use engine resources for things that should exist everywhere, such as services, configuration, or global managers. Use world resources for scene state, temporary controllers, and data that should disappear when that world is no longer active.
+Use engine resources for things that should exist everywhere, such as services, configuration, global managers, or shared timing state like `Time`. Use world resources for scene state, temporary controllers, and data that should disappear when that world is no longer active, including the built-in `Timers` service.

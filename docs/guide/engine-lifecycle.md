@@ -15,12 +15,12 @@ The constructor signature is:
 ```python
 ArepyEngine(
    title: str = "Arepy Engine",
-   width: int = 640,
-   height: int = 360,
+   width: int = 1920 // 3,
+   height: int = 1080 // 3,
    max_frame_rate: int = 800,
    fullscreen: bool = False,
-   vsync: bool = False,
    icon_path: PathLike[str] | None = None,
+   window_flags: WindowFlag | None = None,
 )
 ```
 
@@ -31,15 +31,15 @@ If you want more control, you can also pass:
 - `height: int` sets the window height in pixels when the window is created
 - `max_frame_rate: int` is passed to `Renderer2D.set_max_framerate(...)` during engine startup
 - `fullscreen: bool` decides whether `Display.toggle_fullscreen()` is called right after the window opens
-- `vsync: bool` is passed to `Display.set_vsync(...)` before the window is created
 - `icon_path: PathLike[str] | None` is passed to `Display.set_window_icon(...)` when you want a custom window icon
+- `window_flags: WindowFlag | None` is passed to `Display.set_window_state(...)` before the window is created
 
 Here is a more explicit example:
 
 ```python
 from pathlib import Path
 
-from arepy import ArepyEngine
+from arepy import ArepyEngine, WindowFlag
 
 
 engine = ArepyEngine(
@@ -48,8 +48,8 @@ engine = ArepyEngine(
    height=720,
    max_frame_rate=144,
    fullscreen=False,
-   vsync=True,
    icon_path=Path("assets/icon.png"),
+   window_flags=WindowFlag.VSYNC_HINT,
 )
 ```
 
@@ -58,6 +58,7 @@ All of these values are passed as normal Python keyword arguments when you creat
 When the engine starts, it opens the window and makes these shared services available across the app:
 
 - `Display`
+- `Time`
 - `Renderer2D`
 - `Renderer3D`
 - `AssetStore`
@@ -68,6 +69,8 @@ When the engine starts, it opens the window and makes these shared services avai
 - `Imgui`
 
 That lets you create a world and start adding systems without having to wire every subsystem by hand.
+
+Each new world also starts with a local `Timers` resource.
 
 ## Worlds
 
@@ -90,7 +93,7 @@ engine.set_current_world("main")
 
 `set_current_world(name: str)` also expects the world name as a string. You pass the name of a world that was already created.
 
-`create_world(name)` creates a `World` that can see the engine's shared services, while still keeping room for world-specific resources and callbacks.
+`create_world(name)` creates a `World` that can see the engine's shared services, while still keeping room for world-specific resources and callbacks. That world also receives a built-in `Timers` resource, so delayed and repeating callbacks are available immediately.
 
 ## Current frame order
 
@@ -104,17 +107,21 @@ The runtime loop implemented in `ArepyEngine.run()` currently works like this:
 
 Inside a frame, the order is:
 
-1. `INPUT` pipeline
-2. registry `update()`
-3. `UPDATE` pipeline
-4. world `on_update()` hooks
-5. engine `on_update()` hook
-6. `RENDER` pipeline
-7. `RENDER_UI` pipeline
-8. world `on_render()` hooks
-9. engine `on_render()` hook
-10. ImGui backend render
-11. renderer buffer swap
+1. advance `Time` from `Display.get_time()`
+2. `INPUT` pipeline
+3. tick the current world's `Timers`
+4. process queued `EventManager` events
+5. registry `update()`
+6. `UPDATE` pipeline
+7. world `on_update()` hooks
+8. engine `on_update()` hook
+9. process queued `EventManager` events again
+10. `RENDER` pipeline
+11. `RENDER_UI` pipeline
+12. world `on_render()` hooks
+13. engine `on_render()` hook
+14. ImGui backend render
+15. renderer buffer swap
 
 ## World lifecycle hooks
 
