@@ -39,6 +39,24 @@ Useful entry points:
 - `Timers.cooldown(...)`
 - `Timers.cancel(handle)`
 
+## Animation
+
+- `Animator`
+- `Timeline`
+
+Start here if you want small scripted animations, waits, method interpolation, or callback sequences without building a separate animation system.
+
+Useful entry points:
+
+- [Animator module reference](reference/arepy/engine/animator.md)
+- `Animator.create()`
+- `Timeline.to(...)`
+- `Timeline.method(...)`
+- `Timeline.wait(...)`
+- `Timeline.call(...)`
+- `Timeline.start()`
+- `Timeline.cancel()`
+
 ## Rendering
 
 - `Renderer2D`

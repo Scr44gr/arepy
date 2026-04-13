@@ -1,6 +1,8 @@
-import pytest
 from types import SimpleNamespace
 
+import pytest
+
+from arepy.engine.animator import Animator
 from arepy.engine.audio import AudioDevice
 from arepy.engine.display import Display
 from arepy.engine.engine import ArepyEngine
@@ -200,6 +202,16 @@ class TestEngineWorldLifecycle:
 
         assert isinstance(world.get_world_resource(Timers), Timers)
 
+    def test_world_has_world_scoped_animator_resource(self, monkeypatch):
+        monkeypatch.setattr(
+            "arepy.container.dependencies", lambda: make_fake_dependencies()
+        )
+
+        engine = ArepyEngine()
+        world = engine.create_world("main")
+
+        assert isinstance(world.get_world_resource(Animator), Animator)
+
     def test_engine_advances_time_and_ticks_timers(self, monkeypatch):
         dependencies = make_fake_dependencies()
         dependencies.display_repository.set_time_values([10.0, 10.2, 10.6])
@@ -225,3 +237,27 @@ class TestEngineWorldLifecycle:
         assert callbacks == [pytest.approx(0.6)]
         assert engine.get_resource(Time).delta_seconds == pytest.approx(0.4)
         assert engine.get_resource(Time).elapsed_seconds == pytest.approx(0.6)
+
+    def test_engine_ticks_animator_world_resource(self, monkeypatch):
+        dependencies = make_fake_dependencies()
+        dependencies.display_repository.set_time_values([10.0, 10.2, 10.6])
+        monkeypatch.setattr("arepy.container.dependencies", lambda: dependencies)
+
+        engine = ArepyEngine()
+        world = engine.create_world("main")
+
+        class Target:
+            def __init__(self) -> None:
+                self.x = 0.0
+
+        target = Target()
+        world.get_world_resource(Animator).create().to(target, "x", 1.0, 0.5).start()
+
+        engine.set_current_world("main")
+        engine._ArepyEngine__check_and_set_world()
+
+        engine._ArepyEngine__next_frame()
+        assert target.x == pytest.approx(0.4)
+
+        engine._ArepyEngine__next_frame()
+        assert target.x == pytest.approx(1.0)

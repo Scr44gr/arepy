@@ -2,6 +2,7 @@ from ..arepy_imgui.imgui_repository import Imgui
 from ..bundle.components.camera import Camera2D
 from ..ecs import World
 from ..event_manager import Event, EventManager
+from .animator import Animator, Timeline
 from .audio import AudioDevice
 from .display import CursorType, Display, WindowFlag
 from .engine import ArepyEngine, SystemPipeline
@@ -43,6 +44,7 @@ __all__ = [
     "ArepyModel",
     "ArepyMesh",
     "ArepyMaterial",
+    "Animator",
     "Input",
     "Key",
     "MouseButton",
@@ -50,6 +52,7 @@ __all__ = [
     "GamepadAxis",
     "GamepadDeviceType",
     "AudioDevice",
+    "Timeline",
     "Time",
     "Timers",
     "TimerHandle",

@@ -167,9 +167,10 @@ def test_gamepad_button_and_axis_queries_delegate_to_raylib(monkeypatch) -> None
     assert input_repository.is_gamepad_button_up(GamepadButton.RIGHT_STICK, 2)
     assert input_repository.get_gamepad_axis_count(2) == 4
     assert input_repository.get_gamepad_axis_movement(GamepadAxis.LEFT_X, 2) == 0.5
-    assert input_repository.get_gamepad_axis_movement(
-        GamepadAxis.RIGHT_TRIGGER, 2
-    ) == -0.25
+    assert (
+        input_repository.get_gamepad_axis_movement(GamepadAxis.RIGHT_TRIGGER, 2)
+        == -0.25
+    )
 
 
 def test_is_gamepad_vibration_supported_checks_backend_and_slot(monkeypatch) -> None:

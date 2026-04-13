@@ -60,17 +60,18 @@ When a system asks for a resource, the lookup order is:
 
 That means a world can override a shared service or provide scene-specific state without affecting the rest of the application.
 
-Each world also starts with a built-in local `Timers` resource. You do not need to register it yourself.
+Each world also starts with built-in local `Timers` and `Animator` resources. You do not need to register them yourself.
 
 That makes mixed timing injection possible:
 
 ```python
-from arepy import Time, Timers
+from arepy import Animator, Time, Timers
 
 
-def spawn_system(time: Time, timers: Timers) -> None:
+def spawn_system(time: Time, timers: Timers, animator: Animator) -> None:
     if timers.cooldown("spawn", 1.0):
         print(f"spawn at {time.elapsed_seconds:.2f}s")
+        animator.create().call(lambda: print("spawn flash")).start()
 ```
 
 ```python

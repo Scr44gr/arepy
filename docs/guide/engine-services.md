@@ -118,6 +118,69 @@ Common methods to look at first:
 - `cooldown(key, duration_seconds)`
 - `clear()`
 
+## Animator
+
+`Animator` is the built-in world animation service.
+
+Every new world starts with one local `Animator` resource automatically, and the engine advances it for you once per frame right after `Timers`.
+
+Typical setup looks like this:
+
+```python
+from arepy import Animator
+
+
+class CameraState:
+    def __init__(self) -> None:
+        self.zoom = 1.0
+
+
+camera_state = CameraState()
+
+
+@world.on_startup
+def setup_animation() -> None:
+    animator = world.get_world_resource(Animator)
+    animator.create().to(camera_state, "zoom", 2.0, 0.4).start()
+```
+
+Or inside a system:
+
+```python
+from arepy import Animator, Input, Key
+
+
+class HudState:
+    def __init__(self) -> None:
+        self.opacity = 255
+
+
+hud_state = HudState()
+
+
+def hud_system(input_repo: Input, animator: Animator) -> None:
+    if input_repo.is_key_pressed(Key.SPACE):
+        animator.create().to(hud_state, "opacity", 0, 0.25).start()
+```
+
+Use it for:
+
+- lightweight property animation
+- timed callback sequences
+- small scripted transitions that do not need a full animation editor
+- world-local runtime effects that should obey `Time.time_scale`
+
+Common methods to look at first:
+
+- `create()`
+- `Timeline.to(target, property_name, end_value, duration_seconds)`
+- `Timeline.method(callback, start_value, end_value, duration_seconds)`
+- `Timeline.wait(duration_seconds)`
+- `Timeline.call(callback)`
+- `Timeline.on_complete(callback)`
+- `Timeline.start()`
+- `Timeline.cancel()`
+
 ## Renderer2D
 
 `Renderer2D` is what you use for drawing most 2D things on screen.

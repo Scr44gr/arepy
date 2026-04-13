@@ -110,18 +110,19 @@ Inside a frame, the order is:
 1. advance `Time` from `Display.get_time()`
 2. `INPUT` pipeline
 3. tick the current world's `Timers`
-4. process queued `EventManager` events
-5. registry `update()`
-6. `UPDATE` pipeline
-7. world `on_update()` hooks
-8. engine `on_update()` hook
-9. process queued `EventManager` events again
-10. `RENDER` pipeline
-11. `RENDER_UI` pipeline
-12. world `on_render()` hooks
-13. engine `on_render()` hook
-14. ImGui backend render
-15. renderer buffer swap
+4. tick the current world's `Animator`
+5. process queued `EventManager` events
+6. registry `update()`
+7. `UPDATE` pipeline
+8. world `on_update()` hooks
+9. engine `on_update()` hook
+10. process queued `EventManager` events again
+11. `RENDER` pipeline
+12. `RENDER_UI` pipeline
+13. world `on_render()` hooks
+14. engine `on_render()` hook
+15. ImGui backend render
+16. renderer buffer swap
 
 ## World lifecycle hooks
 
