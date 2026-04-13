@@ -239,6 +239,7 @@ It helps you:
 
 - load models
 - create meshes such as cubes, spheres, and planes
+- draw camera-facing billboards from regular textures
 - work with materials
 - draw 3D primitives
 - manage 3D cameras
@@ -251,6 +252,8 @@ Common methods to look at first:
 - `generate_mesh_cube(width, height, length)`
 - `draw_model(model, position, scale, tint)`
 - `draw_cube(position, width, height, length, color)`
+- `draw_billboard(texture, position, size, tint)`
+- `draw_billboard_rec(texture, source, position, size, tint)`
 - `begin_mode_3d(camera)`
 - `draw_grid(slices, spacing)`
 

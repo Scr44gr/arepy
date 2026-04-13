@@ -7,7 +7,7 @@ from pyray import Vector2 as rlVector2
 from pyray import Vector3 as rlVec3
 
 from arepy.bundle.components.camera import Camera3D
-from arepy.engine.renderer import Color
+from arepy.engine.renderer import ArepyTexture, Color, Rect
 from arepy.engine.renderer.renderer_3d import ArepyMaterial, ArepyMesh, ArepyModel
 from arepy.math.vec2 import Vec2
 from arepy.math.vec3 import Vec3
@@ -353,6 +353,65 @@ def draw_plane(center_pos: Vec3, size: Vec2, color: Color) -> None:
     )
 
 
+def draw_billboard(
+    texture: ArepyTexture,
+    position: Vec3,
+    size: float,
+    tint: Color,
+) -> None:
+    """
+    Draw a camera-facing billboard using a full texture.
+
+    Args:
+        texture: Texture to draw
+        position: World-space center position
+        size: Uniform billboard size in world units
+        tint: Color tint
+    """
+    rl.rlDisableDepthMask()
+    try:
+        rl.DrawBillboard(
+            _require_current_camera_ref(),
+            _require_texture_ref(texture),
+            position.to_tuple(),
+            size,
+            (tint.r, tint.g, tint.b, tint.a),
+        )
+    finally:
+        rl.rlEnableDepthMask()
+
+
+def draw_billboard_rec(
+    texture: ArepyTexture,
+    source: Rect,
+    position: Vec3,
+    size: Vec2,
+    tint: Color,
+) -> None:
+    """
+    Draw a camera-facing billboard using a texture region.
+
+    Args:
+        texture: Texture to draw
+        source: Source rectangle within the texture
+        position: World-space center position
+        size: Billboard width and height in world units
+        tint: Color tint
+    """
+    rl.rlDisableDepthMask()
+    try:
+        rl.DrawBillboardRec(
+            _require_current_camera_ref(),
+            _require_texture_ref(texture),
+            source.to_tuple(),
+            position.to_tuple(),
+            size.to_tuple(),
+            (tint.r, tint.g, tint.b, tint.a),
+        )
+    finally:
+        rl.rlEnableDepthMask()
+
+
 def draw_grid(slices: int, spacing: float) -> None:
     """
     Draw a grid.
@@ -556,3 +615,18 @@ def get_current_camera() -> Camera3D:
     if _current_camera is None:
         raise RuntimeError("No current camera set")
     return _current_camera
+
+
+def _require_current_camera_ref() -> object:
+    camera = get_current_camera()
+    if camera._ref is None:
+        add_camera(camera)
+    if camera._ref is None:
+        raise RuntimeError("Current camera is not initialized")
+    return camera._ref
+
+
+def _require_texture_ref(texture: ArepyTexture) -> object:
+    if texture._ref_texture is None:
+        raise ValueError("Texture must be loaded before drawing billboards")
+    return texture._ref_texture

@@ -7,7 +7,7 @@ from arepy.bundle.components.camera import Camera3D
 from arepy.math.vec2 import Vec2
 from arepy.math.vec3 import Vec3
 
-from . import ArepyTexture, Color
+from . import ArepyTexture, Color, Rect
 
 
 class ArepyModel:
@@ -176,6 +176,27 @@ class Renderer3D(Protocol):
 
     def draw_plane(self, center_pos: Vec3, size: Vec2, color: Color) -> None:
         """Draw a plane primitive."""
+        ...
+
+    def draw_billboard(
+        self,
+        texture: ArepyTexture,
+        position: Vec3,
+        size: float,
+        tint: Color,
+    ) -> None:
+        """Draw a camera-facing texture in world space using a uniform size."""
+        ...
+
+    def draw_billboard_rec(
+        self,
+        texture: ArepyTexture,
+        source: Rect,
+        position: Vec3,
+        size: Vec2,
+        tint: Color,
+    ) -> None:
+        """Draw a camera-facing texture region in world space with explicit size."""
         ...
 
     def draw_grid(self, slices: int, spacing: float) -> None:
