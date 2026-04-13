@@ -1,10 +1,10 @@
 from typing import Callable, Dict, List, Optional, Set, Type, TypeVar, cast
 
+from ..engine.animator import Animator
 from ..engine.time import Time, Timers
 from .builders import EntityBuilder
 from .registry import Registry
 from .systems import System, SystemPipeline, SystemState
-
 
 T = TypeVar("T")
 WorldCallback = Callable[[], None]
@@ -12,14 +12,15 @@ WorldCallback = Callable[[], None]
 
 class World:
 
-    def __init__(
-        self, name: str, global_resources: Optional[Dict[str, object]] = None
-    ):
+    def __init__(self, name: str, global_resources: Optional[Dict[str, object]] = None):
         self._resources: Dict[str, object] = {
             self.__class__.__name__: self,
+            Animator.__name__: Animator(),
             Timers.__name__: Timers(),
         }
-        self._global_resources = global_resources if global_resources is not None else {}
+        self._global_resources = (
+            global_resources if global_resources is not None else {}
+        )
         self._registry = Registry(
             resources=self._resources,
             global_resources=self._global_resources,
@@ -152,8 +153,10 @@ class World:
         self._emit_callbacks(self._render_callbacks)
 
     def _advance_frame_services(self, time_resource: Time) -> None:
+        animator = self.get_world_resource(Animator)
         timers = self.get_world_resource(Timers)
         timers.tick(time_resource.elapsed_seconds)
+        animator.tick(time_resource.elapsed_seconds)
 
     def _emit_callbacks(self, callbacks: List[WorldCallback]) -> None:
         for callback in callbacks:
