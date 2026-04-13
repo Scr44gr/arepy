@@ -5,7 +5,6 @@ import raylib as rl
 
 
 def create_window(width: int, height: int, title: str) -> None:
-    rl.glfwInit()
     rl.InitWindow(width, height, title.encode("utf-8"))
 
 

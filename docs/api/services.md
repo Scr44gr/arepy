@@ -71,14 +71,23 @@ Useful entry points:
 - `Input`
 - `Key`
 - `MouseButton`
+- `GamepadButton`
+- `GamepadAxis`
+- `GamepadDeviceType`
 
-Start here if you want keyboard, mouse, wheel, or typed text state.
+Start here if you want keyboard, mouse, gamepad, wheel, or typed text state.
 
 Useful entry points:
 
 - [Input module reference](reference/arepy/engine/input.md)
 - `is_key_pressed(key)`
 - `is_key_down(key)`
+- `get_available_gamepads()`
+- `get_gamepad_device_type(gamepad_id=0)`
+- `is_gamepad_button_down(button, gamepad_id=0)`
+- `get_gamepad_axis_movement(axis, gamepad_id=0)`
+- `is_gamepad_vibration_supported(gamepad_id=0)`
+- `set_gamepad_vibration(left_motor, right_motor, duration_seconds, gamepad_id=0)`
 - `is_mouse_button_pressed(button)`
 - `get_mouse_position()`
 - `get_char_pressed()`

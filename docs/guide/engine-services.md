@@ -213,6 +213,9 @@ It can tell you things like:
 
 - whether a key was pressed
 - whether a mouse button is down
+- which gamepads are connected
+- what kind of controller is connected
+- how sticks and triggers are moving
 - where the mouse is
 - how much the wheel moved
 
@@ -222,10 +225,43 @@ Common methods to look at first:
 
 - `is_key_pressed(key)`
 - `is_key_down(key)`
+- `get_available_gamepads()`
+- `get_gamepad_device_type(gamepad_id=0)`
+- `is_gamepad_button_down(button, gamepad_id=0)`
+- `get_gamepad_axis_movement(axis, gamepad_id=0)`
+- `is_gamepad_vibration_supported(gamepad_id=0)`
+- `set_gamepad_vibration(left_motor, right_motor, duration_seconds, gamepad_id=0)`
 - `is_mouse_button_pressed(button)`
 - `get_mouse_position()`
 - `get_mouse_wheel_delta()`
 - `get_char_pressed()`
+
+Gamepads use generic button names so the same gameplay code works for Xbox,
+PlayStation, and other devices detected by raylib.
+
+```python
+from arepy import GamepadAxis, GamepadButton, GamepadDeviceType, Input
+
+
+def gamepad_input_system(input_repo: Input) -> None:
+	for gamepad_id in input_repo.get_available_gamepads():
+		device_type = input_repo.get_gamepad_device_type(gamepad_id)
+		if device_type is GamepadDeviceType.PLAYSTATION:
+			...
+
+		if input_repo.is_gamepad_button_down(
+			GamepadButton.FACE_DOWN, gamepad_id
+		):
+			...
+
+		if input_repo.is_gamepad_button_pressed(GamepadButton.LEFT_STICK, gamepad_id):
+			if input_repo.is_gamepad_vibration_supported(gamepad_id):
+				input_repo.set_gamepad_vibration(0.35, 0.85, 0.12, gamepad_id)
+
+		move_x = input_repo.get_gamepad_axis_movement(GamepadAxis.LEFT_X, gamepad_id)
+		move_y = input_repo.get_gamepad_axis_movement(GamepadAxis.LEFT_Y, gamepad_id)
+		...
+```
 
 ## AudioDevice
 

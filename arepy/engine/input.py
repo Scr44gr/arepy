@@ -1,4 +1,4 @@
-"""Public input protocol and enums for keyboard and mouse state."""
+"""Public input protocol and enums for keyboard, mouse, and gamepad state."""
 
 from enum import Enum
 from typing import Iterator, Protocol
@@ -120,8 +120,46 @@ class MouseButton(Enum):
     BUTTON_8 = 7
 
 
+class GamepadButton(Enum):
+    UNKNOWN = 0
+    DPAD_UP = 1
+    DPAD_RIGHT = 2
+    DPAD_DOWN = 3
+    DPAD_LEFT = 4
+    FACE_UP = 5
+    FACE_RIGHT = 6
+    FACE_DOWN = 7
+    FACE_LEFT = 8
+    LEFT_SHOULDER = 9
+    LEFT_TRIGGER = 10
+    RIGHT_SHOULDER = 11
+    RIGHT_TRIGGER = 12
+    BACK = 13
+    HOME = 14
+    START = 15
+    LEFT_STICK = 16
+    RIGHT_STICK = 17
+
+
+class GamepadAxis(Enum):
+    LEFT_X = 0
+    LEFT_Y = 1
+    RIGHT_X = 2
+    RIGHT_Y = 3
+    LEFT_TRIGGER = 4
+    RIGHT_TRIGGER = 5
+
+
+class GamepadDeviceType(Enum):
+    UNKNOWN = "unknown"
+    GENERIC = "generic"
+    XBOX = "xbox"
+    PLAYSTATION = "playstation"
+    NINTENDO = "nintendo"
+
+
 class Input(Protocol):
-    """Protocol defining keyboard and mouse input queries.
+    """Protocol defining keyboard, mouse, and gamepad input queries.
 
     The engine registers one `Input` implementation as a shared resource,
     so systems can inspect player input through type-based injection.
@@ -163,6 +201,107 @@ class Input(Protocol):
 
     def get_char_pressed(self) -> int:
         """Return the next typed Unicode codepoint, or a backend-specific empty value."""
+        ...
+
+    def get_available_gamepads(self) -> tuple[int, ...]:
+        """Return the IDs for the gamepads currently connected to the backend."""
+        ...
+
+    def is_gamepad_available(self, gamepad_id: int = 0) -> bool:
+        """Check if a gamepad is available.
+
+        Args:
+            gamepad_id (int): The backend gamepad slot to inspect.
+
+        Returns:
+            bool: True if the requested gamepad is connected.
+        """
+        ...
+
+    def get_gamepad_name(self, gamepad_id: int = 0) -> str | None:
+        """Return the backend-reported name for a connected gamepad.
+
+        Args:
+            gamepad_id (int): The backend gamepad slot to inspect.
+
+        Returns:
+            str | None: The gamepad name, or None if the slot is unavailable.
+        """
+        ...
+
+    def get_gamepad_device_type(
+        self, gamepad_id: int = 0
+    ) -> GamepadDeviceType:
+        """Return a coarse device family for a connected gamepad.
+
+        Args:
+            gamepad_id (int): The backend gamepad slot to inspect.
+
+        Returns:
+            GamepadDeviceType: The detected device family.
+        """
+        ...
+
+    def get_gamepad_axis_count(self, gamepad_id: int = 0) -> int:
+        """Return the number of analog axes reported by a gamepad."""
+        ...
+
+    def is_gamepad_button_pressed(
+        self, button: GamepadButton, gamepad_id: int = 0
+    ) -> bool:
+        """Check if a gamepad button was pressed during the current frame."""
+        ...
+
+    def is_gamepad_button_down(
+        self, button: GamepadButton, gamepad_id: int = 0
+    ) -> bool:
+        """Check if a gamepad button is currently held down."""
+        ...
+
+    def is_gamepad_button_released(
+        self, button: GamepadButton, gamepad_id: int = 0
+    ) -> bool:
+        """Check if a gamepad button was released during the current frame."""
+        ...
+
+    def is_gamepad_button_up(
+        self, button: GamepadButton, gamepad_id: int = 0
+    ) -> bool:
+        """Check if a gamepad button is currently up."""
+        ...
+
+    def get_gamepad_axis_movement(
+        self, axis: GamepadAxis, gamepad_id: int = 0
+    ) -> float:
+        """Return the current analog value for a gamepad axis."""
+        ...
+
+    def is_gamepad_vibration_supported(self, gamepad_id: int = 0) -> bool:
+        """Return whether vibration can be attempted for a connected gamepad.
+
+        Args:
+            gamepad_id (int): The backend gamepad slot to inspect.
+
+        Returns:
+            bool: True when the current backend can attempt vibration for the slot.
+        """
+        ...
+
+    def set_gamepad_vibration(
+        self,
+        left_motor: float,
+        right_motor: float,
+        duration_seconds: float,
+        gamepad_id: int = 0,
+    ) -> None:
+        """Start a vibration pulse on a connected gamepad.
+
+        Args:
+            left_motor (float): Intensity for the low-frequency motor in the range [0, 1].
+            right_motor (float): Intensity for the high-frequency motor in the range [0, 1].
+            duration_seconds (float): Pulse duration in seconds.
+            gamepad_id (int): The backend gamepad slot to target.
+        """
         ...
 
     def is_mouse_button_pressed(self, button: MouseButton) -> bool:

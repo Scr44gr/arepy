@@ -5,7 +5,14 @@ from ..event_manager import Event, EventManager
 from .audio import AudioDevice
 from .display import CursorType, Display, WindowFlag
 from .engine import ArepyEngine, SystemPipeline
-from .input import Input, Key, MouseButton
+from .input import (
+    GamepadAxis,
+    GamepadButton,
+    GamepadDeviceType,
+    Input,
+    Key,
+    MouseButton,
+)
 from .renderer import (
     ArepyFont,
     ArepyShader,
@@ -39,6 +46,9 @@ __all__ = [
     "Input",
     "Key",
     "MouseButton",
+    "GamepadButton",
+    "GamepadAxis",
+    "GamepadDeviceType",
     "AudioDevice",
     "Time",
     "Timers",

@@ -431,8 +431,8 @@ def draw_rectangle(rect: Rect, color: Color) -> None:
     rl.DrawRectangle(
         int(rect.x),
         int(rect.y),
-        rect.width,
-        rect.height,
+        int(rect.width),
+        int(rect.height),
         (color.r, color.g, color.b, color.a),
     )
 
@@ -466,8 +466,8 @@ def draw_unfilled_rectangle(rect: Rect, color: Color) -> None:
     rl.DrawRectangleLines(
         int(rect.x),
         int(rect.y),
-        rect.width,  # type: ignore
-        rect.height,  # type: ignore
+        int(rect.width),
+        int(rect.height),
         (color.r, color.g, color.b, color.a),
     )
 
