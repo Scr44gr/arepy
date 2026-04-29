@@ -4,7 +4,7 @@ from arepy import ArepyEngine, Color, Rect, Renderer2D, SystemPipeline
 from arepy.bundle.components.rigidbody import RigidBody2D
 from arepy.bundle.components.sprite import Sprite
 from arepy.bundle.components.transform import Transform
-from arepy.ecs import Entities, Query, With
+from arepy.ecs import BatchQuery, Entities, Query, With
 from arepy.ecs.world import World
 from arepy.math import Vec2
 
@@ -17,32 +17,34 @@ WINDOW_HEIGHT = 480
 
 
 def movement_system(
-    query: Query[Entities, With[Transform, RigidBody2D]], renderer: Renderer2D
+    batch: BatchQuery[Transform, RigidBody2D],
+    renderer: Renderer2D,
 ) -> None:
-    """Simple movement system"""
+    """Simple movement system using the experimental BatchQuery path."""
     delta_time: float = renderer.get_delta_time()
     sprite_size: int = 16
+    position = batch.vec2(Transform, "position")
+    velocity = batch.vec2(RigidBody2D, "velocity")
 
-    for transform, rigidbody in query.iter_components(Transform, RigidBody2D):
+    position.x += velocity.x * delta_time
+    position.y += velocity.y * delta_time
 
-        # Update position
-        transform.position.x += rigidbody.velocity.x * delta_time
-        transform.position.y += rigidbody.velocity.y * delta_time
+    left = position.x <= 0
+    right = position.x >= WINDOW_WIDTH - sprite_size
+    top = position.y <= 0
+    bottom = position.y >= WINDOW_HEIGHT - sprite_size
 
-        # Bounce logic with minimal conditions
-        if transform.position.x <= 0:
-            transform.position.x = 0
-            rigidbody.velocity.x = abs(rigidbody.velocity.x)
-        elif transform.position.x >= WINDOW_WIDTH - sprite_size:
-            transform.position.x = WINDOW_WIDTH - sprite_size
-            rigidbody.velocity.x = -abs(rigidbody.velocity.x)
+    position.x[left] = 0
+    velocity.x[left] = abs(velocity.x[left])
 
-        if transform.position.y <= 0:
-            transform.position.y = 0
-            rigidbody.velocity.y = abs(rigidbody.velocity.y)
-        elif transform.position.y >= WINDOW_HEIGHT - sprite_size:
-            transform.position.y = WINDOW_HEIGHT - sprite_size
-            rigidbody.velocity.y = -abs(rigidbody.velocity.y)
+    position.x[right] = WINDOW_WIDTH - sprite_size
+    velocity.x[right] = -abs(velocity.x[right])
+
+    position.y[top] = 0
+    velocity.y[top] = abs(velocity.y[top])
+
+    position.y[bottom] = WINDOW_HEIGHT - sprite_size
+    velocity.y[bottom] = -abs(velocity.y[bottom])
 
 
 def render_system(

@@ -7,6 +7,7 @@ name = "arepy"
 source = { editable = "." }
 dependencies = [
     { name = "bitarray" },
+    { name = "numpy" },
     { name = "raylib" },
 ]
 
@@ -20,7 +21,6 @@ docs = [
 imgui = [
     { name = "imgui-bundle" },
     { name = "moderngl" },
-    { name = "numpy" },
     { name = "pyopengl" },
 ]
 testing = [
@@ -49,7 +49,7 @@ requires-dist = [
     { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.6.0" },
     { name = "mkdocstrings", extras = ["python"], marker = "extra == 'docs'", specifier = ">=0.28.0" },
     { name = "moderngl", marker = "extra == 'imgui'", specifier = "==5.12.0" },
-    { name = "numpy", marker = "extra == 'imgui'", specifier = ">=2.2.0" },
+    { name = "numpy", specifier = ">=2.2.0" },
     { name = "pyopengl", marker = "extra == 'imgui'", specifier = "==3.1.10" },
     { name = "pytest", marker = "extra == 'testing'", specifier = ">=8.0.0" },
     { name = "pytest-cov", marker = "extra == 'testing'", specifier = ">=4.0.0" },

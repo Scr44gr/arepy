@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from dataclasses import dataclass
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -13,12 +14,18 @@ from typing import (
     Sequence,
     Type,
     TypeVar,
+    TypeVarTuple,
     cast,
     get_args,
     get_origin,
     get_type_hints,
 )
 
+import numpy as np
+from numpy.typing import NDArray
+
+from ...math.vec2 import Vec2
+from ...math.vec3 import Vec3
 from ..components import Component, ComponentIndex, ComponentPool
 from ..constants import MAX_COMPONENTS
 from ..exceptions import RegistryNotSetError
@@ -31,12 +38,57 @@ if TYPE_CHECKING:
 TEntity = TypeVar("TEntity")
 TFilter = TypeVar("TFilter")
 P = ParamSpec("P")
+TBatchComponents = TypeVarTuple("TBatchComponents")
+FloatBatch = NDArray[np.float64]
+ScalarBatch = NDArray[Any]
+BoolMask = NDArray[np.bool_]
 
 
 class With(Generic[P]): ...
 
 
 class Without(Generic[P]): ...
+
+
+class Vec2Batch:
+    __slots__ = ("x", "y")
+
+    def __init__(self, x: FloatBatch, y: FloatBatch) -> None:
+        self.x = x
+        self.y = y
+
+    def __len__(self) -> int:
+        return len(self.x)
+
+
+class Vec3Batch:
+    __slots__ = ("x", "y", "z")
+
+    def __init__(self, x: FloatBatch, y: FloatBatch, z: FloatBatch) -> None:
+        self.x = x
+        self.y = y
+        self.z = z
+
+    def __len__(self) -> int:
+        return len(self.x)
+
+
+@dataclass(slots=True)
+class _ScalarWriteback:
+    components: list[Component]
+    attribute_name: str
+    values: ScalarBatch
+
+    def flush(self) -> None:
+        for component, value in zip(self.components, self.values):
+            setattr(component, self.attribute_name, _python_value(value))
+
+
+def _python_value(value: object) -> object:
+    item = getattr(value, "item", None)
+    if callable(item):
+        return item()
+    return value
 
 
 class Query(Generic[TEntity, TFilter]):
@@ -74,6 +126,7 @@ class Query(Generic[TEntity, TFilter]):
         "_kind",
         "_thread_id",
         "_registry",
+        "_version",
     ]
 
     def __init__(self) -> None:
@@ -85,6 +138,7 @@ class Query(Generic[TEntity, TFilter]):
         self._kind: object = None
         self._thread_id: Optional[int] = None
         self._registry: Optional["Registry"] = None
+        self._version = 0
 
     def get_component_signature(self) -> Signature:
         return self._signature
@@ -105,11 +159,13 @@ class Query(Generic[TEntity, TFilter]):
         if entity not in self._entities:
             self._entities.add(entity)
             self._is_order_dirty = True
+            self._version += 1
 
     def remove_entity(self, entity: "Entity") -> None:
         try:
             self._entities.remove(entity)
             self._is_order_dirty = True
+            self._version += 1
         except KeyError:
             pass
 
@@ -183,7 +239,150 @@ class Query(Generic[TEntity, TFilter]):
 
         return self._ordered_entities_cache
 
-    def fetch(self) -> TEntity: ...
+    def fetch(self) -> TEntity:
+        raise NotImplementedError()
+
+
+class BatchQuery(Query["Entity", Any], Generic[*TBatchComponents]):
+    __slots__ = (
+        "_component_cache",
+        "_entity_id_batch",
+        "_seen_query_version",
+        "_scalar_batches",
+        "_vec2_batches",
+        "_vec3_batches",
+        "_scalar_writebacks",
+    )
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._component_cache: dict[Type[Component], list[Component]] = {}
+        self._entity_id_batch: NDArray[np.int64] | None = None
+        self._seen_query_version = -1
+        self._scalar_batches: dict[tuple[Type[Component], str], ScalarBatch] = {}
+        self._vec2_batches: dict[tuple[Type[Component], str], Vec2Batch] = {}
+        self._vec3_batches: dict[tuple[Type[Component], str], Vec3Batch] = {}
+        self._scalar_writebacks: list[_ScalarWriteback] = []
+
+    def scalar(
+        self, component_type: Type[Component], attribute_name: str
+    ) -> ScalarBatch:
+        self._assert_component_allowed(component_type)
+
+        key = (component_type, attribute_name)
+        cached = self._scalar_batches.get(key)
+        if cached is not None:
+            return cached
+
+        components = self._get_batch_components(component_type)
+        values = np.asarray(
+            [getattr(component, attribute_name) for component in components]
+        )
+        self._scalar_batches[key] = values
+        self._scalar_writebacks.append(
+            _ScalarWriteback(components, attribute_name, values)
+        )
+        return values
+
+    def vec2(self, component_type: Type[Component], attribute_name: str) -> Vec2Batch:
+        self._assert_component_allowed(component_type)
+
+        key = (component_type, attribute_name)
+        cached = self._vec2_batches.get(key)
+        if cached is not None:
+            return cached
+
+        components = self._get_batch_components(component_type)
+        vectors = [getattr(component, attribute_name) for component in components]
+        x = np.fromiter(
+            (vector.x for vector in vectors), dtype=np.float64, count=len(vectors)
+        )
+        y = np.fromiter(
+            (vector.y for vector in vectors), dtype=np.float64, count=len(vectors)
+        )
+        batch = Vec2Batch(x, y)
+        for index, component in enumerate(components):
+            setattr(component, attribute_name, Vec2.from_storage(x, y, index))
+        self._vec2_batches[key] = batch
+        return batch
+
+    def vec3(self, component_type: Type[Component], attribute_name: str) -> Vec3Batch:
+        self._assert_component_allowed(component_type)
+
+        key = (component_type, attribute_name)
+        cached = self._vec3_batches.get(key)
+        if cached is not None:
+            return cached
+
+        components = self._get_batch_components(component_type)
+        vectors = [getattr(component, attribute_name) for component in components]
+        x = np.fromiter(
+            (vector.x for vector in vectors), dtype=np.float64, count=len(vectors)
+        )
+        y = np.fromiter(
+            (vector.y for vector in vectors), dtype=np.float64, count=len(vectors)
+        )
+        z = np.fromiter(
+            (vector.z for vector in vectors), dtype=np.float64, count=len(vectors)
+        )
+        batch = Vec3Batch(x, y, z)
+        for index, component in enumerate(components):
+            setattr(component, attribute_name, Vec3.from_storage(x, y, z, index))
+        self._vec3_batches[key] = batch
+        return batch
+
+    def entity_ids(self) -> NDArray[np.int64]:
+        if self._entity_id_batch is None:
+            self._entity_id_batch = np.asarray(
+                [entity.get_id() for entity in self._get_ordered_entities()],
+                dtype=np.int64,
+            )
+        return self._entity_id_batch
+
+    def _prepare_for_system_run(self) -> None:
+        if self._seen_query_version == self._version:
+            return
+        self._seen_query_version = self._version
+        self._invalidate_cache()
+
+    def _flush_after_system_run(self) -> None:
+        for writeback in self._scalar_writebacks:
+            writeback.flush()
+        self._scalar_batches.clear()
+        self._scalar_writebacks.clear()
+
+    def _get_batch_components(self, component_type: Type[Component]) -> list[Component]:
+        cached = self._component_cache.get(component_type)
+        if cached is not None:
+            return cached
+
+        component_pools = self._get_component_pools((component_type,))
+        if component_pools is None:
+            return []
+
+        component_pool = component_pools[0]
+        components: list[Component] = []
+        for entity in self._get_ordered_entities():
+            component = component_pool.get(entity.get_id() - 1)
+            if component is not None:
+                components.append(component)
+        self._component_cache[component_type] = components
+        return components
+
+    def _invalidate_cache(self) -> None:
+        self._component_cache.clear()
+        self._entity_id_batch = None
+        self._scalar_batches.clear()
+        self._vec2_batches.clear()
+        self._vec3_batches.clear()
+        self._scalar_writebacks.clear()
+
+    def _assert_component_allowed(self, component_type: Type[Component]) -> None:
+        batch_types = self._kind if isinstance(self._kind, tuple) else ()
+        if batch_types and component_type not in batch_types:
+            raise TypeError(
+                f"Component {component_type.__name__} is not part of this BatchQuery"
+            )
 
 
 def get_signed_query_arguments(function: Callable) -> OrderedDict[str, Any]:
@@ -207,7 +406,7 @@ def get_signed_query_arguments(function: Callable) -> OrderedDict[str, Any]:
     return func_arguments
 
 
-QuerySignature = list[tuple[str, Callable[[], Query]]]
+QuerySignature = list[tuple[str, object]]
 
 
 def sign_queries(
@@ -216,12 +415,36 @@ def sign_queries(
     """Sign the queries with the components that the query needs and return the queries in order."""
     signed_queries = []
     for name, query_signature in queries_signature:
-        query_factory = cast(Callable[[], Query], query_signature)
-        query_args = get_args(query_signature)
-        if len(query_args) < 2:
+        query_origin = _resolve_query_origin(query_signature)
+        query_args = get_args(query_signature) or getattr(
+            query_signature, "__args__", ()
+        )
+        query_args_list = list(query_args)
+
+        if query_origin is BatchQuery:
+            if len(query_args_list) == 0:
+                raise TypeError(f"BatchQuery {name} does not have component args.")
+
+            batch_query = BatchQuery()
+            component_types = cast(tuple[Type[Component], ...], tuple(query_args_list))
+            batch_query._kind = component_types
+
+            for component_type in component_types:
+                if not issubclass(component_type, Component):
+                    raise TypeError(
+                        f"BatchQuery {name} has an invalid component type: {component_type}."
+                    )
+                component_id = ComponentIndex.get_id(component_type.__name__)
+                batch_query._signature.set(component_id, True)
+
+            signed_queries.append((name, batch_query))
+            continue
+
+        query_factory = cast(Callable[[], Query], query_origin)
+        if len(query_args_list) < 2:
             raise TypeError(f"Query {query_factory} does not have args.")
 
-        kind_of_result = query_args[1]
+        kind_of_result = query_args_list[1]
         filter_groups = _extract_filter_groups(kind_of_result)
         query: Query = query_factory()
         query._kind = kind_of_result
@@ -246,6 +469,15 @@ def sign_queries(
 
         signed_queries.append((name, query))
     return signed_queries
+
+
+def _resolve_query_origin(query_signature: object) -> type[Query] | type[BatchQuery]:
+    query_origin = get_origin(query_signature)
+    if query_origin in (Query, BatchQuery):
+        return cast(type[Query] | type[BatchQuery], query_origin)
+    if query_signature in (Query, BatchQuery):
+        return cast(type[Query] | type[BatchQuery], query_signature)
+    return Query
 
 
 def _extract_filter_groups(filter_definition: object) -> tuple[object, ...]:
@@ -293,15 +525,32 @@ def get_annotations(function: Callable) -> OrderedDict[str, Any]:
 
 def get_queries_from_arguments(
     args: Mapping[str, object],
-) -> list[tuple[str, Callable[[], Query]]]:
+) -> list[tuple[str, object]]:
     """Get the queries from the arguments"""
     results = [
-        (key, cast(Callable[[], Query], value))
+        (key, value)
         for key, value in args.items()
-        if value is Query or get_origin(value) is Query
+        if value in (Query, BatchQuery) or get_origin(value) in (Query, BatchQuery)
     ]
 
     return results
+
+
+__all__ = [
+    "BatchQuery",
+    "BoolMask",
+    "Query",
+    "ScalarBatch",
+    "Vec2Batch",
+    "Vec3Batch",
+    "With",
+    "Without",
+    "get_annotations",
+    "get_queries_from_arguments",
+    "get_queries_instance_from_arguments",
+    "get_signed_query_arguments",
+    "sign_queries",
+]
 
 
 def get_queries_instance_from_arguments(args: Sequence[object]) -> list[Query]:

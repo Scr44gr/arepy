@@ -13,7 +13,7 @@ from arepy.bundle.systems.movement_system import (
 )
 from arepy.ecs.components import Component, ComponentIndex, ComponentPool
 from arepy.ecs.entities import Entity
-from arepy.ecs.query import Query, With
+from arepy.ecs.query import BatchQuery, Query, With
 from arepy.ecs.registry import Registry
 from arepy.ecs.systems import SystemPipeline, SystemState
 from arepy.math import Vec2
@@ -485,6 +485,61 @@ def make_benchmark_bundle_movement_optimized(entity_count: int) -> BenchmarkActi
     return action
 
 
+def make_benchmark_bundle_movement_batch_query(entity_count: int) -> BenchmarkAction:
+    registry = Registry()
+    renderer = DummyRenderer()
+    registry.resources["DummyRenderer"] = renderer
+
+    def batch_movement_system(
+        batch: BatchQuery[Transform, RigidBody2D],
+        renderer: DummyRenderer,
+    ) -> None:
+        delta_time = renderer.get_delta_time()
+        sprite_size = 32.0
+        position = batch.vec2(Transform, "position")
+        velocity = batch.vec2(RigidBody2D, "velocity")
+
+        position.x += velocity.x * delta_time
+        position.y += velocity.y * delta_time
+
+        left = position.x < 0
+        top = position.y < 0
+        right = position.x > 640 - sprite_size
+        bottom = position.y > 480 - sprite_size
+
+        position.x[left] = 0
+        velocity.x[left] = -velocity.x[left]
+
+        position.y[top] = 0
+        velocity.y[top] = -velocity.y[top]
+
+        position.x[right] = 640 - sprite_size
+        velocity.x[right] = -velocity.x[right]
+
+        position.y[bottom] = 480 - sprite_size
+        velocity.y[bottom] = -velocity.y[bottom]
+
+    registry.add_system(SystemPipeline.UPDATE, SystemState.ON, batch_movement_system)
+
+    entities = [registry.create_entity() for _ in range(entity_count)]
+    for index, entity in enumerate(entities):
+        registry.add_component(
+            entity,
+            Transform,
+            Transform(position=Vec2(float(index), float(index))),
+        )
+        registry.add_component(
+            entity, RigidBody2D, RigidBody2D(velocity=Vec2(1.0, -1.0))
+        )
+
+    registry.update()
+
+    def action() -> None:
+        registry.run(SystemPipeline.UPDATE)
+
+    return action
+
+
 def run_benchmark(
     name: str,
     entity_count: int,
@@ -582,6 +637,7 @@ def main() -> None:
     bundle_scenarios: list[tuple[str, BenchmarkFactory]] = [
         ("bundle_move_legacy", make_benchmark_bundle_movement_legacy),
         ("bundle_move_optimized", make_benchmark_bundle_movement_optimized),
+        ("bundle_move_batch_query", make_benchmark_bundle_movement_batch_query),
     ]
 
     scenarios: list[tuple[str, BenchmarkFactory]] = []

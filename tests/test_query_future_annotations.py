@@ -4,7 +4,7 @@ import pytest
 
 from arepy.ecs.components import Component
 from arepy.ecs.entities import Entity
-from arepy.ecs.query import Query, With, Without, get_signed_query_arguments
+from arepy.ecs.query import BatchQuery, Query, With, Without, get_signed_query_arguments
 from arepy.ecs.registry import Registry
 
 
@@ -91,3 +91,13 @@ def test_combined_with_without_future_annotations():
     assert query.get_excluded_component_signature().test(
         ComponentIndex.get_id(Velocity.__name__)
     )
+
+
+def test_batch_query_with_future_annotations():
+    def movement_system(batch: BatchQuery[Position, Velocity]) -> None:
+        pass
+
+    arguments = get_signed_query_arguments(movement_system)
+
+    assert "batch" in arguments
+    assert isinstance(arguments["batch"], BatchQuery)

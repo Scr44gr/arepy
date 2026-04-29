@@ -6,17 +6,13 @@ from inspect import isclass, iscoroutinefunction, isfunction
 from types import ModuleType
 from typing import Dict, List, Optional, Set, Type, cast
 
-from .components import (
-    Component,
-    ComponentIndex,
-    ComponentPool,
-    IComponentPool,
-    TComponent,
-)
+from .components import (Component, ComponentIndex, ComponentPool,
+                         IComponentPool, TComponent)
 from .constants import MAX_COMPONENTS
 from .entities import Entity
 from .exceptions import MaximumComponentsExceededError
-from .query import get_queries_instance_from_arguments, get_signed_query_arguments
+from .query import (get_queries_instance_from_arguments,
+                    get_signed_query_arguments)
 from .systems import System, SystemPipeline, SystemState
 from .utils import Signature
 
@@ -267,13 +263,30 @@ class Registry:
             for system in systems:
                 args = self._resolve_system_args(system)
                 if iscoroutinefunction(system):
-                    asyncio.create_task(system(*args))
+                    asyncio.create_task(self._run_async_system(system, args))
                     continue
                 system(*args)
+                self._flush_system_args(args)
+
+    async def _run_async_system(self, system: System, args: List[object]) -> None:
+        try:
+            await system(*args)
+        finally:
+            self._flush_system_args(args)
 
     def _resolve_system_args(self, system: System) -> List[object]:
         args = self.queries[system]
         markers = self.resource_markers.get(system, [])
         for marker in markers:
             args[marker.index] = self.get_resource(marker.name)
+        for arg in args:
+            prepare = getattr(arg, "_prepare_for_system_run", None)
+            if callable(prepare):
+                prepare()
         return args
+
+    def _flush_system_args(self, args: List[object]) -> None:
+        for arg in args:
+            flush = getattr(arg, "_flush_after_system_run", None)
+            if callable(flush):
+                flush()

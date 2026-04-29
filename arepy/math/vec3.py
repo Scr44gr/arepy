@@ -1,14 +1,73 @@
 import math
 
+from numpy.typing import NDArray
+
 
 class Vec3:
 
-    __slots__ = ("x", "y", "z")
+    __slots__ = ("_x", "_y", "_z", "_storage", "_index")
 
     def __init__(self, x: float, y: float, z: float):
-        self.x = x
-        self.y = y
-        self.z = z
+        self._x = x
+        self._y = y
+        self._z = z
+        self._storage: tuple[NDArray[object], NDArray[object], NDArray[object]] | None = None
+        self._index: int | None = None
+
+    @classmethod
+    def from_storage(
+        cls,
+        x_storage: NDArray[object],
+        y_storage: NDArray[object],
+        z_storage: NDArray[object],
+        index: int,
+    ) -> "Vec3":
+        vector = cls.__new__(cls)
+        vector._x = 0.0
+        vector._y = 0.0
+        vector._z = 0.0
+        vector._storage = (x_storage, y_storage, z_storage)
+        vector._index = index
+        return vector
+
+    @property
+    def x(self) -> float:
+        if self._storage is None or self._index is None:
+            return self._x
+        return float(self._storage[0][self._index])
+
+    @x.setter
+    def x(self, value: float) -> None:
+        if self._storage is None or self._index is None:
+            self._x = value
+            return
+        self._storage[0][self._index] = value
+
+    @property
+    def y(self) -> float:
+        if self._storage is None or self._index is None:
+            return self._y
+        return float(self._storage[1][self._index])
+
+    @y.setter
+    def y(self, value: float) -> None:
+        if self._storage is None or self._index is None:
+            self._y = value
+            return
+        self._storage[1][self._index] = value
+
+    @property
+    def z(self) -> float:
+        if self._storage is None or self._index is None:
+            return self._z
+        return float(self._storage[2][self._index])
+
+    @z.setter
+    def z(self, value: float) -> None:
+        if self._storage is None or self._index is None:
+            self._z = value
+            return
+        self._storage[2][self._index] = value
 
     def __add__(self, other: "Vec3") -> "Vec3":
         if not isinstance(other, Vec3):

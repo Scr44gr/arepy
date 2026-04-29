@@ -10,5 +10,8 @@
         },
     },
     "python.languageServer": "Pylance",
+    "python.analysis.extraPaths": [
+        "."
+    ],
     "python.analysis.typeCheckingMode": "basic",
 }

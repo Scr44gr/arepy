@@ -1,12 +1,56 @@
 import math
 
+from numpy.typing import NDArray
+
 
 class Vec2:
-    __slots__ = ("x", "y")
+    __slots__ = ("_x", "_y", "_storage", "_index")
 
     def __init__(self, x: float, y: float):
-        self.x = x
-        self.y = y
+        self._x = x
+        self._y = y
+        self._storage: tuple[NDArray[object], NDArray[object]] | None = None
+        self._index: int | None = None
+
+    @classmethod
+    def from_storage(
+        cls,
+        x_storage: NDArray[object],
+        y_storage: NDArray[object],
+        index: int,
+    ) -> "Vec2":
+        vector = cls.__new__(cls)
+        vector._x = 0.0
+        vector._y = 0.0
+        vector._storage = (x_storage, y_storage)
+        vector._index = index
+        return vector
+
+    @property
+    def x(self) -> float:
+        if self._storage is None or self._index is None:
+            return self._x
+        return float(self._storage[0][self._index])
+
+    @x.setter
+    def x(self, value: float) -> None:
+        if self._storage is None or self._index is None:
+            self._x = value
+            return
+        self._storage[0][self._index] = value
+
+    @property
+    def y(self) -> float:
+        if self._storage is None or self._index is None:
+            return self._y
+        return float(self._storage[1][self._index])
+
+    @y.setter
+    def y(self, value: float) -> None:
+        if self._storage is None or self._index is None:
+            self._y = value
+            return
+        self._storage[1][self._index] = value
 
     def __add__(self, other: "Vec2") -> "Vec2":
         if not isinstance(other, Vec2):
