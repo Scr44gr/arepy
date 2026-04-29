@@ -1,9 +1,8 @@
 # dependency injection container
 from dataclasses import dataclass
-from typing import Callable, cast
+from typing import Any, Callable
 
-from .arepy_imgui.imgui_repository import Default as EmptyRepository
-from .arepy_imgui.imgui_repository import Imgui, ImGuiRendererRepository
+from .arepy_imgui import imgui as bundled_imgui
 from .engine.audio import AudioDevice
 from .engine.display import Display
 from .engine.input import Input
@@ -14,16 +13,17 @@ from .engine.integrations.raylib.renderer import renderer_2d, renderer_3d
 from .engine.renderer.renderer_2d import Renderer2D
 from .engine.renderer.renderer_3d import Renderer3D
 
-try:
-    from imgui_bundle import imgui, imgui_ctx
+imgui_module = bundled_imgui
+imgui_backend_factory: Callable[[], Any] | None = None
 
-    from .engine.integrations.imgui.backend import ImguiBackend
-
-    imgui.create_context()
-except (ImportError, ModuleNotFoundError):
-    imgui = None
-    imgui_ctx = None
-    ImguiRenderer = EmptyRepository
+if imgui_module is not None:
+    try:
+        from .engine.integrations.imgui.backend import ImguiBackend
+    except (ImportError, ModuleNotFoundError):
+        imgui_module = None
+    else:
+        imgui_module.create_context()
+        imgui_backend_factory = ImguiBackend
 
 
 @dataclass(frozen=True)
@@ -32,33 +32,24 @@ class Dependencies:
 
     audio_device_repository: AudioDevice
     input_repository: Input
-    imgui_repository: Imgui
+    imgui_module: Any | None
     display_repository: Display
     renderer_repository: Renderer2D
     renderer_3d_repository: Renderer3D
-    imgui_renderer_repository: Callable[..., ImGuiRendererRepository]
+    imgui_backend_factory: Callable[[], Any] | None
 
 
 def _build_dependencies() -> Callable[[], Dependencies]:
     """Build the dependency container."""
 
     deps = Dependencies(
-        display_repository=cast(Display, display_repository),
-        renderer_repository=cast(Renderer2D, renderer_2d),
-        renderer_3d_repository=cast(Renderer3D, renderer_3d),
-        # imgui backend renderer
-        imgui_renderer_repository=(
-            cast(
-                Callable[..., ImGuiRendererRepository],
-                ImguiBackend if imgui is not None else EmptyRepository,
-            )
-        ),
-        input_repository=cast(Input, input_repository),
-        # for gui manipulation
-        imgui_repository=(
-            cast(Imgui, imgui if imgui is not None else EmptyRepository())
-        ),
-        audio_device_repository=cast(AudioDevice, audio_device),
+        display_repository=display_repository,
+        renderer_repository=renderer_2d,
+        renderer_3d_repository=renderer_3d,
+        imgui_backend_factory=imgui_backend_factory,
+        input_repository=input_repository,
+        imgui_module=imgui_module,
+        audio_device_repository=audio_device,
     )
 
     def fn() -> Dependencies:

@@ -29,7 +29,7 @@ class ImguiBackend(ModernGLRenderer):
 
         self.io.mouse_pos = ImVec2(0, 0)
 
-        self.io.backend_flags = (
+        self.io.backend_flags |= (
             imgui.BackendFlags_.has_set_mouse_pos
             | imgui.BackendFlags_.has_mouse_cursors
             | imgui.BackendFlags_.has_gamepad

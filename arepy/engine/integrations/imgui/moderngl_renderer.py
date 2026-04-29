@@ -2,11 +2,10 @@
 # @see https://github.com/moderngl/moderngl-window/pull/197/commits/67a30750e595de058cca57d9c3676a772157d194
 # thx @highfestiva for the implementation :)
 import ctypes
-from dataclasses import dataclass
 
 import moderngl
 from imgui_bundle import imgui
-from imgui_bundle.python_backends.base_backend import BaseOpenGLRenderer
+from imgui_bundle.python_backends.opengl_base_backend import BaseOpenGLRenderer
 from OpenGL import GL
 
 
@@ -41,7 +40,6 @@ class ModernGLRenderer(BaseOpenGLRenderer):
         "ctx",
         "_prog",
         "_fbo",
-        "_font_texture",
         "_vertex_buffer",
         "_index_buffer",
         "_vao",
@@ -51,7 +49,6 @@ class ModernGLRenderer(BaseOpenGLRenderer):
     def __init__(self, *args, **kwargs):
         self._prog = None
         self._fbo = None
-        self._font_texture = None
         self._vertex_buffer = None
         self._index_buffer = None
         self._vao = None
@@ -79,21 +76,6 @@ class ModernGLRenderer(BaseOpenGLRenderer):
         """Remove the texture from the imgui renderer"""
         del self._textures[texture.glo]
 
-    def refresh_font_texture(self):
-        font_matrix = self.io.fonts.get_tex_data_as_rgba32()
-        width = font_matrix.shape[1]
-        height = font_matrix.shape[0]
-        pixels = font_matrix.data
-
-        if self._font_texture:
-            self.remove_texture(self._font_texture)
-            self._font_texture.release()
-
-        self._font_texture = self.ctx.texture((width, height), 4, data=pixels)
-        self.register_texture(self._font_texture)
-        self.io.fonts.tex_id = self._font_texture.glo
-        self.io.fonts.clear_tex_data()
-
     def _create_device_objects(self):
         if self._prog is None:
             self._prog = self.ctx.program(
@@ -120,6 +102,9 @@ class ModernGLRenderer(BaseOpenGLRenderer):
     def render(self, draw_data: imgui.ImDrawData):
         if not draw_data:
             return
+
+        self._update_textures()
+
         io = self.io
         display_width, display_height = io.display_size
         fb_width = int(display_width * io.display_framebuffer_scale[0])
@@ -147,12 +132,10 @@ class ModernGLRenderer(BaseOpenGLRenderer):
             1.0,
         )
 
-        draw_data.scale_clip_rects(imgui.ImVec2(*io.display_framebuffer_scale))
+        draw_data.scale_clip_rects(io.display_framebuffer_scale)
         self.ctx.enable_only(moderngl.BLEND)
         self.ctx.blend_equation = moderngl.FUNC_ADD
         self.ctx.blend_func = moderngl.SRC_ALPHA, moderngl.ONE_MINUS_SRC_ALPHA
-
-        self._font_texture.use()
 
         for commands in draw_data.cmd_lists:
             vtx_type = ctypes.c_byte * commands.vtx_buffer.size() * imgui.VERTEX_SIZE
@@ -164,7 +147,7 @@ class ModernGLRenderer(BaseOpenGLRenderer):
 
             idx_pos = 0
             for command in commands.cmd_buffer:
-                texture_id = command.texture_id
+                texture_id = command.tex_ref.get_tex_id()
 
                 GL.glBindTexture(GL.GL_TEXTURE_2D, texture_id)
 
@@ -178,8 +161,6 @@ class ModernGLRenderer(BaseOpenGLRenderer):
         self.ctx.scissor = None
 
     def _invalidate_device_objects(self):
-        if self._font_texture:
-            self._font_texture.release()
         if self._vertex_buffer:
             self._vertex_buffer.release()
         if self._index_buffer:
@@ -189,5 +170,7 @@ class ModernGLRenderer(BaseOpenGLRenderer):
         if self._prog:
             self._prog.release()
 
-        self.io.fonts.tex_id = 0
-        self._font_texture = None
+        self._prog = None
+        self._vertex_buffer = None
+        self._index_buffer = None
+        self._vao = None

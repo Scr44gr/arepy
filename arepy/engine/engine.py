@@ -1,8 +1,8 @@
 import asyncio
 from os import PathLike
-from typing import Any, Dict, Optional, Type, TypeVar
+from types import ModuleType
+from typing import Any, Dict, Optional, Type, TypeVar, overload
 
-from arepy.arepy_imgui.imgui_repository import Imgui, ImGuiRendererRepository
 from arepy.ecs.world import World
 from arepy.engine.audio import AudioDevice
 from arepy.engine.input import Input
@@ -16,6 +16,10 @@ from .renderer.renderer_3d import Renderer3D
 from .time import Time
 
 T = TypeVar("T")
+
+
+def _resource_name(resource: object) -> str:
+    return getattr(resource, "__name__", resource.__class__.__name__)
 
 
 class ArepyEngine:
@@ -75,12 +79,13 @@ class ArepyEngine:
             self.display.set_window_icon(self.icon_path)
         self.audio_device.init_device()
 
-        self.imgui = dependencies().imgui_repository
-        self.imgui_backend = dependencies().imgui_renderer_repository()
-        self._register_global_resource(Imgui.__name__, self.imgui)
-        self._register_global_resource(
-            ImGuiRendererRepository.__name__, self.imgui_backend
+        self.imgui = dependencies().imgui_module
+        imgui_backend_factory = dependencies().imgui_backend_factory
+        self.imgui_backend = (
+            imgui_backend_factory() if imgui_backend_factory is not None else None
         )
+        if self.imgui is not None:
+            self._register_global_resource(_resource_name(self.imgui), self.imgui)
 
     def _register_global_resource(self, class_name: str, resource: object) -> None:
         self._global_resources[class_name] = resource
@@ -134,7 +139,8 @@ class ArepyEngine:
     def __input_process(self):
         # dispatch input events
         # self.input.pool_events()
-        self.imgui_backend.process_inputs()
+        if self.imgui_backend is not None:
+            self.imgui_backend.process_inputs()
         self._current_world._registry.run(pipeline=SystemPipeline.INPUT)
 
     def __update_process(self):
@@ -157,11 +163,15 @@ class ArepyEngine:
         # self.renderer_2d.clear(color=Color(245, 245, 245, 255))
         # perform trick
         current_world = self._current_world
+        if self.imgui is not None and self.imgui_backend is not None:
+            self.imgui.new_frame()
         current_world._registry.run(pipeline=SystemPipeline.RENDER)
         current_world._registry.run(pipeline=SystemPipeline.RENDER_UI)
         current_world._emit_render()
         self.on_render()
-        self.imgui_backend.render(self.imgui.get_draw_data())
+        if self.imgui is not None and self.imgui_backend is not None:
+            self.imgui.render()
+            self.imgui_backend.render(self.imgui.get_draw_data())
         self.renderer_2d.swap_buffers()
 
     def get_asset_store(self) -> AssetStore:
@@ -179,12 +189,18 @@ class ArepyEngine:
             raise TypeError("Resource must be a class instance")
         if callable(resource) and not hasattr(resource, "__class__"):
             raise TypeError("Resource cannot be a function")
-        resource_name = resource.__class__.__name__
+        resource_name = _resource_name(resource)
         if resource_name in self._global_resources:
             raise ValueError(f"Resource '{resource_name}' already exists")
         self._global_resources[resource_name] = resource
 
-    def get_resource(self, resource_type: Type[T]) -> T:
+    @overload
+    def get_resource(self, resource_type: Type[T]) -> T: ...
+
+    @overload
+    def get_resource(self, resource_type: ModuleType) -> ModuleType: ...
+
+    def get_resource(self, resource_type: Type[T] | ModuleType) -> T | ModuleType:
         """Get a resource by its type.
 
         Args:
@@ -196,7 +212,7 @@ class ArepyEngine:
         Raises:
             KeyError: If the resource is not found.
         """
-        resource_name = resource_type.__name__
+        resource_name = _resource_name(resource_type)
         if resource_name not in self._global_resources:
             raise KeyError(f"Resource '{resource_name}' not found")
         return self._global_resources[resource_name]

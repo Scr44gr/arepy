@@ -1,4 +1,4 @@
-from ..arepy_imgui.imgui_repository import Imgui
+from ..arepy_imgui import imgui
 from ..bundle.components.camera import Camera2D
 from ..ecs import World
 from ..event_manager import Event, EventManager
@@ -58,7 +58,7 @@ __all__ = [
     "TimerHandle",
     "EventManager",
     "Event",
-    "Imgui",
+    "imgui",
     "Camera2D",
     "World",
     "SystemPipeline",
