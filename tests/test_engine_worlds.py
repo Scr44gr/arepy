@@ -1,4 +1,4 @@
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -64,11 +64,25 @@ class FakeAudioDevice:
 
 
 class FakeImgui:
+    def __init__(self) -> None:
+        self.new_frame_calls = 0
+        self.render_calls = 0
+
+    def new_frame(self) -> None:
+        self.new_frame_calls += 1
+
+    def render(self) -> None:
+        self.render_calls += 1
+
     def get_draw_data(self):
-        return None
+        return "draw-data"
 
 
 class FakeImguiBackend:
+    def __init__(self) -> None:
+        self.processed = False
+        self.draw_data = None
+
     def process_inputs(self) -> None:
         self.processed = True
 
@@ -76,15 +90,37 @@ class FakeImguiBackend:
         self.draw_data = draw_data
 
 
-def make_fake_dependencies():
+def make_fake_imgui_module(name: str = "fake_imgui_module") -> ModuleType:
+    module = ModuleType(name)
+    module.new_frame_calls = 0
+    module.render_calls = 0
+
+    def new_frame() -> None:
+        module.new_frame_calls += 1
+
+    def render() -> None:
+        module.render_calls += 1
+
+    def get_draw_data():
+        return "module-draw-data"
+
+    module.new_frame = new_frame
+    module.render = render
+    module.get_draw_data = get_draw_data
+    return module
+
+
+def make_fake_dependencies(with_imgui: bool = True):
+    imgui = FakeImgui() if with_imgui else None
+    imgui_backend_factory = (lambda: FakeImguiBackend()) if with_imgui else None
     return SimpleNamespace(
         display_repository=FakeDisplay(),
         renderer_repository=FakeRenderer2D(),
         renderer_3d_repository=FakeRenderer3D(),
         input_repository=FakeInput(),
         audio_device_repository=FakeAudioDevice(),
-        imgui_repository=FakeImgui(),
-        imgui_renderer_repository=lambda: FakeImguiBackend(),
+        imgui_module=imgui,
+        imgui_backend_factory=imgui_backend_factory,
     )
 
 
@@ -141,6 +177,32 @@ class TestEngineWorldLifecycle:
         engine._ArepyEngine__render_process()
 
         assert calls == ["update", "render"]
+        assert engine.imgui.new_frame_calls == 1
+        assert engine.imgui.render_calls == 1
+        assert engine.imgui_backend.draw_data == "draw-data"
+
+    def test_engine_render_process_skips_imgui_when_optional_extra_missing(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(
+            "arepy.container.dependencies", lambda: make_fake_dependencies(False)
+        )
+
+        engine = ArepyEngine()
+        world = engine.create_world("main")
+
+        @world.on_render
+        def world_render() -> None:
+            pass
+
+        engine.set_current_world("main")
+        engine._ArepyEngine__check_and_set_world()
+        engine._ArepyEngine__input_process()
+        engine._ArepyEngine__render_process()
+
+        assert engine.imgui is None
+        assert engine.imgui_backend is None
+        assert engine.renderer_2d.swapped is True
 
     def test_world_sees_global_resources_from_engine(self, monkeypatch):
         monkeypatch.setattr(
@@ -151,6 +213,91 @@ class TestEngineWorldLifecycle:
         world = engine.create_world("main")
 
         assert world.get_resource(ArepyEngine) is engine
+
+    def test_world_can_inject_imgui_module_resource(self, monkeypatch):
+        fake_imgui_module = make_fake_imgui_module()
+        dependencies = SimpleNamespace(
+            display_repository=FakeDisplay(),
+            renderer_repository=FakeRenderer2D(),
+            renderer_3d_repository=FakeRenderer3D(),
+            input_repository=FakeInput(),
+            audio_device_repository=FakeAudioDevice(),
+            imgui_module=fake_imgui_module,
+            imgui_backend_factory=lambda: FakeImguiBackend(),
+        )
+        monkeypatch.setattr("arepy.container.dependencies", lambda: dependencies)
+
+        engine = ArepyEngine()
+        world = engine.create_world("main")
+        received: dict[str, object] = {}
+
+        def ui_system(imgui_module: fake_imgui_module) -> None:
+            received["imgui"] = imgui_module
+
+        from arepy.ecs.systems import SystemPipeline
+
+        world.add_system(SystemPipeline.RENDER_UI, ui_system)
+        engine.set_current_world("main")
+        engine._ArepyEngine__check_and_set_world()
+        engine._ArepyEngine__render_process()
+
+        assert engine.get_resource(fake_imgui_module) is fake_imgui_module
+        assert world.get_resource(fake_imgui_module) is fake_imgui_module
+        assert received == {"imgui": fake_imgui_module}
+
+    def test_imgui_backend_preserves_renderer_texture_flag(self, monkeypatch):
+        from arepy.engine.integrations.imgui import backend as backend_module
+
+        original_backend_init = backend_module.ModernGLRenderer.__init__
+        original_get_platform_io = backend_module.imgui.get_platform_io
+
+        fake_platform_io = SimpleNamespace(
+            platform_get_clipboard_text_fn=None,
+            platform_set_clipboard_text_fn=None,
+        )
+        renderer_has_textures = (
+            backend_module.imgui.BackendFlags_.renderer_has_textures.value
+        )
+
+        def fake_renderer_init(self, *args, **kwargs) -> None:
+            self.io = SimpleNamespace(
+                backend_flags=renderer_has_textures,
+                mouse_pos=None,
+            )
+
+        monkeypatch.setattr(
+            backend_module.ModernGLRenderer,
+            "__init__",
+            fake_renderer_init,
+        )
+        monkeypatch.setattr(
+            backend_module.moderngl,
+            "get_context",
+            lambda: object(),
+        )
+        monkeypatch.setattr(
+            backend_module.imgui,
+            "get_platform_io",
+            lambda: fake_platform_io,
+        )
+
+        backend = backend_module.ImguiBackend()
+
+        monkeypatch.setattr(
+            backend_module.ModernGLRenderer,
+            "__init__",
+            original_backend_init,
+        )
+        monkeypatch.setattr(
+            backend_module.imgui,
+            "get_platform_io",
+            original_get_platform_io,
+        )
+
+        assert (
+            backend.io.backend_flags
+            & backend_module.imgui.BackendFlags_.renderer_has_textures.value
+        )
 
     def test_world_system_injects_engine_protocol_resources(self, monkeypatch):
         monkeypatch.setattr(

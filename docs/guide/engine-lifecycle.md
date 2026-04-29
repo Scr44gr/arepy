@@ -66,9 +66,11 @@ When the engine starts, it opens the window and makes these shared services avai
 - `ArepyEngine`
 - `AudioDevice`
 - `EventManager`
-- `Imgui`
+- `imgui` (optional)
 
 That lets you create a world and start adding systems without having to wire every subsystem by hand.
+
+If you install the optional ImGui extra, the engine also exposes `imgui` and manages its frame lifecycle automatically.
 
 Each new world also starts with a local `Timers` resource.
 
@@ -117,12 +119,15 @@ Inside a frame, the order is:
 8. world `on_update()` hooks
 9. engine `on_update()` hook
 10. process queued `EventManager` events again
-11. `RENDER` pipeline
-12. `RENDER_UI` pipeline
-13. world `on_render()` hooks
-14. engine `on_render()` hook
-15. ImGui backend render
-16. renderer buffer swap
+11. start a new ImGui frame if ImGui is enabled
+12. `RENDER` pipeline
+13. `RENDER_UI` pipeline
+14. world `on_render()` hooks
+15. engine `on_render()` hook
+16. finish ImGui and draw it if ImGui is enabled
+17. renderer buffer swap
+
+If you are using ImGui, the main idea is simple: write widgets in `RENDER_UI` and let the engine handle the setup and final draw.
 
 ## World lifecycle hooks
 

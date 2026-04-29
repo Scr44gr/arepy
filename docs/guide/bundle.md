@@ -61,3 +61,6 @@ Both use query-driven iteration over components rather than entity lookups insid
 
 - `examples/bunnymark.py` shows a large number of 2D moving sprites
 - `examples/cubemark_3d.py` shows the 3D side of the engine
+- `examples/bunny_roguelite_3d.py` shows a fixed 45-degree camera with Bunnymark sprites used as real 3D billboards
+- the [ImGui guide](imgui.md) explains the workflow step by step
+- `examples/imgui_minimal.py` shows the smallest optional ImGui example using `RENDER_UI`

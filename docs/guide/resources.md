@@ -4,7 +4,11 @@ Besides queries, systems can receive services and state objects through typed re
 
 ## How resource injection works
 
-When the registry registers a system, it inspects the function annotations. If a parameter is annotated with a class type such as `Renderer2D`, `AssetStore`, or your own `GameSettings`, Arepy treats that annotation as a resource lookup.
+When the registry registers a system, it inspects the function annotations.
+
+Most of the time, a resource is a class-based object such as `Renderer2D`, `AssetStore`, `Time`, or your own `GameSettings` object.
+
+If a parameter is annotated with one of those class types, Arepy treats that annotation as a resource lookup.
 
 In practice, the type annotation is the lookup key. You do not pass a string like `"Renderer2D"`; you annotate the parameter with the class itself.
 
@@ -16,6 +20,8 @@ def render_system(renderer: Renderer2D, asset_store: AssetStore) -> None:
 When `render_system` runs, Arepy looks for resources registered under `Renderer2D` and `AssetStore` and passes those instances for you.
 
 This keeps system signatures readable: the function tells you what it needs, and the engine provides it.
+
+There is one optional special case: when the `imgui` extra is installed, Arepy also registers the `imgui` module as a global resource. In beginner code, it is usually simpler to import `imgui` directly and use it normally.
 
 ## Engine-provided resources
 
@@ -30,7 +36,7 @@ This keeps system signatures readable: the function tells you what it needs, and
 - `ArepyEngine`
 - `AudioDevice`
 - `EventManager`
-- `Imgui`
+- `imgui` (optional)
 
 You can also fetch one manually with this call shape:
 
@@ -38,13 +44,16 @@ You can also fetch one manually with this call shape:
 renderer = engine.get_resource(Renderer2D)
 ```
 
-The method signature is:
+And if the optional ImGui extra is installed:
 
 ```python
-engine.get_resource(resource_type: type[T]) -> T
+from arepy import imgui
+
+
+imgui_module = world.get_resource(imgui)
 ```
 
-So the argument you pass is the class object, not an instance.
+In normal gameplay code, the argument you pass is usually the class object, not an instance.
 
 ## Global resources and world resources
 
@@ -113,15 +122,15 @@ def render_system(
 
 You can add your own objects either globally on the engine or locally on a world.
 
-The method signatures are:
+The most common method shapes are:
 
 ```python
 engine.add_resource(resource: object) -> None
-engine.get_resource(resource_type: type[T]) -> T
 world.add_resource(resource: object) -> None
-world.get_resource(resource_type: type[T]) -> T
-world.get_world_resource(resource_type: type[T]) -> T
-world.get_global_resource(resource_type: type[T]) -> T
+engine.get_resource(Renderer2D)
+world.get_resource(GameSettings)
+world.get_world_resource(DialogueState)
+world.get_global_resource(Time)
 ```
 
 Example:

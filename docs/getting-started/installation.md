@@ -34,7 +34,21 @@ uv run mkdocs build
 
 ## Optional extras
 
-If you want to work on the ImGui integration too:
+If you want to use Dear ImGui for debug panels, tools, or quick editor-style windows, install the `imgui` extra.
+
+From PyPI:
+
+```bash
+pip install "arepy[imgui]"
+```
+
+Inside this repository with `uv`:
+
+```bash
+uv sync --extra imgui
+```
+
+If you also want the documentation toolchain:
 
 ```bash
 uv sync --extra docs --extra imgui

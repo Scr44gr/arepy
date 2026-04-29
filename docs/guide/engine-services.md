@@ -218,6 +218,35 @@ Common methods to look at first:
 - `get_delta_time()`
 - `swap_buffers()`
 
+## imgui (optional)
+
+If you install the optional `imgui` extra, you can use Dear ImGui directly from Arepy.
+
+The short version is:
+
+- import `imgui` from `arepy`
+- put your UI code in `SystemPipeline.RENDER_UI`
+- let the engine handle the frame lifecycle for you
+
+```python
+from arepy import Display, imgui
+
+
+def ui_system(display: Display) -> None:
+    is_open, _ = imgui.begin("Debug")
+    if is_open:
+        imgui.text("Hello from imgui")
+        if imgui.button("Rename window"):
+            display.set_window_title("Debug")
+    imgui.end()
+```
+
+You do not need a wrapper class, and you do not need to call `imgui.new_frame()` or `imgui.render()` yourself.
+
+If you want the step-by-step version, read the dedicated [ImGui guide](imgui.md).
+
+If you need it, `imgui` is also available as a global resource, so `world.get_resource(imgui)` works. For most cases, importing `imgui` directly is the simplest path.
+
 ## Renderer3D
 
 `Renderer3D` is the 3D companion.

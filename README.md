@@ -10,91 +10,144 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/arepy.svg?color=%2334D058)](https://pypi.org/project/arepy)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Arepy** is a lightweight and expressive ECS game engine built in Python, designed to make building 2D games simple, fast, and enjoyable. It provides a clean API, a modern architecture, and first-class integration with Raylib and ImGui.
+Arepy is a lightweight ECS game engine for Python focused on making game code simple to read, easy to extend, and pleasant to iterate on.
+
+It gives you a small but practical set of engine services out of the box: worlds, typed resource injection, 2D and 3D rendering through Raylib, built-in timers and animation helpers, and optional Dear ImGui integration for tools and debug UI.
 
 ---
 
 ## Features
 
-- High-performance ECS architecture optimized for games  
-- Raylib integration for hardware-accelerated 2D graphics  
-- ImGui debugging overlay with real-time tools  
-- Memory-efficient component pools  
-- Flexible query system with `With` / `Without` filters  
-- Simple and intuitive API design  
-- Fluent entity builder system  
+- ECS architecture built for gameplay code
+- Typed resource injection for engine services and your own state objects
+- Raylib-backed 2D and 3D rendering
+- World-local `Timers` and `Animator` services
+- Optional Dear ImGui integration for tools, debug panels, and quick editors
+- Query filters with `With[...]` and `Without[...]`
+- Fluent entity builder API
 
 ---
 
 ## Installation
 
 ### From PyPI
+
 ```bash
 pip install arepy
-````
+```
 
-### Development Installation
+If you also want Dear ImGui support:
+
+```bash
+pip install "arepy[imgui]"
+```
+
+### Local setup with `uv`
 
 ```bash
 git clone https://github.com/Scr44gr/arepy.git
 cd arepy
-pip install -e ".[testing]"
+uv sync --extra docs
+```
+
+If you also want the optional ImGui extra:
+
+```bash
+uv sync --extra docs --extra imgui
 ```
 
 ---
 
 ## Quick Start
 
-### Basic Example – Moving Square
+This example creates a small world with one moving square.
 
 ```python
-from arepy import ArepyEngine, Color, Rect, Renderer2D, SystemPipeline
+from arepy import ArepyEngine, Color, Rect, Renderer2D, SystemPipeline, Time
 from arepy.bundle.components import RigidBody2D, Transform
-from arepy.ecs import Entities, Query, With
+from arepy.ecs import Entity, Query, With
 from arepy.math import Vec2
 
-# Colors
 WHITE = Color(255, 255, 255, 255)
 RED = Color(255, 0, 0, 255)
 
-def movement_system(query: Query[Entities, With[Transform, RigidBody2D]], renderer: Renderer2D):
-    delta_time = renderer.get_delta_time()
-    
-    for transform, rigidbody in query.iter_components(Transform, RigidBody2D):
-        velocity = rigidbody.velocity
-        
-        transform.position.x += velocity.x * delta_time
-        transform.position.y += velocity.y * delta_time
 
-def render_system(query: Query[Entities, With[Transform]], renderer: Renderer2D):
+def movement_system(
+    query: Query[Entity, With[Transform, RigidBody2D]],
+    time: Time,
+) -> None:
+    for transform, rigid_body in query.iter_components(Transform, RigidBody2D):
+        transform.position.x += rigid_body.velocity.x * time.delta_seconds
+        transform.position.y += rigid_body.velocity.y * time.delta_seconds
+
+
+def render_system(
+    query: Query[Entity, With[Transform]],
+    renderer: Renderer2D,
+) -> None:
     renderer.start_frame()
     renderer.clear(color=WHITE)
-    
+
     for transform, in query.iter_components(Transform):
         renderer.draw_rectangle(
-            Rect(transform.position.x, transform.position.y, 50, 50),
-            color=RED
+            Rect(transform.position.x, transform.position.y, 32, 32),
+            RED,
         )
+
     renderer.end_frame()
 
-if __name__ == "__main__":
-    game = ArepyEngine(title="Arepy Example")
-    
-    world = game.create_world("main_world")
-    
-    entity = (world.create_entity()
-              .with_component(Transform(position=Vec2(0, 0)))
-              .with_component(RigidBody2D(velocity=Vec2(50, 10)))
-              .build())
-    
+
+def main() -> None:
+    engine = ArepyEngine(title="Arepy Quickstart", width=960, height=540)
+    world = engine.create_world("main")
+
+    world.create_entity().with_component(
+        Transform(position=Vec2(40, 40))
+    ).with_component(
+        RigidBody2D(velocity=Vec2(90, 60))
+    ).build()
+
     world.add_system(SystemPipeline.UPDATE, movement_system)
     world.add_system(SystemPipeline.RENDER, render_system)
-    
-    game.set_current_world("main_world")
-    game.run()
+    engine.set_current_world("main")
+    engine.run()
+
+
+if __name__ == "__main__":
+    main()
 ```
 
 ![Demo](https://github.com/user-attachments/assets/c23a6af6-14a0-4afc-b335-7702815a7777)
+
+---
+
+## Optional ImGui
+
+If you install the `imgui` extra, Arepy exposes the real `imgui` module directly.
+
+Use ImGui code inside `SystemPipeline.RENDER_UI` and let the engine handle the frame lifecycle.
+
+```python
+from arepy import Display, SystemPipeline, imgui
+
+
+def debug_ui(display: Display) -> None:
+    is_open, _ = imgui.begin("Debug")
+    if is_open:
+        imgui.text("Hello from Arepy")
+        if imgui.button("Rename window"):
+            display.set_window_title("Debug")
+    imgui.end()
+
+
+world.add_system(SystemPipeline.RENDER_UI, debug_ui)
+```
+
+You do not need a wrapper class.
+You do not need to call `imgui.new_frame()` yourself.
+You do not need to call `imgui.render()` yourself.
+
+See [docs/guide/imgui.md](docs/guide/imgui.md) and [examples/imgui_minimal.py](examples/imgui_minimal.py) for the full workflow.
 
 ---
 
@@ -137,19 +190,18 @@ class Weapon(Component):
 
 ### Systems
 
-Systems implement game logic:
+Systems are plain functions. Their parameters describe what they need.
 
 ```python
 def damage_system(query: Query[Entity, With[Health, Weapon]]):
     for entity, health, weapon in query.iter_entities_components(Health, Weapon):
-        
         if health.value <= 0:
             entity.kill()
 ```
 
 ### Queries
 
-Filter entities based on their components:
+Queries filter entities by component shape:
 
 ```python
 Query[Entity, With[Transform, Velocity]]
@@ -157,92 +209,85 @@ Query[Entity, Without[Dead]]
 Query[Entity, tuple[With[Transform, Velocity], Without[Frozen]]]
 ```
 
-Use `iter_components(...)` when you only need component data in the hot path:
+Use `iter_components(...)` when you only need the component data:
 
 ```python
 def movement_system(
     query: Query[Entity, tuple[With[Transform, Velocity], Without[Frozen]]],
-    renderer: Renderer2D,
+    time: Time,
 ) -> None:
-    delta_time = renderer.get_delta_time()
-
     for transform, velocity in query.iter_components(Transform, Velocity):
-        transform.position.x += velocity.x * delta_time
-        transform.position.y += velocity.y * delta_time
+        transform.position.x += velocity.x * time.delta_seconds
+        transform.position.y += velocity.y * time.delta_seconds
 ```
 
-Use `Without[...]` to exclude entities that should not be processed:
+### Resources
+
+Arepy can inject shared services like `Renderer2D`, `Display`, `Time`, `Input`, `AssetStore`, and your own resource objects directly into systems.
 
 ```python
-def active_projectiles_system(
-    query: Query[Entity, tuple[With[Transform, Velocity], Without[Destroyed]]],
-) -> None:
-    for transform, velocity in query.iter_components(Transform, Velocity):
-        transform.position.x += velocity.x
-        transform.position.y += velocity.y
+def hud_system(renderer: Renderer2D, time: Time) -> None:
+    ...
 ```
+
+That keeps function signatures explicit and avoids manual service lookup in most code.
+
+---
+
+## Learn More
+
+- [docs/getting-started/installation.md](docs/getting-started/installation.md)
+- [docs/guide/engine-lifecycle.md](docs/guide/engine-lifecycle.md)
+- [docs/guide/engine-services.md](docs/guide/engine-services.md)
+- [docs/guide/resources.md](docs/guide/resources.md)
+- [docs/guide/imgui.md](docs/guide/imgui.md)
+- [docs/guide/bundle.md](docs/guide/bundle.md)
+- [examples/imgui_minimal.py](examples/imgui_minimal.py)
+- [examples/bunnymark.py](examples/bunnymark.py)
+- [examples/cubemark_3d.py](examples/cubemark_3d.py)
 
 ---
 
 ## Testing
 
 ```bash
-pytest                   # Run all tests
-pytest --cov=arepy       # Coverage report
-pytest tests/test_registry.py -v
+uv run pytest -q
+```
+
+To run the focused engine tests:
+
+```bash
+uv run pytest tests/test_engine_worlds.py tests/test_animator.py -q
 ```
 
 ---
 
 ## Contributing
 
-We welcome contributions. Refer to the [Contributing Guide](CONTRIBUTING.md).
-
-1. Fork the repository
-2. Create a feature branch
-3. Implement your changes and tests
-4. Ensure tests pass
-5. Commit and push
-6. Open a Pull Request
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the contributor workflow.
 
 ---
 
 ## Requirements
 
-* Python 3.11+
-* Raylib 5.5.0+
-* Bitarray 3.4.2+
+- Python 3.11+
+- Raylib 5.5.0+
+- Bitarray 3.8.1
 
 ---
 
-## Roadmap
+## License
 
-* [x] Advanced query system
-* [ ] Scene management
-* [ ] Asset pipeline improvements
-* [ ] Physics integration
-* [ ] Audio system
-* [ ] Networking support
-* [ ] Visual editor
+This project is licensed under the MIT License. See [LICENSE](LICENSE).
 
 ---
 
-## 📄 License
+## Acknowledgments
 
-This project is licensed under the MIT License – see the [LICENSE](LICENSE) file for details.
-
----
-
-## 🙏 Acknowledgments
-
-* [Raylib](https://www.raylib.com/)
-* [ImGui](https://github.com/ocornut/imgui)
-* [EnTT](https://github.com/skypjack/entt)
-* [Bevy Engine](https://github.com/bevyengine/bevy)
-* [Pikuma](https://pikuma.com/courses/cpp-2d-game-engine-development)
-* [raylib-python-cffi](https://github.com/electronstudio/raylib-python-cffi)
-
----
-
-**Made with ❤️ by [Abrahan Gil](https://github.com/Scr44gr)**
+- [Raylib](https://www.raylib.com/)
+- [ImGui](https://github.com/ocornut/imgui)
+- [EnTT](https://github.com/skypjack/entt)
+- [Bevy Engine](https://github.com/bevyengine/bevy)
+- [Pikuma](https://pikuma.com/courses/cpp-2d-game-engine-development)
+- [raylib-python-cffi](https://github.com/electronstudio/raylib-python-cffi)
 
