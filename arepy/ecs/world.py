@@ -1,4 +1,5 @@
-from typing import Callable, Dict, List, Optional, Set, Type, TypeVar, cast
+from types import ModuleType
+from typing import Callable, Dict, List, Optional, Set, Type, TypeVar, cast, overload
 
 from ..engine.animator import Animator
 from ..engine.time import Time, Timers
@@ -8,6 +9,10 @@ from .systems import System, SystemPipeline, SystemState
 
 T = TypeVar("T")
 WorldCallback = Callable[[], None]
+
+
+def _resource_name(resource: object) -> str:
+    return getattr(resource, "__name__", resource.__class__.__name__)
 
 
 class World:
@@ -99,27 +104,47 @@ class World:
         if callable(resource) and not hasattr(resource, "__class__"):
             raise TypeError("Resource cannot be a function")
 
-        resource_name = resource.__class__.__name__
+        resource_name = _resource_name(resource)
         if resource_name in self._resources:
             raise ValueError(f"Resource '{resource_name}' already exists")
         self._resources[resource_name] = resource
 
-    def get_resource(self, resource_type: Type[T]) -> T:
-        resource_name = resource_type.__name__
+    @overload
+    def get_resource(self, resource_type: Type[T]) -> T: ...
+
+    @overload
+    def get_resource(self, resource_type: ModuleType) -> ModuleType: ...
+
+    def get_resource(self, resource_type: Type[T] | ModuleType) -> T | ModuleType:
+        resource_name = _resource_name(resource_type)
         if resource_name in self._resources:
             return cast(T, self._resources[resource_name])
         if resource_name in self._global_resources:
             return cast(T, self._global_resources[resource_name])
         raise KeyError(f"Resource '{resource_name}' not found")
 
-    def get_world_resource(self, resource_type: Type[T]) -> T:
-        resource_name = resource_type.__name__
+    @overload
+    def get_world_resource(self, resource_type: Type[T]) -> T: ...
+
+    @overload
+    def get_world_resource(self, resource_type: ModuleType) -> ModuleType: ...
+
+    def get_world_resource(self, resource_type: Type[T] | ModuleType) -> T | ModuleType:
+        resource_name = _resource_name(resource_type)
         if resource_name not in self._resources:
             raise KeyError(f"World resource '{resource_name}' not found")
         return cast(T, self._resources[resource_name])
 
-    def get_global_resource(self, resource_type: Type[T]) -> T:
-        resource_name = resource_type.__name__
+    @overload
+    def get_global_resource(self, resource_type: Type[T]) -> T: ...
+
+    @overload
+    def get_global_resource(self, resource_type: ModuleType) -> ModuleType: ...
+
+    def get_global_resource(
+        self, resource_type: Type[T] | ModuleType
+    ) -> T | ModuleType:
+        resource_name = _resource_name(resource_type)
         if resource_name not in self._global_resources:
             raise KeyError(f"Global resource '{resource_name}' not found")
         return cast(T, self._global_resources[resource_name])
