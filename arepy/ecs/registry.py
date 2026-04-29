@@ -3,6 +3,7 @@ import logging
 from collections import deque
 from dataclasses import dataclass, field
 from inspect import isclass, iscoroutinefunction, isfunction
+from types import ModuleType
 from typing import Dict, List, Optional, Set, Type, cast
 
 from .components import (
@@ -180,6 +181,9 @@ class Registry:
                 if value.__module__ == "builtins":
                     continue
                 markers.append(ResourceMarker(resource_name, idx))
+                arguments[key] = None
+            elif isinstance(value, ModuleType):
+                markers.append(ResourceMarker(value.__name__, idx))
                 arguments[key] = None
         return markers
 
