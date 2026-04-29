@@ -246,6 +246,10 @@ class TestEngineWorldLifecycle:
         assert received == {"imgui": fake_imgui_module}
 
     def test_imgui_backend_preserves_renderer_texture_flag(self, monkeypatch):
+        pytest.importorskip("imgui_bundle")
+        pytest.importorskip("moderngl")
+        pytest.importorskip("OpenGL.GL")
+
         from arepy.engine.integrations.imgui import backend as backend_module
 
         original_backend_init = backend_module.ModernGLRenderer.__init__
