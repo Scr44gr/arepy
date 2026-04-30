@@ -247,12 +247,12 @@ class TestEngineWorldLifecycle:
 
     def test_imgui_backend_preserves_renderer_texture_flag(self, monkeypatch):
         pytest.importorskip("imgui_bundle")
-        pytest.importorskip("moderngl")
+        pytest.importorskip("zengl")
         pytest.importorskip("OpenGL.GL")
 
         from arepy.engine.integrations.imgui import backend as backend_module
 
-        original_backend_init = backend_module.ModernGLRenderer.__init__
+        original_backend_init = backend_module.ZenglRenderer.__init__
         original_get_platform_io = backend_module.imgui.get_platform_io
 
         fake_platform_io = SimpleNamespace(
@@ -270,14 +270,9 @@ class TestEngineWorldLifecycle:
             )
 
         monkeypatch.setattr(
-            backend_module.ModernGLRenderer,
+            backend_module.ZenglRenderer,
             "__init__",
             fake_renderer_init,
-        )
-        monkeypatch.setattr(
-            backend_module.moderngl,
-            "get_context",
-            lambda: object(),
         )
         monkeypatch.setattr(
             backend_module.imgui,
@@ -288,7 +283,7 @@ class TestEngineWorldLifecycle:
         backend = backend_module.ImguiBackend()
 
         monkeypatch.setattr(
-            backend_module.ModernGLRenderer,
+            backend_module.ZenglRenderer,
             "__init__",
             original_backend_init,
         )
