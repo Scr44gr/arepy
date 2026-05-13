@@ -1,6 +1,6 @@
 from collections import OrderedDict
 from dataclasses import dataclass
-from keyword import iskeyword
+from operator import attrgetter
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -110,46 +110,17 @@ _ATTRIBUTE_ACCESSORS: dict[str, _BatchAttributeAccessor] = {}
 
 
 def _build_attribute_accessor(attribute_name: str) -> _BatchAttributeAccessor:
-    if attribute_name.isidentifier() and not iskeyword(attribute_name):
-        namespace: dict[str, object] = {"Vec2": Vec2, "Vec3": Vec3}
-        exec(
-            "def _get_many(components):\n"
-            f"    return [component.{attribute_name} for component in components]\n"
-            "def _set_many(components, values, convert):\n"
-            "    for component, value in zip(components, values):\n"
-            f"        component.{attribute_name} = convert(value)\n"
-            "def _bind_vec2_storage(components, x, y):\n"
-            "    for index, component in enumerate(components):\n"
-            f"        component.{attribute_name} = Vec2.from_storage(x, y, index)\n"
-            "def _bind_vec3_storage(components, x, y, z):\n"
-            "    for index, component in enumerate(components):\n"
-            f"        component.{attribute_name} = Vec3.from_storage(x, y, z, index)\n",
-            namespace,
-            namespace,
-        )
-        return _BatchAttributeAccessor(
-            get_many=cast(
-                Callable[[Sequence[Component]], list[object]], namespace["_get_many"]
-            ),
-            set_many=cast(
-                Callable[
-                    [Sequence[Component], Iterable[object], Callable[[object], object]],
-                    None,
-                ],
-                namespace["_set_many"],
-            ),
-            bind_vec2_storage=cast(
-                Callable[[Sequence[Component], FloatBatch, FloatBatch], None],
-                namespace["_bind_vec2_storage"],
-            ),
-            bind_vec3_storage=cast(
-                Callable[[Sequence[Component], FloatBatch, FloatBatch, FloatBatch], None],
-                namespace["_bind_vec3_storage"],
-            ),
-        )
+    getter: Callable[[Component], object] | None = None
+    if "." not in attribute_name:
+        getter = cast(Callable[[Component], object], attrgetter(attribute_name))
 
     def get_many(components: Sequence[Component]) -> list[object]:
-        return [vars(component)[attribute_name] for component in components]
+        if getter is not None:
+            return [getter(component) for component in components]
+        return [
+            type(component).__getattribute__(component, attribute_name)
+            for component in components
+        ]
 
     def set_many(
         components: Sequence[Component],
@@ -157,19 +128,23 @@ def _build_attribute_accessor(attribute_name: str) -> _BatchAttributeAccessor:
         convert: Callable[[object], object],
     ) -> None:
         for component, value in zip(components, values):
-            vars(component)[attribute_name] = convert(value)
+            type(component).__setattr__(component, attribute_name, convert(value))
 
     def bind_vec2_storage(
         components: Sequence[Component], x: FloatBatch, y: FloatBatch
     ) -> None:
         for index, component in enumerate(components):
-            vars(component)[attribute_name] = Vec2.from_storage(x, y, index)
+            type(component).__setattr__(
+                component, attribute_name, Vec2.from_storage(x, y, index)
+            )
 
     def bind_vec3_storage(
         components: Sequence[Component], x: FloatBatch, y: FloatBatch, z: FloatBatch
     ) -> None:
         for index, component in enumerate(components):
-            vars(component)[attribute_name] = Vec3.from_storage(x, y, z, index)
+            type(component).__setattr__(
+                component, attribute_name, Vec3.from_storage(x, y, z, index)
+            )
 
     return _BatchAttributeAccessor(
         get_many=get_many,
