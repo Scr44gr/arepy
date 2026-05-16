@@ -1,7 +1,7 @@
 """Public audio protocol and lightweight wrappers for sounds and music."""
 
 from os import PathLike
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 
 class ArepySound:
@@ -26,6 +26,7 @@ class ArepyMusic:
         ...
 
 
+@runtime_checkable
 class AudioDevice(Protocol):
     """Protocol defining sound and music playback operations.
 

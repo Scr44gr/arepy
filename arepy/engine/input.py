@@ -1,7 +1,7 @@
 """Public input protocol and enums for keyboard, mouse, and gamepad state."""
 
 from enum import Enum
-from typing import Iterator, Protocol
+from typing import Iterator, Protocol, runtime_checkable
 
 from ..event_manager.event_manager import EventManager
 
@@ -158,6 +158,7 @@ class GamepadDeviceType(Enum):
     NINTENDO = "nintendo"
 
 
+@runtime_checkable
 class Input(Protocol):
     """Protocol defining keyboard, mouse, and gamepad input queries.
 

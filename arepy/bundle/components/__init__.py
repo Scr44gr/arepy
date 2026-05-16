@@ -2,12 +2,13 @@ from .camera import Camera2D, Camera3D
 from .light_3d import Light3D
 from .material_3d import Material3D
 from .mesh_3d import Mesh3D, Model3D
-from .rigidbody import RigidBody2D
+from .rigidbody import RigidBody2D, RigidBody3D
 from .sprite import Sprite
 from .transform import Transform, Transform3D
 
 __all__ = [
     "RigidBody2D",
+    "RigidBody3D",
     "Sprite",
     "Transform",
     "Camera2D",

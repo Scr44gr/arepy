@@ -1,7 +1,7 @@
+from arepy_ecs import Entity, Query, With
+
 from arepy.asset_store import AssetStore
 from arepy.bundle.components import Sprite, Transform
-from arepy.ecs.query import Query, With
-from arepy.ecs.registry import Entity
 from arepy.engine.renderer.renderer_2d import Color, Rect, Renderer2D
 
 WHITE = Color(255, 255, 255, 255)

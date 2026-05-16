@@ -1,11 +1,13 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11"
 
 [[package]]
 name = "arepy"
+version = "0.5.5"
 source = { editable = "." }
 dependencies = [
+    { name = "arepy-ecs" },
     { name = "bitarray" },
     { name = "numpy" },
     { name = "raylib" },
@@ -42,6 +44,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "arepy-ecs", git = "https://github.com/scr44gr/arepy-ecs.git" },
     { name = "bitarray", specifier = "==3.8.1" },
     { name = "imgui-bundle", marker = "extra == 'imgui'", specifier = "==1.92.700" },
     { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6.1" },
@@ -67,6 +70,14 @@ dev = [
     { name = "pytest", specifier = ">=8.0.0" },
     { name = "pytest-cov", specifier = ">=4.0.0" },
     { name = "python-dotenv", specifier = "==1.0.1" },
+]
+
+[[package]]
+name = "arepy-ecs"
+version = "0.1.0"
+source = { git = "https://github.com/scr44gr/arepy-ecs.git#b865c39c4d9fd7023b5c597abc6324abd8efae4d" }
+dependencies = [
+    { name = "numpy" },
 ]
 
 [[package]]

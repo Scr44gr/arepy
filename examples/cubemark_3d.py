@@ -1,13 +1,12 @@
 import math
 import random
 
+from arepy_ecs import Component, Entities, Query, With, World
+
 from arepy import ArepyEngine, Color, Input, Renderer2D, Renderer3D, SystemPipeline
 from arepy.bundle.components.camera import Camera3D
 from arepy.bundle.components.rigidbody import RigidBody3D
 from arepy.bundle.components.transform import Transform3D
-from arepy.ecs import Entities, Query, With
-from arepy.ecs.components import Component
-from arepy.ecs.world import World
 from arepy.math import Vec3
 
 WHITE_COLOR = Color(255, 255, 255, 255)
@@ -45,7 +44,19 @@ GRID_SPACING = 5.0
 class CachedInput(Component):
     """Component to cache input state for camera movement"""
 
+    horizontal_angle: float
+    vertical_angle: float
+    distance: float
+    needs_update: bool
+    smoothing_factor: float
+    target_horizontal: float
+    target_vertical: float
+    target_distance: float
+    center_threshold: int
+    mouse_was_centered: bool
+
     def __init__(self):
+        super().__init__()
         self.horizontal_angle = 0.0  # Cached horizontal angle
         self.vertical_angle = 0.0  # Cached vertical angle
         self.distance = 20.0  # Cached camera distance

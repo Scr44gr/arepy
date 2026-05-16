@@ -1,4 +1,5 @@
-from ...ecs.registry import Entity
+from arepy_ecs import Entity
+
 from ..event_manager import Event
 
 

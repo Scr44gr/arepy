@@ -1,54 +1,76 @@
 import random
+from typing import Protocol, cast
+
+import numpy as np
+from arepy_ecs import Entity, Query, With, World
+from numpy.typing import NDArray
 
 from arepy import ArepyEngine, Color, Rect, Renderer2D, SystemPipeline
 from arepy.bundle.components.rigidbody import RigidBody2D
 from arepy.bundle.components.sprite import Sprite
 from arepy.bundle.components.transform import Transform
-from arepy.ecs import BatchQuery, Entities, Query, With
-from arepy.ecs.world import World
 from arepy.math import Vec2
 
 WHITE_COLOR = Color(255, 255, 255, 255)
 BUNNY_ASSET = "bunny.png"
 
-BUNNY_COUNT = 8000
+BUNNY_COUNT = 5000
 WINDOW_WIDTH = 640
 WINDOW_HEIGHT = 480
 
+FloatBatch = NDArray[np.float32]
+BoolBatch = NDArray[np.bool_]
+
+
+class TransformBatch(Protocol):
+    position_x: FloatBatch
+    position_y: FloatBatch
+
+
+class RigidBody2DBatch(Protocol):
+    velocity_x: FloatBatch
+    velocity_y: FloatBatch
+
 
 def movement_system(
-    batch: BatchQuery[Transform, RigidBody2D],
+    query: Query[Entity, With[Transform, RigidBody2D]],
     renderer: Renderer2D,
 ) -> None:
-    """Simple movement system using the experimental BatchQuery path."""
+    """Simple movement system using the arepy-ecs batch result path."""
     delta_time: float = renderer.get_delta_time()
     sprite_size: int = 16
-    position = batch.vec2(Transform, "position")
-    velocity = batch.vec2(RigidBody2D, "velocity")
+    transforms, rigidbodies = cast(
+        tuple[TransformBatch, RigidBody2DBatch],
+        query.result(Transform, RigidBody2D),
+    )
+    position_x = transforms.position_x
+    position_y = transforms.position_y
+    velocity_x = rigidbodies.velocity_x
+    velocity_y = rigidbodies.velocity_y
 
-    position.x += velocity.x * delta_time
-    position.y += velocity.y * delta_time
+    position_x += velocity_x * delta_time
+    position_y += velocity_y * delta_time
 
-    left = position.x <= 0
-    right = position.x >= WINDOW_WIDTH - sprite_size
-    top = position.y <= 0
-    bottom = position.y >= WINDOW_HEIGHT - sprite_size
+    left: BoolBatch = position_x <= 0
+    right: BoolBatch = position_x >= WINDOW_WIDTH - sprite_size
+    top: BoolBatch = position_y <= 0
+    bottom: BoolBatch = position_y >= WINDOW_HEIGHT - sprite_size
 
-    position.x[left] = 0
-    velocity.x[left] = abs(velocity.x[left])
+    position_x[left] = 0
+    velocity_x[left] = np.abs(velocity_x[left])
 
-    position.x[right] = WINDOW_WIDTH - sprite_size
-    velocity.x[right] = -abs(velocity.x[right])
+    position_x[right] = WINDOW_WIDTH - sprite_size
+    velocity_x[right] = -np.abs(velocity_x[right])
 
-    position.y[top] = 0
-    velocity.y[top] = abs(velocity.y[top])
+    position_y[top] = 0
+    velocity_y[top] = np.abs(velocity_y[top])
 
-    position.y[bottom] = WINDOW_HEIGHT - sprite_size
-    velocity.y[bottom] = -abs(velocity.y[bottom])
+    position_y[bottom] = WINDOW_HEIGHT - sprite_size
+    velocity_y[bottom] = -np.abs(velocity_y[bottom])
 
 
 def render_system(
-    query: Query[Entities, With[Transform, Sprite]],
+    query: Query[Entity, With[Transform, Sprite]],
     renderer: Renderer2D,
     game: ArepyEngine,
 ):

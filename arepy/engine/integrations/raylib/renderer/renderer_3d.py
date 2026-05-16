@@ -14,7 +14,44 @@ from arepy.math.vec3 import Vec3
 
 # Global camera management
 _cameras: List[Camera3D] = []
+_camera_keys: List[tuple[int, ...]] = []
+_camera_refs: dict[tuple[int, ...], object] = {}
 _current_camera: Optional[Camera3D] = None
+
+
+def _camera_key(camera: Camera3D) -> tuple[int, ...]:
+    registry = getattr(camera, "_ecs_proxy_registry", None)
+    entity_id = getattr(camera, "_ecs_proxy_entity_id", None)
+    if registry is not None and entity_id is not None:
+        return (id(registry), int(entity_id))
+    return (id(camera),)
+
+
+def _get_camera_ref(camera: Camera3D) -> object | None:
+    key = _camera_key(camera)
+    camera_ref = _camera_refs.get(key)
+    if camera_ref is not None:
+        return camera_ref
+
+    camera_ref = getattr(camera, "_ref", None)
+    if camera_ref is not None:
+        _camera_refs[key] = camera_ref
+    return camera_ref
+
+
+def _set_camera_ref(camera: Camera3D, camera_ref: object) -> None:
+    _camera_refs[_camera_key(camera)] = camera_ref
+    camera._ref = camera_ref
+
+
+def _require_camera_ref(camera: Camera3D) -> object:
+    camera_ref = _get_camera_ref(camera)
+    if camera_ref is None:
+        add_camera(camera)
+        camera_ref = _get_camera_ref(camera)
+    if camera_ref is None:
+        raise RuntimeError("Camera is not initialized")
+    return camera_ref
 
 
 def load_model(path: PathLike[str]) -> ArepyModel:
@@ -430,9 +467,10 @@ def add_camera(camera: Camera3D) -> None:
     Args:
         camera: The 3D camera to add
     """
-    global _cameras, _current_camera
+    global _cameras, _camera_keys, _current_camera
 
-    if camera._ref is None:
+    camera_ref = _get_camera_ref(camera)
+    if camera_ref is None:
         rl_camera = rlCamera3D()
         rl_camera.position = rlVec3(
             camera.position.x, camera.position.y, camera.position.z
@@ -441,10 +479,14 @@ def add_camera(camera: Camera3D) -> None:
         rl_camera.up = rlVec3(camera.up.x, camera.up.y, camera.up.z)
         rl_camera.fovy = camera.fovy
         rl_camera.projection = camera.projection
-        camera._ref = cast(Any, rl_camera)
+        camera_ref = cast(Any, rl_camera)
+        _set_camera_ref(camera, camera_ref)
 
-    # Add to cameras list if not already present
-    if camera not in _cameras:
+    key = _camera_key(camera)
+    if key in _camera_keys:
+        _cameras[_camera_keys.index(key)] = camera
+    else:
+        _camera_keys.append(key)
         _cameras.append(camera)
 
     # Set as current camera if it's the first one
@@ -475,13 +517,15 @@ def remove_camera(id: int) -> None:
     Args:
         id: Index of the camera to remove
     """
-    global _cameras, _current_camera
+    global _cameras, _camera_keys, _current_camera
     if 0 <= id < len(_cameras):
+        camera_key = _camera_keys.pop(id)
         camera_to_remove = _cameras[id]
         _cameras.pop(id)
+        _camera_refs.pop(camera_key, None)
 
         # If removing current camera, set new current camera
-        if _current_camera == camera_to_remove:
+        if _current_camera is not None and _camera_key(_current_camera) == camera_key:
             _current_camera = _cameras[0] if _cameras else None
 
 
@@ -494,14 +538,12 @@ def begin_mode_3d(camera: Camera3D) -> None:
     """
     global _current_camera
 
-    # Ensure camera has been added (has _ref)
-    if camera._ref is None:
-        add_camera(camera)
+    add_camera(camera)
 
     # Set as current camera
     _current_camera = camera
 
-    rl.BeginMode3D(cast(Any, camera._ref))
+    rl.BeginMode3D(cast(Any, _require_camera_ref(camera)))
 
 
 def end_mode_3d() -> None:
@@ -519,21 +561,21 @@ def update_camera(camera: Camera3D, mode: int = 0) -> None:
         camera: The camera to update
         mode: Camera mode (0=CUSTOM, 1=FREE, 2=ORBITAL, etc.) - currently unused
     """
-    if camera._ref is not None:
-        rl_camera = cast(rlCamera3D, camera._ref)
+    _ = mode
+    rl_camera = cast(rlCamera3D, _require_camera_ref(camera))
 
-        # Update the raylib camera with current arepy camera values
-        rl_camera.position.x = camera.position.x
-        rl_camera.position.y = camera.position.y
-        rl_camera.position.z = camera.position.z
-        rl_camera.target.x = camera.target.x
-        rl_camera.target.y = camera.target.y
-        rl_camera.target.z = camera.target.z
-        rl_camera.up.x = camera.up.x
-        rl_camera.up.y = camera.up.y
-        rl_camera.up.z = camera.up.z
-        rl_camera.fovy = camera.fovy
-        rl_camera.projection = camera.projection
+    # Update the raylib camera with current arepy camera values
+    rl_camera.position.x = camera.position.x
+    rl_camera.position.y = camera.position.y
+    rl_camera.position.z = camera.position.z
+    rl_camera.target.x = camera.target.x
+    rl_camera.target.y = camera.target.y
+    rl_camera.target.z = camera.target.z
+    rl_camera.up.x = camera.up.x
+    rl_camera.up.y = camera.up.y
+    rl_camera.up.z = camera.up.z
+    rl_camera.fovy = camera.fovy
+    rl_camera.projection = camera.projection
 
 
 def set_lighting_enabled(enabled: bool) -> None:
@@ -619,11 +661,7 @@ def get_current_camera() -> Camera3D:
 
 def _require_current_camera_ref() -> object:
     camera = get_current_camera()
-    if camera._ref is None:
-        add_camera(camera)
-    if camera._ref is None:
-        raise RuntimeError("Current camera is not initialized")
-    return camera._ref
+    return _require_camera_ref(camera)
 
 
 def _require_texture_ref(texture: ArepyTexture) -> object:

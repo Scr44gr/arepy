@@ -1,6 +1,6 @@
+from arepy_ecs import Entities, Query, With
+
 from arepy.bundle.components import RigidBody2D, Transform
-from arepy.ecs.entities import Entities
-from arepy.ecs.query import Query, With
 from arepy.engine.renderer.renderer_2d import Renderer2D
 
 LIMITS = (640 - 32, 480 - 32)

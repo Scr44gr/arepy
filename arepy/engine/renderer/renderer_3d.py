@@ -1,7 +1,7 @@
 """Public 3D rendering protocol and lightweight resource wrappers."""
 
 from os import PathLike
-from typing import Any, Optional, Protocol, Tuple
+from typing import Any, Optional, Protocol, Tuple, runtime_checkable
 
 from arepy.bundle.components.camera import Camera3D
 from arepy.math.vec2 import Vec2
@@ -46,6 +46,7 @@ class ArepyMaterial:
         ...
 
 
+@runtime_checkable
 class Renderer3D(Protocol):
     """Protocol defining the public 3D renderer interface.
 

@@ -2,7 +2,7 @@
 
 from enum import IntEnum, IntFlag
 from os import PathLike
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 
 class CursorType(IntEnum):
@@ -38,6 +38,7 @@ class WindowFlag(IntFlag):
     BORDERLESS_WINDOWED_MODE = 0x8000
 
 
+@runtime_checkable
 class Display(Protocol):
     """Protocol defining window, cursor, clipboard, and monitor operations.
 

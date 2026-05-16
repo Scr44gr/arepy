@@ -1,6 +1,7 @@
 from typing import Dict
 
-from ...ecs.registry import Entity
+from arepy_ecs import Entity
+
 from ..events.collision_event import CollisionEvent
 
 

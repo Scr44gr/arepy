@@ -1,21 +1,24 @@
 import asyncio
 from os import PathLike
 from types import ModuleType
-from typing import Any, Dict, Optional, Type, TypeVar, cast, overload
+from typing import Any, Callable, Dict, Optional, Type, TypeVar, cast, overload
 
-from arepy.ecs.world import World
+from arepy_ecs import World
+from arepy_ecs.systems import SystemPipeline
+
 from arepy.engine.audio import AudioDevice
 from arepy.engine.input import Input
 
 from ..asset_store import AssetStore
-from ..ecs.systems import SystemPipeline
 from ..event_manager import EventManager
+from .animator import Animator
 from .display import Display, WindowFlag
 from .renderer.renderer_2d import Renderer2D
 from .renderer.renderer_3d import Renderer3D
-from .time import Time
+from .time import Time, Timers
 
 T = TypeVar("T")
+WorldCallback = Callable[[], None]
 
 
 def _resource_name(resource: object) -> str:
@@ -24,6 +27,29 @@ def _resource_name(resource: object) -> str:
         return resource_with_name.__name__
     except AttributeError:
         return type(resource).__name__
+
+
+def _initialize_world_resources(world: World) -> None:
+    world.add_resource(world)
+    world.add_resource(Animator())
+    world.add_resource(Timers())
+
+
+def _emit_world_callbacks(world: World, callback_attr: str) -> None:
+    callbacks = cast(list[WorldCallback], getattr(world, callback_attr))
+    for callback in callbacks:
+        callback()
+
+
+def _advance_world_frame_services(world: World, time_resource: Time) -> None:
+    animator = cast(Animator | None, world.get_world_resource(Animator))
+    timers = cast(Timers | None, world.get_world_resource(Timers))
+    if animator is None:
+        raise KeyError("World resource 'Animator' not found")
+    if timers is None:
+        raise KeyError("World resource 'Timers' not found")
+    timers.tick(time_resource.elapsed_seconds)
+    animator.tick(time_resource.elapsed_seconds)
 
 
 class ArepyEngine:
@@ -131,13 +157,13 @@ class ArepyEngine:
             if self._current_world is next_world:
                 return
             if self._current_world is not None:
-                self._current_world._emit_shutdown()
+                _emit_world_callbacks(self._current_world, "_shutdown_callbacks")
             self._current_world = next_world
-            self._current_world._emit_startup()
+            _emit_world_callbacks(self._current_world, "_startup_callbacks")
 
     def __shutdown_current_world(self):
         if self._current_world is not None:
-            self._current_world._emit_shutdown()
+            _emit_world_callbacks(self._current_world, "_shutdown_callbacks")
             self._next_world_to_set = None  # type: ignore
 
     def __input_process(self):
@@ -145,15 +171,16 @@ class ArepyEngine:
         # self.input.pool_events()
         if self.imgui_backend is not None:
             self.imgui_backend.process_inputs()
-        self._current_world._registry.run(pipeline=SystemPipeline.INPUT)
+        self._current_world.get_registry().run(pipeline=SystemPipeline.INPUT)
 
     def __update_process(self):
         current_world = self._current_world
-        current_world._advance_frame_services(self._time)
+        _advance_world_frame_services(current_world, self._time)
         self.__process_events_before_update()
-        current_world._registry.update()
-        current_world._registry.run(pipeline=SystemPipeline.UPDATE)
-        current_world._emit_update()
+        registry = current_world.get_registry()
+        registry.update()
+        registry.run(pipeline=SystemPipeline.UPDATE)
+        _emit_world_callbacks(current_world, "_update_callbacks")
         self.on_update()
         self.__process_events_after_update()
 
@@ -169,9 +196,10 @@ class ArepyEngine:
         current_world = self._current_world
         if self.imgui is not None and self.imgui_backend is not None:
             self.imgui.new_frame()
-        current_world._registry.run(pipeline=SystemPipeline.RENDER)
-        current_world._registry.run(pipeline=SystemPipeline.RENDER_UI)
-        current_world._emit_render()
+        registry = current_world.get_registry()
+        registry.run(pipeline=SystemPipeline.RENDER)
+        registry.run(pipeline=SystemPipeline.RENDER_UI)
+        _emit_world_callbacks(current_world, "_render_callbacks")
         self.on_render()
         if self.imgui is not None and self.imgui_backend is not None:
             self.imgui.render()
@@ -230,6 +258,7 @@ class ArepyEngine:
         if name in self.worlds:
             raise ValueError(f"World with name {name} already exists")
         world = World(name, global_resources=self._global_resources)
+        _initialize_world_resources(world)
         self.worlds[name] = world
         return world
 

@@ -1,10 +1,13 @@
 import random
 from collections import deque
+from numbers import Integral
+
+from arepy_ecs import Component, Entities, Entity, Query, With
 
 from arepy import ArepyEngine, Color, Renderer2D, SystemPipeline, Time, Timers, World
+from arepy.bundle.components._field_views import InternedStringTable
 from arepy.bundle.components.rigidbody import RigidBody2D
 from arepy.bundle.components.transform import Transform
-from arepy.ecs import Component, Entities, Entity, Query, With
 from arepy.math import Vec2
 
 WIDTH = 960
@@ -20,13 +23,44 @@ PALETTE = [
     Color(153, 102, 255, 255),
 ]
 
+_GLYPHS = InternedStringTable()
+
 
 class Letter(Component):
+    glyph_handle: int
+    size: int
+    color_r: int
+    color_g: int
+    color_b: int
+    color_a: int
+
     def __init__(self, glyph: str, size: int, color: Color) -> None:
         super().__init__()
         self.glyph = glyph
         self.size = size
         self.color = color
+
+    @property
+    def glyph(self) -> object:
+        return _GLYPHS.resolve(self.glyph_handle)
+
+    @glyph.setter
+    def glyph(self, value: str) -> None:
+        self.glyph_handle = _GLYPHS.intern(value)
+
+    @property
+    def color(self) -> object:
+        values = (self.color_r, self.color_g, self.color_b, self.color_a)
+        if all(isinstance(value, Integral) for value in values):
+            return Color(*(int(value) for value in values))
+        return values
+
+    @color.setter
+    def color(self, value: Color) -> None:
+        self.color_r = value.r
+        self.color_g = value.g
+        self.color_b = value.b
+        self.color_a = value.a
 
 
 def add_letter(

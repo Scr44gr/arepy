@@ -8,10 +8,11 @@ from arepy.engine.display import Display
 from arepy.engine.engine import ArepyEngine
 from arepy.engine.input import Input
 from arepy.engine.renderer.renderer_2d import Renderer2D
+from arepy.engine.renderer.renderer_3d import Renderer3D
 from arepy.engine.time import Time, Timers
 
 
-class FakeDisplay:
+class FakeDisplay(Display):
     def __init__(self):
         self._should_close = False
         self._time_values = [0.0]
@@ -42,7 +43,7 @@ class FakeDisplay:
         return self._last_time
 
 
-class FakeRenderer2D:
+class FakeRenderer2D(Renderer2D):
     def set_max_framerate(self, frame_rate: int) -> None:
         self.frame_rate = frame_rate
 
@@ -50,15 +51,15 @@ class FakeRenderer2D:
         self.swapped = True
 
 
-class FakeRenderer3D:
+class FakeRenderer3D(Renderer3D):
     pass
 
 
-class FakeInput:
+class FakeInput(Input):
     pass
 
 
-class FakeAudioDevice:
+class FakeAudioDevice(AudioDevice):
     def init_device(self) -> None:
         self.initialized = True
 

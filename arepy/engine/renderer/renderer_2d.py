@@ -1,7 +1,7 @@
 """Public 2D rendering protocol and helper value objects."""
 
 from os import PathLike
-from typing import Optional, Protocol
+from typing import Optional, Protocol, runtime_checkable
 
 from ...bundle.components.camera import Camera2D
 from . import (
@@ -16,6 +16,7 @@ from . import (
 )
 
 
+@runtime_checkable
 class Renderer2D(Protocol):
     """Protocol defining the public 2D renderer interface.
 
