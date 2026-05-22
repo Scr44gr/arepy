@@ -277,6 +277,68 @@ def test_query_iter_entities_components_returns_entity_and_components(registry):
     assert velocity.y == 8.0
 
 
+def test_query_iter_components_reuses_cached_rows_until_structure_changes(registry):
+    def movement_system(query: Query[Entity, With[Position, Velocity]]) -> None:
+        return None
+
+    from arepy.ecs.systems import SystemPipeline, SystemState
+
+    registry.add_system(SystemPipeline.UPDATE, SystemState.ON, movement_system)
+
+    entity = registry.create_entity()
+    registry.add_component(entity, Position, Position(1.0, 2.0))
+    registry.add_component(entity, Velocity, Velocity(3.0, 4.0))
+    registry.update()
+
+    query = next(
+        argument
+        for argument in registry.queries[movement_system]
+        if isinstance(argument, Query)
+    )
+
+    first_rows = list(query.iter_components(Position, Velocity))
+    second_rows = list(query.iter_components(Position, Velocity))
+
+    assert len(first_rows) == 1
+    assert first_rows[0] is second_rows[0]
+
+
+def test_query_iter_components_refreshes_cache_when_component_is_replaced(registry):
+    def movement_system(query: Query[Entity, With[Position, Velocity]]) -> None:
+        return None
+
+    from arepy.ecs.systems import SystemPipeline, SystemState
+
+    registry.add_system(SystemPipeline.UPDATE, SystemState.ON, movement_system)
+
+    entity = registry.create_entity()
+    registry.add_component(entity, Position, Position(1.0, 2.0))
+    registry.add_component(entity, Velocity, Velocity(3.0, 4.0))
+    registry.update()
+
+    query = next(
+        argument
+        for argument in registry.queries[movement_system]
+        if isinstance(argument, Query)
+    )
+
+    original_position, _ = next(query.iter_components(Position, Velocity))
+
+    replacement = Position(10.0, 20.0)
+    registry.add_component(entity, Position, replacement)
+
+    refreshed_position, refreshed_velocity = next(
+        query.iter_components(Position, Velocity)
+    )
+
+    assert refreshed_position is replacement
+    assert refreshed_position is not original_position
+    assert refreshed_position.x == 10.0
+    assert refreshed_position.y == 20.0
+    assert refreshed_velocity.x == 3.0
+    assert refreshed_velocity.y == 4.0
+
+
 def test_query_iteration_returns_empty_when_required_pool_is_missing(registry):
     """Queries should behave as empty until every required component pool exists."""
 

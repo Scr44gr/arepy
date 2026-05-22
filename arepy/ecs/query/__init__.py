@@ -50,6 +50,12 @@ class With(Generic[P]): ...
 class Without(Generic[P]): ...
 
 
+@dataclass(slots=True)
+class _ResolvedRows:
+    revision: int
+    rows: tuple[tuple[object, ...], ...]
+
+
 class Vec2Batch:
     __slots__ = ("x", "y")
 
@@ -127,6 +133,8 @@ class Query(Generic[TEntity, TFilter]):
         "_thread_id",
         "_registry",
         "_version",
+        "_component_rows_cache",
+        "_entity_component_rows_cache",
     ]
 
     def __init__(self) -> None:
@@ -139,6 +147,12 @@ class Query(Generic[TEntity, TFilter]):
         self._thread_id: Optional[int] = None
         self._registry: Optional["Registry"] = None
         self._version = 0
+        self._component_rows_cache: dict[
+            tuple[Type[Component], ...], _ResolvedRows
+        ] = {}
+        self._entity_component_rows_cache: dict[
+            tuple[Type[Component], ...], _ResolvedRows
+        ] = {}
 
     def get_component_signature(self) -> Signature:
         return self._signature
@@ -160,12 +174,14 @@ class Query(Generic[TEntity, TFilter]):
             self._entities.add(entity)
             self._is_order_dirty = True
             self._version += 1
+            self._invalidate_iteration_cache()
 
     def remove_entity(self, entity: "Entity") -> None:
         try:
             self._entities.remove(entity)
             self._is_order_dirty = True
             self._version += 1
+            self._invalidate_iteration_cache()
         except KeyError:
             pass
 
@@ -174,42 +190,19 @@ class Query(Generic[TEntity, TFilter]):
 
     def set_registry(self, registry: "Registry") -> None:
         self._registry = registry
+        self._invalidate_iteration_cache()
 
     def iter_components(
         self, *component_types: Type[Component]
     ) -> Iterator[tuple[Component, ...]]:
-        component_pools = self._get_component_pools(component_types)
-        if component_pools is None:
-            return
-
-        for entity in self._get_ordered_entities():
-            entity_id = entity.get_id() - 1
-            components: list[Component] = []
-            for component_pool in component_pools:
-                component = component_pool.get(entity_id)
-                if component is None:
-                    break
-                components.append(component)
-            else:
-                yield tuple(components)
+        rows = self._get_component_rows(component_types)
+        yield from cast(Iterable[tuple[Component, ...]], rows)
 
     def iter_entities_components(
         self, *component_types: Type[Component]
     ) -> Iterator[tuple["Entity", *tuple[Component, ...]]]:
-        component_pools = self._get_component_pools(component_types)
-        if component_pools is None:
-            return
-
-        for entity in self._get_ordered_entities():
-            entity_id = entity.get_id() - 1
-            components: list[Component] = []
-            for component_pool in component_pools:
-                component = component_pool.get(entity_id)
-                if component is None:
-                    break
-                components.append(component)
-            else:
-                yield (entity, *components)
+        rows = self._get_entity_component_rows(component_types)
+        yield from cast(Iterable[tuple["Entity", *tuple[Component, ...]]], rows)
 
     def _get_component_pools(
         self, component_types: Sequence[Type[Component]]
@@ -238,6 +231,73 @@ class Query(Generic[TEntity, TFilter]):
             self._is_order_dirty = False
 
         return self._ordered_entities_cache
+
+    def _get_component_rows(
+        self, component_types: Sequence[Type[Component]]
+    ) -> tuple[tuple[Component, ...], ...]:
+        key = tuple(component_types)
+        cached = self._component_rows_cache.get(key)
+        current_revision = self._get_registry_component_revision()
+        if cached is not None and cached.revision == current_revision:
+            return cast(tuple[tuple[Component, ...], ...], cached.rows)
+
+        component_pools = self._get_component_pools(component_types)
+        if component_pools is None:
+            rows: tuple[tuple[Component, ...], ...] = ()
+        else:
+            resolved_rows: list[tuple[Component, ...]] = []
+            for entity in self._get_ordered_entities():
+                entity_id = entity.get_id() - 1
+                components: list[Component] = []
+                for component_pool in component_pools:
+                    component = component_pool.get(entity_id)
+                    if component is None:
+                        break
+                    components.append(component)
+                else:
+                    resolved_rows.append(tuple(components))
+            rows = tuple(resolved_rows)
+
+        self._component_rows_cache[key] = _ResolvedRows(current_revision, cast(tuple[tuple[object, ...], ...], rows))
+        return rows
+
+    def _get_entity_component_rows(
+        self, component_types: Sequence[Type[Component]]
+    ) -> tuple[tuple["Entity", *tuple[Component, ...]], ...]:
+        key = tuple(component_types)
+        cached = self._entity_component_rows_cache.get(key)
+        current_revision = self._get_registry_component_revision()
+        if cached is not None and cached.revision == current_revision:
+            return cast(tuple[tuple["Entity", *tuple[Component, ...]], ...], cached.rows)
+
+        component_pools = self._get_component_pools(component_types)
+        if component_pools is None:
+            rows: tuple[tuple["Entity", *tuple[Component, ...]], ...] = ()
+        else:
+            resolved_rows: list[tuple["Entity", *tuple[Component, ...]]] = []
+            for entity in self._get_ordered_entities():
+                entity_id = entity.get_id() - 1
+                components: list[Component] = []
+                for component_pool in component_pools:
+                    component = component_pool.get(entity_id)
+                    if component is None:
+                        break
+                    components.append(component)
+                else:
+                    resolved_rows.append((entity, *components))
+            rows = tuple(resolved_rows)
+
+        self._entity_component_rows_cache[key] = _ResolvedRows(current_revision, cast(tuple[tuple[object, ...], ...], rows))
+        return rows
+
+    def _get_registry_component_revision(self) -> int:
+        if self._registry is None:
+            raise RegistryNotSetError
+        return self._registry.get_component_revision()
+
+    def _invalidate_iteration_cache(self) -> None:
+        self._component_rows_cache.clear()
+        self._entity_component_rows_cache.clear()
 
     def fetch(self) -> TEntity:
         raise NotImplementedError()

@@ -54,6 +54,7 @@ class Registry:
 
     resources: dict[str, object] = field(default_factory=dict)
     global_resources: dict[str, object] = field(default_factory=dict)
+    component_revision: int = 0
 
     def create_entity(self) -> Entity:
 
@@ -102,6 +103,7 @@ class Registry:
 
         component_pool.set(entity_id - 1, component)
         self.entity_component_signatures[entity_id - 1].set(component_id, True)
+        self.component_revision += 1
 
     def get_component(
         self,
@@ -139,6 +141,10 @@ class Registry:
 
         self.entity_component_signatures[entity_id - 1].clear_bit(component_id)
         self.entities_to_be_synced_on_remove.add(entity)
+        self.component_revision += 1
+
+    def get_component_revision(self) -> int:
+        return self.component_revision
 
     def has_component(
         self,
