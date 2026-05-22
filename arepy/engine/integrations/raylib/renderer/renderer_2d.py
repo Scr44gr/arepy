@@ -64,7 +64,11 @@ def _encode_optional_text(value: Optional[str | PathLike[str]]) -> object:
 
 
 def _wrap_shader(shader_ref: object) -> ArepyShader:
-    arepy_shader = ArepyShader(getattr(shader_ref, "id", 0))
+    try:
+        shader_id = shader_ref.id
+    except AttributeError:
+        shader_id = 0
+    arepy_shader = ArepyShader(shader_id)
     arepy_shader._ref_shader = shader_ref
     return arepy_shader
 

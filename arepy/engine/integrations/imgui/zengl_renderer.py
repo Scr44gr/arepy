@@ -231,7 +231,10 @@ class ZenglRenderer(BaseOpenGLRenderer):
                 )
 
                 for command in commands.cmd_buffer:
-                    index_offset = getattr(command, "idx_offset", running_index_offset)
+                    try:
+                        index_offset = command.idx_offset
+                    except AttributeError:
+                        index_offset = running_index_offset
                     x1, y1, x2, y2 = command.clip_rect
                     clip_x1 = max(int(x1), 0)
                     clip_y1 = max(int(fb_height - y2), 0)
@@ -248,7 +251,10 @@ class ZenglRenderer(BaseOpenGLRenderer):
                         clip_y2 - clip_y1,
                     )
 
-                    tex_ref = getattr(command, "tex_ref", None)
+                    try:
+                        tex_ref = command.tex_ref
+                    except AttributeError:
+                        tex_ref = None
                     texture_id = (
                         tex_ref.get_tex_id()
                         if tex_ref is not None

@@ -1,5 +1,6 @@
 from collections import OrderedDict
 from dataclasses import dataclass
+from operator import attrgetter
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -82,19 +83,91 @@ class Vec3Batch:
 @dataclass(slots=True)
 class _ScalarWriteback:
     components: list[Component]
-    attribute_name: str
+    accessor: "_BatchAttributeAccessor"
     values: ScalarBatch
 
     def flush(self) -> None:
-        for component, value in zip(self.components, self.values):
-            setattr(component, self.attribute_name, _python_value(value))
+        self.accessor.set_many(self.components, self.values, _python_value)
 
 
 def _python_value(value: object) -> object:
-    item = getattr(value, "item", None)
+    try:
+        item = value.item
+    except AttributeError:
+        return value
     if callable(item):
         return item()
     return value
+
+
+@dataclass(frozen=True, slots=True)
+class _BatchAttributeAccessor:
+    get_many: Callable[[Sequence[Component]], list[object]]
+    set_many: Callable[
+        [Sequence[Component], Iterable[object], Callable[[object], object]], None
+    ]
+    bind_vec2_storage: Callable[[Sequence[Component], FloatBatch, FloatBatch], None]
+    bind_vec3_storage: Callable[
+        [Sequence[Component], FloatBatch, FloatBatch, FloatBatch], None
+    ]
+
+
+_ATTRIBUTE_ACCESSORS: dict[str, _BatchAttributeAccessor] = {}
+
+
+def _build_attribute_accessor(attribute_name: str) -> _BatchAttributeAccessor:
+    getter: Callable[[Component], object] | None = None
+    if "." not in attribute_name:
+        getter = cast(Callable[[Component], object], attrgetter(attribute_name))
+
+    def get_many(components: Sequence[Component]) -> list[object]:
+        if getter is not None:
+            return [getter(component) for component in components]
+        return [
+            type(component).__getattribute__(component, attribute_name)
+            for component in components
+        ]
+
+    def set_many(
+        components: Sequence[Component],
+        values: Iterable[object],
+        convert: Callable[[object], object],
+    ) -> None:
+        for component, value in zip(components, values):
+            type(component).__setattr__(component, attribute_name, convert(value))
+
+    def bind_vec2_storage(
+        components: Sequence[Component], x: FloatBatch, y: FloatBatch
+    ) -> None:
+        for index, component in enumerate(components):
+            type(component).__setattr__(
+                component, attribute_name, Vec2.from_storage(x, y, index)
+            )
+
+    def bind_vec3_storage(
+        components: Sequence[Component], x: FloatBatch, y: FloatBatch, z: FloatBatch
+    ) -> None:
+        for index, component in enumerate(components):
+            type(component).__setattr__(
+                component, attribute_name, Vec3.from_storage(x, y, z, index)
+            )
+
+    return _BatchAttributeAccessor(
+        get_many=get_many,
+        set_many=set_many,
+        bind_vec2_storage=bind_vec2_storage,
+        bind_vec3_storage=bind_vec3_storage,
+    )
+
+
+def _get_attribute_accessor(attribute_name: str) -> _BatchAttributeAccessor:
+    accessor = _ATTRIBUTE_ACCESSORS.get(attribute_name)
+    if accessor is not None:
+        return accessor
+
+    accessor = _build_attribute_accessor(attribute_name)
+    _ATTRIBUTE_ACCESSORS[attribute_name] = accessor
+    return accessor
 
 
 class Query(Generic[TEntity, TFilter]):
@@ -335,13 +408,10 @@ class BatchQuery(Query["Entity", Any], Generic[*TBatchComponents]):
             return cached
 
         components = self._get_batch_components(component_type)
-        values = np.asarray(
-            [getattr(component, attribute_name) for component in components]
-        )
+        accessor = _get_attribute_accessor(attribute_name)
+        values = np.asarray(accessor.get_many(components))
         self._scalar_batches[key] = values
-        self._scalar_writebacks.append(
-            _ScalarWriteback(components, attribute_name, values)
-        )
+        self._scalar_writebacks.append(_ScalarWriteback(components, accessor, values))
         return values
 
     def vec2(self, component_type: Type[Component], attribute_name: str) -> Vec2Batch:
@@ -353,7 +423,8 @@ class BatchQuery(Query["Entity", Any], Generic[*TBatchComponents]):
             return cached
 
         components = self._get_batch_components(component_type)
-        vectors = [getattr(component, attribute_name) for component in components]
+        accessor = _get_attribute_accessor(attribute_name)
+        vectors = accessor.get_many(components)
         x = np.fromiter(
             (vector.x for vector in vectors), dtype=np.float64, count=len(vectors)
         )
@@ -361,8 +432,7 @@ class BatchQuery(Query["Entity", Any], Generic[*TBatchComponents]):
             (vector.y for vector in vectors), dtype=np.float64, count=len(vectors)
         )
         batch = Vec2Batch(x, y)
-        for index, component in enumerate(components):
-            setattr(component, attribute_name, Vec2.from_storage(x, y, index))
+        accessor.bind_vec2_storage(components, x, y)
         self._vec2_batches[key] = batch
         return batch
 
@@ -375,7 +445,8 @@ class BatchQuery(Query["Entity", Any], Generic[*TBatchComponents]):
             return cached
 
         components = self._get_batch_components(component_type)
-        vectors = [getattr(component, attribute_name) for component in components]
+        accessor = _get_attribute_accessor(attribute_name)
+        vectors = accessor.get_many(components)
         x = np.fromiter(
             (vector.x for vector in vectors), dtype=np.float64, count=len(vectors)
         )
@@ -386,8 +457,7 @@ class BatchQuery(Query["Entity", Any], Generic[*TBatchComponents]):
             (vector.z for vector in vectors), dtype=np.float64, count=len(vectors)
         )
         batch = Vec3Batch(x, y, z)
-        for index, component in enumerate(components):
-            setattr(component, attribute_name, Vec3.from_storage(x, y, z, index))
+        accessor.bind_vec3_storage(components, x, y, z)
         self._vec3_batches[key] = batch
         return batch
 
@@ -476,9 +546,12 @@ def sign_queries(
     signed_queries = []
     for name, query_signature in queries_signature:
         query_origin = _resolve_query_origin(query_signature)
-        query_args = get_args(query_signature) or getattr(
-            query_signature, "__args__", ()
-        )
+        query_args = get_args(query_signature)
+        if not query_args:
+            try:
+                query_args = query_signature.__args__
+            except AttributeError:
+                query_args = ()
         query_args_list = list(query_args)
 
         if query_origin is BatchQuery:

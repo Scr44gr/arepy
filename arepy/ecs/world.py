@@ -1,5 +1,5 @@
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Set, Type, TypeVar, cast, overload
+from typing import Any, Callable, Dict, List, Optional, Set, Type, TypeVar, cast, overload
 
 from ..engine.animator import Animator
 from ..engine.time import Time, Timers
@@ -12,7 +12,11 @@ WorldCallback = Callable[[], None]
 
 
 def _resource_name(resource: object) -> str:
-    return getattr(resource, "__name__", resource.__class__.__name__)
+    resource_with_name = cast(Any, resource)
+    try:
+        return resource_with_name.__name__
+    except AttributeError:
+        return type(resource).__name__
 
 
 class World:

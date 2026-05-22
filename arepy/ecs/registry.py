@@ -286,13 +286,19 @@ class Registry:
         for marker in markers:
             args[marker.index] = self.get_resource(marker.name)
         for arg in args:
-            prepare = getattr(arg, "_prepare_for_system_run", None)
+            try:
+                prepare = arg._prepare_for_system_run
+            except AttributeError:
+                continue
             if callable(prepare):
                 prepare()
         return args
 
     def _flush_system_args(self, args: List[object]) -> None:
         for arg in args:
-            flush = getattr(arg, "_flush_after_system_run", None)
+            try:
+                flush = arg._flush_after_system_run
+            except AttributeError:
+                continue
             if callable(flush):
                 flush()

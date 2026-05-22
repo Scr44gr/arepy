@@ -1,7 +1,7 @@
 import asyncio
 from os import PathLike
 from types import ModuleType
-from typing import Any, Dict, Optional, Type, TypeVar, overload
+from typing import Any, Dict, Optional, Type, TypeVar, cast, overload
 
 from arepy.ecs.world import World
 from arepy.engine.audio import AudioDevice
@@ -19,7 +19,11 @@ T = TypeVar("T")
 
 
 def _resource_name(resource: object) -> str:
-    return getattr(resource, "__name__", resource.__class__.__name__)
+    resource_with_name = cast(Any, resource)
+    try:
+        return resource_with_name.__name__
+    except AttributeError:
+        return type(resource).__name__
 
 
 class ArepyEngine:
