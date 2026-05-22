@@ -1,7 +1,7 @@
 import math
 import random
 
-from arepy_ecs import Component, Entities, Query, With, World
+from arepy_ecs import Component, Entity, Query, With, World
 
 from arepy import ArepyEngine, Color, Input, Renderer2D, Renderer3D, SystemPipeline
 from arepy.bundle.components.camera import Camera3D
@@ -44,76 +44,57 @@ GRID_SPACING = 5.0
 class CachedInput(Component):
     """Component to cache input state for camera movement"""
 
-    horizontal_angle: float
-    vertical_angle: float
-    distance: float
-    needs_update: bool
-    smoothing_factor: float
-    target_horizontal: float
-    target_vertical: float
-    target_distance: float
-    center_threshold: int
-    mouse_was_centered: bool
-
-    def __init__(self):
-        super().__init__()
-        self.horizontal_angle = 0.0  # Cached horizontal angle
-        self.vertical_angle = 0.0  # Cached vertical angle
-        self.distance = 20.0  # Cached camera distance
-        self.needs_update = True  # Flag to avoid unnecessary calculations
-        self.smoothing_factor = 0.5  # For smooth camera movement
-        self.target_horizontal = 0.0  # Target angle for smooth interpolation
-        self.target_vertical = 0.0  # Target angle for smooth interpolation
-        self.target_distance = 50.0  # Target distance for smooth zoom
-        self.center_threshold = 100  # Distance from center before recentering
-        self.mouse_was_centered = False  # Track if we just centered the mouse
+    horizontal_angle: float = 0.0
+    vertical_angle: float = 0.0
+    distance: float = 20.0
+    needs_update: bool = True
+    smoothing_factor: float = 0.5
+    target_horizontal: float = 0.0
+    target_vertical: float = 0.0
+    target_distance: float = 50.0
+    center_threshold: int = 100
+    mouse_was_centered: bool = False
 
 
 def movement_system_3d(
-    query: Query[Entities, With[Transform3D, RigidBody3D]], renderer: Renderer3D
+    query: Query[Entity, With[Transform3D, RigidBody3D]], renderer: Renderer3D
 ) -> None:
     """3D movement system with bouncing physics - optimized version"""
     delta_time: float = renderer.get_delta_time()
 
     for transform, rigidbody in query.iter_components(Transform3D, RigidBody3D):
+        transform.position_x += rigidbody.velocity_x * delta_time
+        transform.position_y += rigidbody.velocity_y * delta_time
+        transform.position_z += rigidbody.velocity_z * delta_time
 
-        pos = transform.position
-        vel = rigidbody.velocity
-        rot = transform.rotation
-        ang_vel = rigidbody.angular_velocity
+        if transform.position_x <= WORLD_BOUNDS_MIN:
+            transform.position_x = WORLD_BOUNDS_MIN
+            rigidbody.velocity_x = abs(rigidbody.velocity_x)
+        elif transform.position_x >= WORLD_BOUNDS_MAX:
+            transform.position_x = WORLD_BOUNDS_MAX
+            rigidbody.velocity_x = -abs(rigidbody.velocity_x)
 
-        pos.x += vel.x * delta_time
-        pos.y += vel.y * delta_time
-        pos.z += vel.z * delta_time
+        if transform.position_y <= WORLD_BOUNDS_MIN:
+            transform.position_y = WORLD_BOUNDS_MIN
+            rigidbody.velocity_y = abs(rigidbody.velocity_y)
+        elif transform.position_y >= WORLD_BOUNDS_MAX:
+            transform.position_y = WORLD_BOUNDS_MAX
+            rigidbody.velocity_y = -abs(rigidbody.velocity_y)
 
-        if pos.x <= WORLD_BOUNDS_MIN:
-            pos.x = WORLD_BOUNDS_MIN
-            vel.x = abs(vel.x)
-        elif pos.x >= WORLD_BOUNDS_MAX:
-            pos.x = WORLD_BOUNDS_MAX
-            vel.x = -abs(vel.x)
+        if transform.position_z <= WORLD_BOUNDS_MIN:
+            transform.position_z = WORLD_BOUNDS_MIN
+            rigidbody.velocity_z = abs(rigidbody.velocity_z)
+        elif transform.position_z >= WORLD_BOUNDS_MAX:
+            transform.position_z = WORLD_BOUNDS_MAX
+            rigidbody.velocity_z = -abs(rigidbody.velocity_z)
 
-        if pos.y <= WORLD_BOUNDS_MIN:
-            pos.y = WORLD_BOUNDS_MIN
-            vel.y = abs(vel.y)
-        elif pos.y >= WORLD_BOUNDS_MAX:
-            pos.y = WORLD_BOUNDS_MAX
-            vel.y = -abs(vel.y)
-
-        if pos.z <= WORLD_BOUNDS_MIN:
-            pos.z = WORLD_BOUNDS_MIN
-            vel.z = abs(vel.z)
-        elif pos.z >= WORLD_BOUNDS_MAX:
-            pos.z = WORLD_BOUNDS_MAX
-            vel.z = -abs(vel.z)
-
-        rot.x += ang_vel.x * delta_time
-        rot.y += ang_vel.y * delta_time
-        rot.z += ang_vel.z * delta_time
+        transform.rotation_x += rigidbody.angular_velocity_x * delta_time
+        transform.rotation_y += rigidbody.angular_velocity_y * delta_time
+        transform.rotation_z += rigidbody.angular_velocity_z * delta_time
 
 
 def camera_system_3d(
-    camera_query: Query[Entities, With[Camera3D, CachedInput]],
+    camera_query: Query[Entity, With[Camera3D, CachedInput]],
     renderer_3d: Renderer3D,
     input_device: Input,
     game: ArepyEngine,
@@ -149,9 +130,9 @@ def camera_system_3d(
     # Initialize angles if first time
     if cached_input.needs_update:
         # Calculate initial spherical coordinates
-        dx = camera.position.x - camera.target.x
-        dy = camera.position.y - camera.target.y
-        dz = camera.position.z - camera.target.z
+        dx = camera.position_x - camera.target_x
+        dy = camera.position_y - camera.target_y
+        dz = camera.position_z - camera.target_z
         cached_input.distance = math.hypot(dx, dy, dz)
         cached_input.horizontal_angle = math.atan2(dx, dz)
         cos_vertical = max(-1.0, min(1.0, dy / cached_input.distance))
@@ -195,12 +176,12 @@ def camera_system_3d(
     cos_horizontal = math.cos(cached_input.horizontal_angle)
 
     # Update camera position using smoothed values
-    camera.position.x = (
-        camera.target.x + cached_input.distance * sin_vertical * sin_horizontal
+    camera.position_x = (
+        camera.target_x + cached_input.distance * sin_vertical * sin_horizontal
     )
-    camera.position.y = camera.target.y + cached_input.distance * cos_vertical
-    camera.position.z = (
-        camera.target.z + cached_input.distance * sin_vertical * cos_horizontal
+    camera.position_y = camera.target_y + cached_input.distance * cos_vertical
+    camera.position_z = (
+        camera.target_z + cached_input.distance * sin_vertical * cos_horizontal
     )
 
     # Smart mouse recentering - only when mouse gets too far from center
@@ -213,8 +194,8 @@ def camera_system_3d(
 
 
 def render_system_3d(
-    query: Query[Entities, With[Transform3D]],
-    camera_query: Query[Entities, With[Camera3D]],
+    query: Query[Entity, With[Transform3D]],
+    camera_query: Query[Entity, With[Camera3D]],
     renderer: Renderer3D,
     renderer_2d: Renderer2D,
 ) -> None:
@@ -256,15 +237,11 @@ def render_system_3d(
         # Use fast color cycling
         color = CUBE_COLORS[number_of_entities % color_count]
 
-        # Direct position access, reuse Vec3 creation
-        pos = transform.position
-        scale = transform.scale
-
         renderer.draw_cube(
-            Vec3(pos.x, pos.y, pos.z),
-            scale.x,
-            scale.y,
-            scale.z,
+            Vec3(transform.position_x, transform.position_y, transform.position_z),
+            transform.scale_x,
+            transform.scale_y,
+            transform.scale_z,
             color,
         )
 
@@ -315,15 +292,21 @@ def spawn_cubes_3d(world: World, count: int) -> None:
 
         world.create_entity().with_component(
             Transform3D(
-                position=Vec3(x, y, z),
-                rotation=Vec3(0.0, 0.0, 0.0),
-                scale=Vec3(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE),
+                position_x=x,
+                position_y=y,
+                position_z=z,
+                scale_x=CUBE_SIZE,
+                scale_y=CUBE_SIZE,
+                scale_z=CUBE_SIZE,
             )
         ).with_component(
             RigidBody3D(
-                velocity=Vec3(vx, vy, vz),
-                acceleration=Vec3(0.0, 0.0, 0.0),
-                angular_velocity=Vec3(avx, avy, avz),
+                velocity_x=vx,
+                velocity_y=vy,
+                velocity_z=vz,
+                angular_velocity_x=avx,
+                angular_velocity_y=avy,
+                angular_velocity_z=avz,
             )
         ).build()
 
@@ -339,18 +322,25 @@ def main() -> None:
     world: World = game.create_world("cubemark_3d")
 
     # Create 3D camera with cached input
-    cached_input = CachedInput()
-    cached_input.needs_update = True  # Force initial calculation
-    cached_input.target_distance = 34.64  # 20 * sqrt(3)
-    cached_input.distance = cached_input.target_distance
+    cached_input = CachedInput(
+        needs_update=True,
+        target_distance=34.64,
+        distance=34.64,
+    )
 
     _ = (  # as camera entity
         world.create_entity()
         .with_component(
             Camera3D(
-                position=Vec3(20.0, 20.0, 20.0),
-                target=Vec3(0.0, 0.0, 0.0),
-                up=Vec3(0.0, 1.0, 0.0),
+                position_x=20.0,
+                position_y=20.0,
+                position_z=20.0,
+                target_x=0.0,
+                target_y=0.0,
+                target_z=0.0,
+                up_x=0.0,
+                up_y=1.0,
+                up_z=0.0,
                 fovy=45.0,
                 projection=0,  # PERSPECTIVE
             )

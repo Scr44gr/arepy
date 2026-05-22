@@ -2,6 +2,7 @@ from arepy_ecs import Entity, Query, With
 
 from arepy.asset_store import AssetStore
 from arepy.bundle.components import Sprite, Transform
+from arepy.bundle.components.sprite import resolve_sprite_asset_id
 from arepy.engine.renderer.renderer_2d import Color, Rect, Renderer2D
 
 WHITE = Color(255, 255, 255, 255)
@@ -27,20 +28,19 @@ def render_system(
     renderer.start_frame()
     renderer.clear(color=CLEAR_COLOR)
     for transform, sprite in query.iter_components(Transform, Sprite):
-        position = transform.position
-        texture = asset_store.get_texture(sprite.asset_id)
+        texture = asset_store.get_texture(resolve_sprite_asset_id(sprite))
         texture_size = texture.get_size()
         dst_rect = Rect(
-            position.x,
-            position.y,
+            transform.position_x,
+            transform.position_y,
             int(texture_size[0]),
             int(texture_size[1]),
         )
         src_rect = Rect(
-            float(sprite.src_rect[0]),
-            float(sprite.src_rect[1]),
-            int(sprite.src_rect[2]),
-            int(sprite.src_rect[3]),
+            float(sprite.src_x),
+            float(sprite.src_y),
+            int(sprite.src_w),
+            int(sprite.src_h),
         )
         renderer.draw_texture(
             texture,

@@ -12,24 +12,21 @@ def movement_system(
 ):
     delta_time = renderer.get_delta_time()
     for transform, rigidbody in query.iter_components(Transform, RigidBody2D):
-        position = transform.position
-        velocity = rigidbody.velocity
+        transform.position_x += rigidbody.velocity_x * delta_time
+        transform.position_y += rigidbody.velocity_y * delta_time
 
-        position.x += velocity.x * delta_time
-        position.y += velocity.y * delta_time
+        if transform.position_x < 0:
+            transform.position_x = 0
+            rigidbody.velocity_x = -rigidbody.velocity_x
 
-        if position.x < 0:
-            position.x = 0
-            velocity.x = -velocity.x
+        if transform.position_y < 0:
+            transform.position_y = 0
+            rigidbody.velocity_y = -rigidbody.velocity_y
 
-        if position.y < 0:
-            position.y = 0
-            velocity.y = -velocity.y
+        if transform.position_x > LIMITS[0]:
+            transform.position_x = LIMITS[0]
+            rigidbody.velocity_x = -rigidbody.velocity_x
 
-        if position.x > LIMITS[0]:
-            position.x = LIMITS[0]
-            velocity.x = -velocity.x
-
-        if position.y > LIMITS[1]:
-            position.y = LIMITS[1]
-            velocity.y = -velocity.y
+        if transform.position_y > LIMITS[1]:
+            transform.position_y = LIMITS[1]
+            rigidbody.velocity_y = -rigidbody.velocity_y

@@ -28,20 +28,11 @@ def _camera_key(camera: Camera3D) -> tuple[int, ...]:
 
 
 def _get_camera_ref(camera: Camera3D) -> object | None:
-    key = _camera_key(camera)
-    camera_ref = _camera_refs.get(key)
-    if camera_ref is not None:
-        return camera_ref
-
-    camera_ref = getattr(camera, "_ref", None)
-    if camera_ref is not None:
-        _camera_refs[key] = camera_ref
-    return camera_ref
+    return _camera_refs.get(_camera_key(camera))
 
 
 def _set_camera_ref(camera: Camera3D, camera_ref: object) -> None:
     _camera_refs[_camera_key(camera)] = camera_ref
-    camera._ref = camera_ref
 
 
 def _require_camera_ref(camera: Camera3D) -> object:
@@ -473,10 +464,10 @@ def add_camera(camera: Camera3D) -> None:
     if camera_ref is None:
         rl_camera = rlCamera3D()
         rl_camera.position = rlVec3(
-            camera.position.x, camera.position.y, camera.position.z
+            camera.position_x, camera.position_y, camera.position_z
         )
-        rl_camera.target = rlVec3(camera.target.x, camera.target.y, camera.target.z)
-        rl_camera.up = rlVec3(camera.up.x, camera.up.y, camera.up.z)
+        rl_camera.target = rlVec3(camera.target_x, camera.target_y, camera.target_z)
+        rl_camera.up = rlVec3(camera.up_x, camera.up_y, camera.up_z)
         rl_camera.fovy = camera.fovy
         rl_camera.projection = camera.projection
         camera_ref = cast(Any, rl_camera)
@@ -565,15 +556,15 @@ def update_camera(camera: Camera3D, mode: int = 0) -> None:
     rl_camera = cast(rlCamera3D, _require_camera_ref(camera))
 
     # Update the raylib camera with current arepy camera values
-    rl_camera.position.x = camera.position.x
-    rl_camera.position.y = camera.position.y
-    rl_camera.position.z = camera.position.z
-    rl_camera.target.x = camera.target.x
-    rl_camera.target.y = camera.target.y
-    rl_camera.target.z = camera.target.z
-    rl_camera.up.x = camera.up.x
-    rl_camera.up.y = camera.up.y
-    rl_camera.up.z = camera.up.z
+    rl_camera.position.x = camera.position_x
+    rl_camera.position.y = camera.position_y
+    rl_camera.position.z = camera.position_z
+    rl_camera.target.x = camera.target_x
+    rl_camera.target.y = camera.target_y
+    rl_camera.target.z = camera.target_z
+    rl_camera.up.x = camera.up_x
+    rl_camera.up.y = camera.up_y
+    rl_camera.up.z = camera.up_z
     rl_camera.fovy = camera.fovy
     rl_camera.projection = camera.projection
 

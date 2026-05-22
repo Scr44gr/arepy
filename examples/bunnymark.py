@@ -1,15 +1,11 @@
 import random
-from typing import Protocol, cast
+from typing import cast
 
 import numpy as np
-from arepy_ecs import Entity, Query, With, World
+from arepy_ecs import Component, Entity, Query, With, World
 from numpy.typing import NDArray
 
-from arepy import ArepyEngine, Color, Rect, Renderer2D, SystemPipeline
-from arepy.bundle.components.rigidbody import RigidBody2D
-from arepy.bundle.components.sprite import Sprite
-from arepy.bundle.components.transform import Transform
-from arepy.math import Vec2
+from arepy import ArepyEngine, Color, Rect, SystemPipeline
 
 WHITE_COLOR = Color(255, 255, 255, 255)
 BUNNY_ASSET = "bunny.png"
@@ -17,73 +13,72 @@ BUNNY_ASSET = "bunny.png"
 BUNNY_COUNT = 5000
 WINDOW_WIDTH = 640
 WINDOW_HEIGHT = 480
+SPRITE_SIZE = 32
+SPRITE_ORIGIN = 16.0
+SPRITE_SOURCE_RECT = Rect(0, 0, SPRITE_SIZE, SPRITE_SIZE)
 
-FloatBatch = NDArray[np.float32]
-BoolBatch = NDArray[np.bool_]
-
-
-class TransformBatch(Protocol):
-    position_x: FloatBatch
-    position_y: FloatBatch
+FloatArray = NDArray[np.float32]
+BoolArray = NDArray[np.bool_]
 
 
-class RigidBody2DBatch(Protocol):
-    velocity_x: FloatBatch
-    velocity_y: FloatBatch
+class Position(Component):
+    x: float = 0.0
+    y: float = 0.0
+
+
+class Velocity(Component):
+    x: float = 0.0
+    y: float = 0.0
 
 
 def movement_system(
-    query: Query[Entity, With[Transform, RigidBody2D]],
-    renderer: Renderer2D,
+    query: Query[Entity, With[Position, Velocity]],
+    game: ArepyEngine,
 ) -> None:
-    """Simple movement system using the arepy-ecs batch result path."""
-    delta_time: float = renderer.get_delta_time()
-    sprite_size: int = 16
-    transforms, rigidbodies = cast(
-        tuple[TransformBatch, RigidBody2DBatch],
-        query.result(Transform, RigidBody2D),
-    )
-    position_x = transforms.position_x
-    position_y = transforms.position_y
-    velocity_x = rigidbodies.velocity_x
-    velocity_y = rigidbodies.velocity_y
+    delta_time = game.renderer_2d.get_delta_time()
+    position, velocity = query.result(Position, Velocity)
 
-    position_x += velocity_x * delta_time
-    position_y += velocity_y * delta_time
+    positions_x = cast(FloatArray, position.x)
+    positions_y = cast(FloatArray, position.y)
+    velocity_x = cast(FloatArray, velocity.x)
+    velocity_y = cast(FloatArray, velocity.y)
 
-    left: BoolBatch = position_x <= 0
-    right: BoolBatch = position_x >= WINDOW_WIDTH - sprite_size
-    top: BoolBatch = position_y <= 0
-    bottom: BoolBatch = position_y >= WINDOW_HEIGHT - sprite_size
+    positions_x += velocity_x * delta_time
+    positions_y += velocity_y * delta_time
 
-    position_x[left] = 0
+    left: BoolArray = positions_x <= 0
+    right: BoolArray = positions_x >= WINDOW_WIDTH - SPRITE_SIZE
+    top: BoolArray = positions_y <= 0
+    bottom: BoolArray = positions_y >= WINDOW_HEIGHT - SPRITE_SIZE
+
+    positions_x[left] = 0
     velocity_x[left] = np.abs(velocity_x[left])
 
-    position_x[right] = WINDOW_WIDTH - sprite_size
+    positions_x[right] = WINDOW_WIDTH - SPRITE_SIZE
     velocity_x[right] = -np.abs(velocity_x[right])
 
-    position_y[top] = 0
+    positions_y[top] = 0
     velocity_y[top] = np.abs(velocity_y[top])
 
-    position_y[bottom] = WINDOW_HEIGHT - sprite_size
+    positions_y[bottom] = WINDOW_HEIGHT - SPRITE_SIZE
     velocity_y[bottom] = -np.abs(velocity_y[bottom])
 
 
 def render_system(
-    query: Query[Entity, With[Transform, Sprite]],
-    renderer: Renderer2D,
+    query: Query[Entity, With[Position]],
     game: ArepyEngine,
 ):
+    renderer = game.renderer_2d
     renderer.start_frame()
     renderer.clear(color=WHITE_COLOR)
     texture = game.get_asset_store().get_texture(BUNNY_ASSET)
-    number_of_entities: int = 0
-    for (transform,) in query.iter_components(Transform):
+    number_of_entities = 0
+    for (position,) in query.iter_components(Position):
         renderer.draw_texture_ex(
             texture,
-            Rect(0, 0, 32, 32),
-            Rect(transform.position.x, transform.position.y, 32, 32),
-            (transform.origin.x, transform.origin.y),
+            SPRITE_SOURCE_RECT,
+            Rect(position.x, position.y, SPRITE_SIZE, SPRITE_SIZE),
+            (SPRITE_ORIGIN, SPRITE_ORIGIN),
             0.0,  # rotation
             WHITE_COLOR,
         )
@@ -100,14 +95,12 @@ def render_system(
 
 def spawn_bunnies(world: World, count: int) -> None:
     for _ in range(count):
-        x: float = random.uniform(0, WINDOW_WIDTH - 32)
-        y: float = random.uniform(0, WINDOW_HEIGHT - 32)
+        x: float = random.uniform(0, WINDOW_WIDTH - SPRITE_SIZE)
+        y: float = random.uniform(0, WINDOW_HEIGHT - SPRITE_SIZE)
         vx: float = random.uniform(-200, 200)
         vy: float = random.uniform(-200, 200)
-        world.create_entity().with_component(
-            Transform(position=Vec2(x, y), origin=Vec2(16, 16))
-        ).with_component(RigidBody2D(velocity=Vec2(vx, vy))).with_component(
-            Sprite(asset_id=BUNNY_ASSET, src_rect=(0, 0, 32, 32), z_index=1)
+        world.create_entity().with_component(Position(x=x, y=y)).with_component(
+            Velocity(x=vx, y=vy)
         ).build()
 
 

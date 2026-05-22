@@ -85,10 +85,13 @@ def test_transform_default_vectors_are_not_shared_between_instances():
     transform_a = Transform()
     transform_b = Transform()
 
-    transform_a.position.x = 10
-    transform_a.scale.y = 99
-    transform_a.origin.x = 7
+    transform_a.position_x = 10
+    transform_a.scale_y = 99
+    transform_a.origin_x = 7
 
-    assert transform_b.position == Vec2(0, 0)
-    assert transform_b.scale == Vec2(1, 1)
-    assert transform_b.origin == Vec2(0, 0)
+    assert transform_b.position_x == 0
+    assert transform_b.position_y == 0
+    assert transform_b.scale_x == 1
+    assert transform_b.scale_y == 1
+    assert transform_b.origin_x == 0
+    assert transform_b.origin_y == 0

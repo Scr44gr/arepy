@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from numbers import Integral, Real
 from os import PathLike
-from typing import Optional, cast
+from typing import Any, Optional, cast
 
 import raylib as rl
 from pyray import Camera2D as rlCamera2D
@@ -47,6 +47,34 @@ _INT_UNIFORM_LENGTHS = {
     ShaderUniformType.IVEC3: 3,
     ShaderUniformType.IVEC4: 4,
 }
+
+_camera_refs: dict[tuple[int, ...], object] = {}
+
+
+def _camera_key(camera: Camera2D) -> tuple[int, ...]:
+    registry = getattr(camera, "_ecs_proxy_registry", None)
+    entity_id = getattr(camera, "_ecs_proxy_entity_id", None)
+    if registry is not None and entity_id is not None:
+        return (id(registry), int(entity_id))
+    return (id(camera),)
+
+
+def _get_camera_ref(camera: Camera2D) -> object | None:
+    return _camera_refs.get(_camera_key(camera))
+
+
+def _set_camera_ref(camera: Camera2D, camera_ref: object) -> None:
+    _camera_refs[_camera_key(camera)] = camera_ref
+
+
+def _require_camera_ref(camera: Camera2D) -> object:
+    camera_ref = _get_camera_ref(camera)
+    if camera_ref is None:
+        add_camera(camera)
+        camera_ref = _get_camera_ref(camera)
+    if camera_ref is None:
+        raise RuntimeError("Camera is not initialized")
+    return camera_ref
 
 
 def _ensure_shader_stage(
@@ -544,7 +572,7 @@ def screen_to_world(
     """
     result = rl.GetScreenToWorld2D(
         (position[0], position[1]),
-        camera._ref,  # type: ignore
+        cast(Any, _require_camera_ref(camera)),
     )
     return (result.x, result.y)
 
@@ -657,13 +685,15 @@ def add_camera(camera: Camera2D) -> None:
     Args:
         camera (Camera2D): The camera to add.
     """
-    if camera._ref is None:
-        camera._ref = rlCamera2D(  # type: ignore
-            rlVector2(camera.target.x, camera.target.y),
-            rlVector2(camera.offset.x, camera.offset.y),
+    camera_ref = _get_camera_ref(camera)
+    if camera_ref is None:
+        camera_ref = rlCamera2D(
+            rlVector2(camera.target_x, camera.target_y),
+            rlVector2(camera.offset_x, camera.offset_y),
             camera.rotation,
             camera.zoom,
         )
+        _set_camera_ref(camera, camera_ref)
 
 
 def begin_camera_mode(camera: Camera2D) -> None:
@@ -673,7 +703,7 @@ def begin_camera_mode(camera: Camera2D) -> None:
     Args:
         camera (Camera2D): The camera to set as the current camera.
     """
-    rl.BeginMode2D(camera._ref)  # type: ignore
+    rl.BeginMode2D(cast(Any, _require_camera_ref(camera)))
 
 
 def end_camera_mode() -> None:
@@ -693,10 +723,11 @@ def update_camera(camera: Camera2D) -> None:
     Args:
         camera (Camera2D): The camera to update.
     """
-    camera._ref.target = rlVector2(camera.target.x, camera.target.y)  # type: ignore
-    camera._ref.offset = rlVector2(camera.offset.x, camera.offset.y)  # type: ignore
-    camera._ref.rotation = camera.rotation  # type: ignore
-    camera._ref.zoom = camera.zoom  # type: ignore
+    camera_ref = cast(rlCamera2D, _require_camera_ref(camera))
+    camera_ref.target = rlVector2(camera.target_x, camera.target_y)
+    camera_ref.offset = rlVector2(camera.offset_x, camera.offset_y)
+    camera_ref.rotation = camera.rotation
+    camera_ref.zoom = camera.zoom
 
 
 def draw_rectangle_rounded(

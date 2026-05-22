@@ -1,6 +1,6 @@
 import random
 from collections import deque
-from numbers import Integral
+from typing import cast
 
 from arepy_ecs import Component, Entities, Entity, Query, With
 
@@ -27,40 +27,31 @@ _GLYPHS = InternedStringTable()
 
 
 class Letter(Component):
-    glyph_handle: int
-    size: int
-    color_r: int
-    color_g: int
-    color_b: int
-    color_a: int
+    glyph_handle: int = 0
+    size: int = 0
+    color_r: int = 255
+    color_g: int = 255
+    color_b: int = 255
+    color_a: int = 255
 
-    def __init__(self, glyph: str, size: int, color: Color) -> None:
-        super().__init__()
-        self.glyph = glyph
-        self.size = size
-        self.color = color
 
-    @property
-    def glyph(self) -> object:
-        return _GLYPHS.resolve(self.glyph_handle)
+def make_letter(glyph: str, size: int, color: Color) -> Letter:
+    return Letter(
+        glyph_handle=_GLYPHS.intern(glyph),
+        size=size,
+        color_r=color.r,
+        color_g=color.g,
+        color_b=color.b,
+        color_a=color.a,
+    )
 
-    @glyph.setter
-    def glyph(self, value: str) -> None:
-        self.glyph_handle = _GLYPHS.intern(value)
 
-    @property
-    def color(self) -> object:
-        values = (self.color_r, self.color_g, self.color_b, self.color_a)
-        if all(isinstance(value, Integral) for value in values):
-            return Color(*(int(value) for value in values))
-        return values
+def resolve_letter_glyph(letter: Letter) -> str:
+    return cast(str, _GLYPHS.resolve(letter.glyph_handle))
 
-    @color.setter
-    def color(self, value: Color) -> None:
-        self.color_r = value.r
-        self.color_g = value.g
-        self.color_b = value.b
-        self.color_a = value.a
+
+def resolve_letter_color(letter: Letter) -> Color:
+    return Color(letter.color_r, letter.color_g, letter.color_b, letter.color_a)
 
 
 def add_letter(
@@ -77,9 +68,9 @@ def add_letter(
 
     entity = (
         world.create_entity()
-        .with_component(Transform(position=position))
-        .with_component(RigidBody2D(velocity=velocity))
-        .with_component(Letter(glyph, size, color))
+        .with_component(Transform(position_x=position.x, position_y=position.y))
+        .with_component(RigidBody2D(velocity_x=velocity.x, velocity_y=velocity.y))
+        .with_component(make_letter(glyph, size, color))
         .build()
     )
     letters.append(entity)
@@ -122,27 +113,27 @@ def physics_system(
         RigidBody2D,
         Letter,
     ):
-        rigidbody.velocity.y += 900 * dt
-        transform.position.x += rigidbody.velocity.x * dt
-        transform.position.y += rigidbody.velocity.y * dt
+        rigidbody.velocity_y += 900 * dt
+        transform.position_x += rigidbody.velocity_x * dt
+        transform.position_y += rigidbody.velocity_y * dt
 
         max_x = WIDTH - letter.size
         max_y = HEIGHT - letter.size - 12
 
-        if transform.position.x < 0:
-            transform.position.x = 0
-            rigidbody.velocity.x = abs(rigidbody.velocity.x)
-        elif transform.position.x > max_x:
-            transform.position.x = max_x
-            rigidbody.velocity.x = -abs(rigidbody.velocity.x)
+        if transform.position_x < 0:
+            transform.position_x = 0
+            rigidbody.velocity_x = abs(rigidbody.velocity_x)
+        elif transform.position_x > max_x:
+            transform.position_x = max_x
+            rigidbody.velocity_x = -abs(rigidbody.velocity_x)
 
-        if transform.position.y < 0:
-            transform.position.y = 0
-            rigidbody.velocity.y = abs(rigidbody.velocity.y) * 0.5
-        elif transform.position.y > max_y:
-            transform.position.y = max_y
-            rigidbody.velocity.y = -max(120.0, abs(rigidbody.velocity.y) * 0.72)
-            rigidbody.velocity.x *= 0.98
+        if transform.position_y < 0:
+            transform.position_y = 0
+            rigidbody.velocity_y = abs(rigidbody.velocity_y) * 0.5
+        elif transform.position_y > max_y:
+            transform.position_y = max_y
+            rigidbody.velocity_y = -max(120.0, abs(rigidbody.velocity_y) * 0.72)
+            rigidbody.velocity_x *= 0.98
 
 
 def render_system(
@@ -156,10 +147,10 @@ def render_system(
     count = 0
     for transform, letter in query.iter_components(Transform, Letter):
         renderer.draw_text(
-            letter.glyph,
-            (transform.position.x, transform.position.y),
+            resolve_letter_glyph(letter),
+            (transform.position_x, transform.position_y),
             letter.size,
-            letter.color,
+            resolve_letter_color(letter),
         )
         count += 1
 
