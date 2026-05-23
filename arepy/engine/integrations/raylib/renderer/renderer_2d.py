@@ -3,12 +3,15 @@ from numbers import Integral, Real
 from os import PathLike
 from typing import Optional, cast
 
+import numpy as np
 import raylib as rl
+from numpy.typing import NDArray
 from pyray import Camera2D as rlCamera2D
 from pyray import Matrix as rlMatrix
 from pyray import Vector2 as rlVector2
 
 from arepy.bundle.components.camera import Camera2D
+from arepy.engine.integrations.raylib.renderer import native_batch as _native_batch
 from arepy.engine.integrations.raylib.renderer import stencil as _stencil
 from arepy.engine.integrations.raylib.renderer import streaming as _streaming
 from arepy.engine.renderer import (
@@ -21,6 +24,7 @@ from arepy.engine.renderer import (
     ShaderValue,
     TextureFilter,
 )
+from arepy.engine.renderer.texture_atlas import TextureAtlasCollection, TextureBatchPlan
 
 _SHADER_UNIFORM_TYPE_MAP = {
     ShaderUniformType.FLOAT: rl.SHADER_UNIFORM_FLOAT,
@@ -368,6 +372,45 @@ def draw_texture_ex(
         rotation,
         (color.r, color.g, color.b, color.a),
     )
+
+
+def draw_texture_batch(
+    atlases: TextureAtlasCollection,
+    plan: TextureBatchPlan,
+    position_x: NDArray[np.float64],
+    position_y: NDArray[np.float64],
+    color: Color,
+) -> None:
+    if not atlases.atlases:
+        raise RuntimeError("draw_texture_batch requires at least one texture atlas.")
+    if len(position_x) != len(position_y):
+        raise ValueError("draw_texture_batch requires position_x and position_y with the same length.")
+    if not plan.groups:
+        return
+
+    native_used = False
+    for group in plan.groups:
+        if _native_batch.draw_texture_batch_group(group, position_x, position_y, color):
+            native_used = True
+            continue
+
+        for local_index, entity_index in enumerate(group.entity_indices):
+            src_rect = Rect(
+                float(group.source_x[local_index]),
+                float(group.source_y[local_index]),
+                int(group.source_width[local_index]),
+                int(group.source_height[local_index]),
+            )
+            dst_rect = Rect(
+                float(position_x[int(entity_index)]),
+                float(position_y[int(entity_index)]),
+                int(group.source_width[local_index]),
+                int(group.source_height[local_index]),
+            )
+            draw_texture(group.texture, src_rect, dst_rect, color)
+
+    if native_used:
+        rl.rlDrawRenderBatchActive()
 
 
 def draw_unfilled_circle(

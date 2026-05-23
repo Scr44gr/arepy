@@ -3,6 +3,9 @@
 from os import PathLike
 from typing import Optional, Protocol
 
+import numpy as np
+from numpy.typing import NDArray
+
 from ...bundle.components.camera import Camera2D
 from . import (
     ArepyFont,
@@ -14,6 +17,9 @@ from . import (
     ShaderValue,
     TextureFilter,
 )
+from .texture_atlas import TextureAtlasCollection, TextureBatchPlan
+
+FloatBatchView = NDArray[np.float64]
 
 
 class Renderer2D(Protocol):
@@ -100,6 +106,17 @@ class Renderer2D(Protocol):
         color: Color,
     ) -> None:
         """Draw a texture with origin and rotation control."""
+        ...
+
+    def draw_texture_batch(
+        self,
+        atlases: TextureAtlasCollection,
+        plan: TextureBatchPlan,
+        position_x: FloatBatchView,
+        position_y: FloatBatchView,
+        color: Color,
+    ) -> None:
+        """Draw a preplanned atlas-backed sprite batch using NumPy position views."""
         ...
 
     def draw_rectangle(self, rect: Rect, color: Color) -> None:

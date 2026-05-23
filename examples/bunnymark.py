@@ -1,11 +1,17 @@
 import random
+from dataclasses import dataclass
+from typing import cast
 
-from arepy import ArepyEngine, Color, Rect, Renderer2D, SystemPipeline
+import numpy as np
+from numpy.typing import NDArray
+
+from arepy import ArepyEngine, Color, Renderer2D, SystemPipeline
 from arepy.bundle.components.rigidbody import RigidBody2D
 from arepy.bundle.components.sprite import Sprite
 from arepy.bundle.components.transform import Transform
-from arepy.ecs import BatchQuery, Entities, Query, With
+from arepy.ecs import BatchQuery
 from arepy.ecs.world import World
+from arepy.engine.renderer.texture_atlas import TextureBatchPlan
 from arepy.math import Vec2
 
 WHITE_COLOR = Color(255, 255, 255, 255)
@@ -16,15 +22,25 @@ WINDOW_WIDTH = 640
 WINDOW_HEIGHT = 480
 
 
+@dataclass(slots=True)
+class BunnyBatchState:
+    position_x: NDArray[np.float64] | None = None
+    position_y: NDArray[np.float64] | None = None
+    plan: TextureBatchPlan | None = None
+
+
 def movement_system(
     batch: BatchQuery[Transform, RigidBody2D],
     renderer: Renderer2D,
+    batch_state: BunnyBatchState,
 ) -> None:
     """Simple movement system using the experimental BatchQuery path."""
     delta_time: float = renderer.get_delta_time()
     sprite_size: int = 16
     position = batch.vec2(Transform, "position")
     velocity = batch.vec2(RigidBody2D, "velocity")
+    batch_state.position_x = position.x
+    batch_state.position_y = position.y
 
     position.x += velocity.x * delta_time
     position.y += velocity.y * delta_time
@@ -48,26 +64,37 @@ def movement_system(
 
 
 def render_system(
-    query: Query[Entities, With[Transform, Sprite]],
+    batch: BatchQuery[Sprite],
     renderer: Renderer2D,
     game: ArepyEngine,
-):
+    batch_state: BunnyBatchState,
+) -> None:
     renderer.start_frame()
     renderer.clear(color=WHITE_COLOR)
-    texture = game.get_asset_store().get_texture(BUNNY_ASSET)
-    number_of_entities: int = 0
-    for (transform,) in query.iter_components(Transform):
-        renderer.draw_texture_ex(
-            texture,
-            Rect(0, 0, 32, 32),
-            Rect(transform.position.x, transform.position.y, 32, 32),
-            (transform.origin.x, transform.origin.y),
-            0.0,  # rotation
-            WHITE_COLOR,
+    asset_store = game.get_asset_store()
+    texture_atlas = asset_store.get_texture_atlas()
+    if texture_atlas is None or not texture_atlas.atlases:
+        raise RuntimeError("BunnyMark batch rendering requires a built texture atlas.")
+    if batch_state.position_x is None or batch_state.position_y is None:
+        raise RuntimeError(
+            "BunnyMark batch rendering requires movement_system to publish position views."
         )
-        number_of_entities += 1
+
+    sprites = cast(list[Sprite], batch.components(Sprite))
+    batch_plan = batch_state.plan
+    if batch_plan is None:
+        batch_plan = texture_atlas.get_batch_plan(sprites)
+        batch_state.plan = batch_plan
+    renderer.draw_texture_batch(
+        texture_atlas,
+        batch_plan,
+        batch_state.position_x,
+        batch_state.position_y,
+        WHITE_COLOR,
+    )
+
     renderer.draw_text(
-        f"Entities: {number_of_entities}",
+        f"Entities: {len(sprites)}",
         (10, 30),
         font_size=20,
         color=Color(0, 0, 0, 255),
@@ -100,6 +127,8 @@ def main() -> None:
     asset_store = game.get_asset_store()
     renderer = game.renderer_2d
     asset_store.load_texture(renderer, BUNNY_ASSET, f"./assets/{BUNNY_ASSET}")
+    asset_store.build_texture_atlas(renderer)
+    world.add_resource(BunnyBatchState())
     spawn_bunnies(world, BUNNY_COUNT)
     world.add_system(SystemPipeline.UPDATE, movement_system)
     world.add_system(SystemPipeline.RENDER, render_system)

@@ -4,13 +4,8 @@ import pytest
 
 from arepy.ecs.components import Component
 from arepy.ecs.entities import Entity
-from arepy.ecs.query import (
-    Query,
-    With,
-    Without,
-    get_signed_query_arguments,
-    sign_queries,
-)
+from arepy.ecs.query import (Query, With, Without, get_signed_query_arguments,
+                             sign_queries)
 from arepy.ecs.registry import Registry
 from arepy.ecs.utils import Signature
 

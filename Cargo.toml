@@ -1,0 +1,15 @@
+[workspace]
+members = ["crates/arepy_renderer"]
+resolver = "2"
+
+[workspace.dependencies]
+numpy = "0.23"
+pyo3 = { version = "0.23", features = ["extension-module", "abi3-py311"] }
+
+[workspace.lints.rust]
+future-incompatible = "warn"
+nonstandard_style = { level = "deny", priority = -1 }
+rust_2018_idioms = { level = "deny", priority = -1 }
+
+[workspace.lints.clippy]
+perf = "warn"

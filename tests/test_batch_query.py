@@ -128,3 +128,33 @@ def test_batch_query_vec2_stays_in_sync_with_classic_component_mutation() -> Non
     registry.run(SystemPipeline.UPDATE)
 
     assert position.value.x == pytest.approx(44.0)
+
+
+def test_batch_query_vec2_resyncs_when_another_batch_query_rebinds_storage() -> None:
+    registry = Registry()
+    seen_positions: list[float] = []
+
+    def movement_system(batch: BatchQuery[Position, Velocity]) -> None:
+        position = batch.vec2(Position, "value")
+        velocity = batch.vec2(Velocity, "value")
+        position.x += velocity.x
+
+    def render_system(batch: BatchQuery[Position, Health]) -> None:
+        position = batch.vec2(Position, "value")
+        seen_positions.append(float(position.x[0]))
+
+    registry.add_system(SystemPipeline.UPDATE, SystemState.ON, movement_system)
+    registry.add_system(SystemPipeline.RENDER, SystemState.ON, render_system)
+
+    entity = registry.create_entity()
+    registry.add_component(entity, Position, Position(1.0, 0.0))
+    registry.add_component(entity, Velocity, Velocity(2.0, 0.0))
+    registry.add_component(entity, Health, Health(1))
+    registry.update()
+
+    registry.run(SystemPipeline.UPDATE)
+    registry.run(SystemPipeline.RENDER)
+    registry.run(SystemPipeline.UPDATE)
+    registry.run(SystemPipeline.RENDER)
+
+    assert seen_positions == [pytest.approx(3.0), pytest.approx(5.0)]

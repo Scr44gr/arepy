@@ -232,6 +232,26 @@ def hud_system(renderer: Renderer2D, time: Time) -> None:
 
 That keeps function signatures explicit and avoids manual service lookup in most code.
 
+### Texture Atlas Batch Rendering
+
+If you want sprite rendering to go through the atlas path, first pack the loaded textures once:
+
+```python
+asset_store.load_texture(renderer, "bunny", "./assets/bunny.png")
+texture_atlas = asset_store.build_texture_atlas(renderer)
+```
+
+Then build a batch plan from your `Sprite` list and submit it with the position views you already use in `BatchQuery`:
+
+```python
+position = batch.vec2(Transform, "position")
+sprites = batch.components(Sprite)
+plan = texture_atlas.get_batch_plan(sprites)
+renderer.draw_texture_batch(texture_atlas, plan, position.x, position.y, WHITE)
+```
+
+`draw_texture_batch(...)` requires at least one atlas page. If the optional native `arepy_renderer` module is installed, the renderer uses it automatically; otherwise it falls back to the Python path.
+
 ---
 
 ## Learn More

@@ -1,0 +1,15 @@
+[package]
+name = "arepy_renderer"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "arepy_renderer"
+crate-type = ["cdylib"]
+
+[dependencies]
+numpy.workspace = true
+pyo3.workspace = true
+
+[lints]
+workspace = true
