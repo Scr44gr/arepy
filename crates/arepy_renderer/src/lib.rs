@@ -41,23 +41,18 @@ struct Color {
     a: u8,
 }
 
-type DrawTextureRecFn = unsafe extern "C" fn(Texture, Rectangle, Vector2, Color);
-type DrawRenderBatchActiveFn = unsafe extern "C" fn();
+type DrawTextureProFn = unsafe extern "C" fn(Texture, Rectangle, Rectangle, Vector2, f32, Color);
 
 #[derive(Clone, Copy)]
 struct RenderBackendFns {
-    draw_texture_rec: DrawTextureRecFn,
-    draw_render_batch_active: DrawRenderBatchActiveFn,
+    draw_texture_pro: DrawTextureProFn,
 }
 
 static RENDER_BACKEND_FNS: OnceLock<RenderBackendFns> = OnceLock::new();
 
 #[pyfunction]
-fn configure_render_backend(
-    draw_texture_rec_addr: usize,
-    draw_render_batch_active_addr: usize,
-) -> PyResult<()> {
-    if draw_texture_rec_addr == 0 || draw_render_batch_active_addr == 0 {
+fn configure_render_backend(draw_texture_pro_addr: usize) -> PyResult<()> {
+    if draw_texture_pro_addr == 0 {
         return Err(PyValueError::new_err(
             "Render backend function pointers must be non-zero.",
         ));
@@ -65,12 +60,8 @@ fn configure_render_backend(
 
     let fns = RenderBackendFns {
         // SAFETY: Python passes raw function pointers resolved from the live render backend.
-        draw_texture_rec: unsafe {
-            mem::transmute::<usize, DrawTextureRecFn>(draw_texture_rec_addr)
-        },
-        // SAFETY: Python passes raw function pointers resolved from the live render backend.
-        draw_render_batch_active: unsafe {
-            mem::transmute::<usize, DrawRenderBatchActiveFn>(draw_render_batch_active_addr)
+        draw_texture_pro: unsafe {
+            mem::transmute::<usize, DrawTextureProFn>(draw_texture_pro_addr)
         },
     };
 
@@ -94,8 +85,13 @@ fn draw_texture_batch(
     src_y: PyReadonlyArray1<'_, f32>,
     src_width: PyReadonlyArray1<'_, f32>,
     src_height: PyReadonlyArray1<'_, f32>,
-    position_x: PyReadonlyArray1<'_, f64>,
-    position_y: PyReadonlyArray1<'_, f64>,
+    dest_x: PyReadonlyArray1<'_, f64>,
+    dest_y: PyReadonlyArray1<'_, f64>,
+    dest_width: PyReadonlyArray1<'_, f64>,
+    dest_height: PyReadonlyArray1<'_, f64>,
+    origin_x: PyReadonlyArray1<'_, f64>,
+    origin_y: PyReadonlyArray1<'_, f64>,
+    rotation: PyReadonlyArray1<'_, f64>,
     color_rgba: (u8, u8, u8, u8),
 ) -> PyResult<()> {
     let fns = render_backend_fns()?;
@@ -105,8 +101,13 @@ fn draw_texture_batch(
     let src_y = src_y.as_slice()?;
     let src_width = src_width.as_slice()?;
     let src_height = src_height.as_slice()?;
-    let position_x = position_x.as_slice()?;
-    let position_y = position_y.as_slice()?;
+    let dest_x = dest_x.as_slice()?;
+    let dest_y = dest_y.as_slice()?;
+    let dest_width = dest_width.as_slice()?;
+    let dest_height = dest_height.as_slice()?;
+    let origin_x = origin_x.as_slice()?;
+    let origin_y = origin_y.as_slice()?;
+    let rotation = rotation.as_slice()?;
 
     let batch_len = entity_indices.len();
     if src_x.len() != batch_len
@@ -118,9 +119,15 @@ fn draw_texture_batch(
             "All source arrays and entity_indices must have the same length.",
         ));
     }
-    if position_x.len() != position_y.len() {
+    if dest_x.len() != dest_y.len()
+        || dest_x.len() != dest_width.len()
+        || dest_x.len() != dest_height.len()
+        || dest_x.len() != origin_x.len()
+        || dest_x.len() != origin_y.len()
+        || dest_x.len() != rotation.len()
+    {
         return Err(PyValueError::new_err(
-            "position_x and position_y must have the same length.",
+            "Destination, origin, and rotation arrays must have the same length.",
         ));
     }
 
@@ -138,19 +145,13 @@ fn draw_texture_batch(
         a: color_rgba.3,
     };
 
-    // SAFETY: the function pointer comes from `configure_render_backend` and is expected
-    // to remain valid for the lifetime of the loaded render backend.
-    unsafe {
-        (fns.draw_render_batch_active)();
-    }
-
     for index in 0..batch_len {
         let entity_index = usize::try_from(entity_indices[index]).map_err(|_| {
             PyValueError::new_err("Texture batch entity indices must be non-negative.")
         })?;
-        if entity_index >= position_x.len() {
+        if entity_index >= dest_x.len() {
             return Err(PyValueError::new_err(
-                "Texture batch entity index is out of range for the provided position views.",
+                "Texture batch entity index is out of range for the provided DrawTexturePro views.",
             ));
         }
 
@@ -160,15 +161,28 @@ fn draw_texture_batch(
             width: src_width[index],
             height: src_height[index],
         };
-        let position = Vector2 {
-            x: position_x[entity_index] as f32,
-            y: position_y[entity_index] as f32,
+        let dest = Rectangle {
+            x: dest_x[entity_index] as f32,
+            y: dest_y[entity_index] as f32,
+            width: dest_width[entity_index] as f32,
+            height: dest_height[entity_index] as f32,
+        };
+        let origin = Vector2 {
+            x: origin_x[entity_index] as f32,
+            y: origin_y[entity_index] as f32,
         };
 
         // SAFETY: the function pointer comes from `configure_render_backend`, and the
         // copied POD structs match raylib's C ABI for this call.
         unsafe {
-            (fns.draw_texture_rec)(texture, source, position, color);
+            (fns.draw_texture_pro)(
+                texture,
+                source,
+                dest,
+                origin,
+                rotation[entity_index] as f32,
+                color,
+            );
         }
     }
 
