@@ -112,11 +112,16 @@ class Renderer2D(Protocol):
         self,
         atlases: TextureAtlasCollection,
         layout: TextureBatchLayout,
-        position_x: FloatBatchView,
-        position_y: FloatBatchView,
+        dest_x: FloatBatchView,
+        dest_y: FloatBatchView,
+        dest_width: FloatBatchView,
+        dest_height: FloatBatchView,
+        origin_x: FloatBatchView,
+        origin_y: FloatBatchView,
+        rotation: FloatBatchView,
         color: Color,
     ) -> None:
-        """Draw a precomputed atlas-backed sprite batch using NumPy position views."""
+        """Draw a precomputed atlas-backed sprite batch using NumPy DrawTexturePro views."""
         ...
 
     def draw_rectangle(self, rect: Rect, color: Color) -> None:

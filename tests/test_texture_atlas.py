@@ -52,6 +52,8 @@ def test_texture_batch_layout_groups_sprites_by_atlas_and_reuses_cache() -> None
 
     assert first_layout is second_layout
     assert len(first_layout.groups) == 2
+    assert first_layout.default_dest_width.tolist() == [32.0, 16.0, 32.0]
+    assert first_layout.default_dest_height.tolist() == [32.0, 16.0, 32.0]
 
     hero_group = first_layout.groups[0]
     enemy_group = first_layout.groups[1]
@@ -84,6 +86,8 @@ def test_texture_batch_layout_refreshes_when_sprite_frame_changes() -> None:
     second_layout = atlas_collection.get_batch_layout(sprites)
 
     assert second_layout is not first_layout
+    assert second_layout.default_dest_width.tolist() == [32.0]
+    assert second_layout.default_dest_height.tolist() == [32.0]
     assert second_layout.groups[0].source_x.tolist() == [12.0]
     assert second_layout.groups[0].source_y.tolist() == [18.0]
     assert second_layout.groups[0].source_width.tolist() == [8.0]

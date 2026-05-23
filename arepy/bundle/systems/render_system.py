@@ -1,5 +1,7 @@
 from typing import cast
 
+import numpy as np
+
 from arepy.asset_store import AssetStore
 from arepy.bundle.components import Sprite, Transform
 from arepy.ecs.query import BatchQuery
@@ -30,6 +32,12 @@ def render_system(
     texture_atlas = asset_store.get_texture_atlas()
     if texture_atlas is not None and texture_atlas.atlases:
         position = batch.vec2(Transform, "position")
+        origin = batch.vec2(Transform, "origin")
+        rotation = np.require(
+            batch.scalar(Transform, "rotation"),
+            dtype=np.float64,
+            requirements=("C", "ALIGNED"),
+        )
         sprites = cast(list[Sprite], batch.components(Sprite))
         batch_layout = texture_atlas.get_batch_layout(sprites)
         renderer.draw_texture_batch(
@@ -37,6 +45,11 @@ def render_system(
             batch_layout,
             position.x,
             position.y,
+            batch_layout.default_dest_width,
+            batch_layout.default_dest_height,
+            origin.x,
+            origin.y,
+            rotation,
             WHITE,
         )
     else:
@@ -56,10 +69,12 @@ def render_system(
                 int(sprite.src_rect[2]),
                 int(sprite.src_rect[3]),
             )
-            renderer.draw_texture(
+            renderer.draw_texture_ex(
                 texture,
                 src_rect,
                 dst_rect,
+                (transform.origin.x, transform.origin.y),
+                transform.rotation,
                 WHITE,
             )
     renderer.draw_fps((10, 10))

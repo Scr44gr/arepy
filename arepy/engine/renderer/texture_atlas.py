@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from .renderer_2d import Renderer2D
 
 Float32Array = NDArray[np.float32]
+Float64Array = NDArray[np.float64]
 Int64Array = NDArray[np.int64]
 
 
@@ -47,6 +48,8 @@ class TextureBatchGroup:
 @dataclass(frozen=True, slots=True)
 class TextureBatchLayout:
     groups: tuple[TextureBatchGroup, ...]
+    default_dest_width: Float64Array
+    default_dest_height: Float64Array
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,11 +78,15 @@ class _LayoutCacheEntry:
 class TextureAtlasCollection:
     atlases: tuple[TextureAtlas, ...]
     regions: dict[str, TextureAtlasRegion]
-    _layout_cache: dict[tuple[int, int], _LayoutCacheEntry] = field(default_factory=dict)
+    _layout_cache: dict[tuple[int, int], _LayoutCacheEntry] = field(
+        default_factory=dict
+    )
 
     def get_batch_layout(self, sprites: Sequence[Sprite]) -> TextureBatchLayout:
         if not self.atlases:
-            raise RuntimeError("draw_texture_batch requires at least one texture atlas.")
+            raise RuntimeError(
+                "draw_texture_batch requires at least one texture atlas."
+            )
 
         signature = tuple(
             (sprite.asset_id, tuple(int(value) for value in sprite.src_rect))
@@ -95,23 +102,41 @@ class TextureAtlasCollection:
         grouped_source_y: dict[int, list[float]] = {}
         grouped_source_width: dict[int, list[float]] = {}
         grouped_source_height: dict[int, list[float]] = {}
+        default_dest_width: list[float] = []
+        default_dest_height: list[float] = []
 
         for entity_index, sprite in enumerate(sprites):
             region = self.regions.get(sprite.asset_id)
             if region is None:
-                raise KeyError(f"Texture atlas does not contain asset '{sprite.asset_id}'.")
+                raise KeyError(
+                    f"Texture atlas does not contain asset '{sprite.asset_id}'."
+                )
 
             src_x = int(sprite.src_rect[0])
             src_y = int(sprite.src_rect[1])
             src_width = int(sprite.src_rect[2])
             src_height = int(sprite.src_rect[3])
-            _validate_source_rect(sprite.asset_id, region, src_x, src_y, src_width, src_height)
+            _validate_source_rect(
+                sprite.asset_id, region, src_x, src_y, src_width, src_height
+            )
 
-            grouped_entity_indices.setdefault(region.atlas_index, []).append(entity_index)
-            grouped_source_x.setdefault(region.atlas_index, []).append(float(region.x + src_x))
-            grouped_source_y.setdefault(region.atlas_index, []).append(float(region.y + src_y))
-            grouped_source_width.setdefault(region.atlas_index, []).append(float(src_width))
-            grouped_source_height.setdefault(region.atlas_index, []).append(float(src_height))
+            grouped_entity_indices.setdefault(region.atlas_index, []).append(
+                entity_index
+            )
+            grouped_source_x.setdefault(region.atlas_index, []).append(
+                float(region.x + src_x)
+            )
+            grouped_source_y.setdefault(region.atlas_index, []).append(
+                float(region.y + src_y)
+            )
+            grouped_source_width.setdefault(region.atlas_index, []).append(
+                float(src_width)
+            )
+            grouped_source_height.setdefault(region.atlas_index, []).append(
+                float(src_height)
+            )
+            default_dest_width.append(float(region.width))
+            default_dest_height.append(float(region.height))
 
         groups: list[TextureBatchGroup] = []
         for atlas in self.atlases:
@@ -123,8 +148,12 @@ class TextureAtlasCollection:
                 TextureBatchGroup(
                     texture=atlas.texture,
                     entity_indices=np.asarray(atlas_indices, dtype=np.int64),
-                    source_x=np.asarray(grouped_source_x[atlas.index], dtype=np.float32),
-                    source_y=np.asarray(grouped_source_y[atlas.index], dtype=np.float32),
+                    source_x=np.asarray(
+                        grouped_source_x[atlas.index], dtype=np.float32
+                    ),
+                    source_y=np.asarray(
+                        grouped_source_y[atlas.index], dtype=np.float32
+                    ),
                     source_width=np.asarray(
                         grouped_source_width[atlas.index], dtype=np.float32
                     ),
@@ -134,7 +163,11 @@ class TextureAtlasCollection:
                 )
             )
 
-        layout = TextureBatchLayout(tuple(groups))
+        layout = TextureBatchLayout(
+            tuple(groups),
+            np.asarray(default_dest_width, dtype=np.float64),
+            np.asarray(default_dest_height, dtype=np.float64),
+        )
         self._layout_cache[cache_key] = _LayoutCacheEntry(
             signature=signature, layout=layout
         )
@@ -160,7 +193,9 @@ def build_texture_atlas(
     if not texture_items:
         return TextureAtlasCollection((), {})
 
-    page_layouts = _pack_texture_pages(texture_items, max_size=max_size, padding=padding)
+    page_layouts = _pack_texture_pages(
+        texture_items, max_size=max_size, padding=padding
+    )
     atlases: list[TextureAtlas] = []
     regions: dict[str, TextureAtlasRegion] = {}
 
@@ -225,7 +260,9 @@ def _pack_texture_pages(
     for asset_id, texture in texture_items:
         width, height = texture.get_size()
         if width <= 0 or height <= 0:
-            raise ValueError(f"Texture '{asset_id}' has an invalid size: {(width, height)}")
+            raise ValueError(
+                f"Texture '{asset_id}' has an invalid size: {(width, height)}"
+            )
         if width > max_width or height > max_height:
             raise ValueError(
                 f"Texture '{asset_id}' size {(width, height)} exceeds atlas max_size {max_size}."

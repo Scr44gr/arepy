@@ -24,7 +24,10 @@ from arepy.engine.renderer import (
     ShaderValue,
     TextureFilter,
 )
-from arepy.engine.renderer.texture_atlas import TextureAtlasCollection, TextureBatchLayout
+from arepy.engine.renderer.texture_atlas import (
+    TextureAtlasCollection,
+    TextureBatchLayout,
+)
 
 _SHADER_UNIFORM_TYPE_MAP = {
     ShaderUniformType.FLOAT: rl.SHADER_UNIFORM_FLOAT,
@@ -377,40 +380,46 @@ def draw_texture_ex(
 def draw_texture_batch(
     atlases: TextureAtlasCollection,
     layout: TextureBatchLayout,
-    position_x: NDArray[np.float64],
-    position_y: NDArray[np.float64],
+    dest_x: NDArray[np.float64],
+    dest_y: NDArray[np.float64],
+    dest_width: NDArray[np.float64],
+    dest_height: NDArray[np.float64],
+    origin_x: NDArray[np.float64],
+    origin_y: NDArray[np.float64],
+    rotation: NDArray[np.float64],
     color: Color,
 ) -> None:
     if not atlases.atlases:
         raise RuntimeError("draw_texture_batch requires at least one texture atlas.")
-    if len(position_x) != len(position_y):
-        raise ValueError("draw_texture_batch requires position_x and position_y with the same length.")
+    entity_count = layout.default_dest_height.shape[0]
+    if (
+        len(dest_y) != entity_count
+        or len(dest_width) != entity_count
+        or len(dest_height) != entity_count
+        or len(origin_x) != entity_count
+        or len(origin_y) != entity_count
+        or len(rotation) != entity_count
+    ):
+        raise ValueError(
+            "draw_texture_batch requires destination, origin, and rotation views with the same length."
+        )
     if not layout.groups:
         return
 
-    native_used = False
     for group in layout.groups:
-        if _native_batch.draw_texture_batch_group(group, position_x, position_y, color):
-            native_used = True
-            continue
+        _native_batch.draw_texture_batch_group(
+            group,
+            dest_x,
+            dest_y,
+            dest_width,
+            dest_height,
+            origin_x,
+            origin_y,
+            rotation,
+            color,
+        )
 
-        for local_index, entity_index in enumerate(group.entity_indices):
-            src_rect = Rect(
-                float(group.source_x[local_index]),
-                float(group.source_y[local_index]),
-                int(group.source_width[local_index]),
-                int(group.source_height[local_index]),
-            )
-            dst_rect = Rect(
-                float(position_x[int(entity_index)]),
-                float(position_y[int(entity_index)]),
-                int(group.source_width[local_index]),
-                int(group.source_height[local_index]),
-            )
-            draw_texture(group.texture, src_rect, dst_rect, color)
-
-    if native_used:
-        rl.rlDrawRenderBatchActive()
+    rl.rlDrawRenderBatchActive()
 
 
 def draw_unfilled_circle(

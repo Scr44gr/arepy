@@ -241,16 +241,33 @@ asset_store.load_texture(renderer, "bunny", "./assets/bunny.png")
 texture_atlas = asset_store.build_texture_atlas(renderer)
 ```
 
-Then build a batch layout from your `Sprite` list and submit it with the position views you already use in `BatchQuery`:
+Then build a batch layout from your `Sprite` list and submit it with the destination, origin, and rotation views you want to feed into `DrawTexturePro`:
 
 ```python
+import numpy as np
+
 position = batch.vec2(Transform, "position")
+origin = batch.vec2(Transform, "origin")
+rotation = np.require(batch.scalar(Transform, "rotation"), dtype=np.float64)
 sprites = batch.components(Sprite)
 layout = texture_atlas.get_batch_layout(sprites)
-renderer.draw_texture_batch(texture_atlas, layout, position.x, position.y, WHITE)
+renderer.draw_texture_batch(
+    texture_atlas,
+    layout,
+    position.x,
+    position.y,
+    layout.default_dest_width,
+    layout.default_dest_height,
+    origin.x,
+    origin.y,
+    rotation,
+    WHITE,
+)
 ```
 
-`draw_texture_batch(...)` requires at least one atlas page. If the optional native `arepy_renderer` module is installed, the renderer uses it automatically; otherwise it falls back to the Python path.
+`layout.default_dest_width` and `layout.default_dest_height` are cached with the layout, so you do not need to rebuild those arrays every frame unless you want custom destination sizes.
+
+`draw_texture_batch(...)` requires at least one atlas page and the native `arepy_renderer` module. There is no Python fallback path.
 
 ---
 

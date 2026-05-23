@@ -16,7 +16,7 @@ from arepy.math import Vec2
 WHITE_COLOR = Color(255, 255, 255, 255)
 BUNNY_ASSET = "bunny.png"
 
-BUNNY_COUNT = 8000
+BUNNY_COUNT = 50_000
 WINDOW_WIDTH = 640
 WINDOW_HEIGHT = 480
 
@@ -25,6 +25,9 @@ WINDOW_HEIGHT = 480
 class BunnyBatchState:
     position_x: NDArray[np.float64] | None = None
     position_y: NDArray[np.float64] | None = None
+    origin_x: NDArray[np.float64] | None = None
+    origin_y: NDArray[np.float64] | None = None
+    rotation: NDArray[np.float64] | None = None
     layout: TextureBatchLayout | None = None
 
 
@@ -40,6 +43,17 @@ def movement_system(
     velocity = batch.vec2(RigidBody2D, "velocity")
     batch_state.position_x = position.x
     batch_state.position_y = position.y
+    if (
+        batch_state.origin_x is None
+        or batch_state.origin_y is None
+        or len(batch_state.origin_x) != len(position.x)
+        or len(batch_state.origin_y) != len(position.y)
+    ):
+        origin = batch.vec2(Transform, "origin")
+        batch_state.origin_x = origin.x
+        batch_state.origin_y = origin.y
+    if batch_state.rotation is None or len(batch_state.rotation) != len(position.x):
+        batch_state.rotation = np.zeros_like(position.x)
 
     position.x += velocity.x * delta_time
     position.y += velocity.y * delta_time
@@ -74,9 +88,15 @@ def render_system(
     texture_atlas = asset_store.get_texture_atlas()
     if texture_atlas is None or not texture_atlas.atlases:
         raise RuntimeError("BunnyMark batch rendering requires a built texture atlas.")
-    if batch_state.position_x is None or batch_state.position_y is None:
+    if (
+        batch_state.position_x is None
+        or batch_state.position_y is None
+        or batch_state.origin_x is None
+        or batch_state.origin_y is None
+        or batch_state.rotation is None
+    ):
         raise RuntimeError(
-            "BunnyMark batch rendering requires movement_system to publish position views."
+            "BunnyMark batch rendering requires movement_system to publish DrawTexturePro views."
         )
 
     sprites = batch.components(Sprite)
@@ -89,6 +109,11 @@ def render_system(
         batch_layout,
         batch_state.position_x,
         batch_state.position_y,
+        batch_layout.default_dest_width,
+        batch_layout.default_dest_height,
+        batch_state.origin_x,
+        batch_state.origin_y,
+        batch_state.rotation,
         WHITE_COLOR,
     )
 

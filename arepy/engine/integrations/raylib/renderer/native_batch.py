@@ -43,8 +43,7 @@ def _configure_render_backend(module: Any) -> None:
         return
 
     module.configure_render_backend(
-        int(ffi.cast("uintptr_t", ffi.addressof(rl, "DrawTextureRec"))),
-        int(ffi.cast("uintptr_t", ffi.addressof(rl, "rlDrawRenderBatchActive"))),
+        int(ffi.cast("uintptr_t", ffi.addressof(rl, "DrawTexturePro"))),
     )
     _render_backend_configured = True
 
@@ -68,13 +67,20 @@ def is_available() -> bool:
 
 def draw_texture_batch_group(
     group: TextureBatchGroup,
-    position_x: NDArray[np.float64],
-    position_y: NDArray[np.float64],
+    dest_x: NDArray[np.float64],
+    dest_y: NDArray[np.float64],
+    dest_width: NDArray[np.float64],
+    dest_height: NDArray[np.float64],
+    origin_x: NDArray[np.float64],
+    origin_y: NDArray[np.float64],
+    rotation: NDArray[np.float64],
     color: Color,
-) -> bool:
+) -> None:
     draw_texture_batch = _draw_texture_batch
     if draw_texture_batch is None:
-        return False
+        raise RuntimeError(
+            "draw_texture_batch requires the native 'arepy_renderer' module to be installed."
+        )
 
     texture_ref = _require_texture_ref(group.texture)
     draw_texture_batch(
@@ -88,11 +94,15 @@ def draw_texture_batch_group(
         _as_float32_array(group.source_y),
         _as_float32_array(group.source_width),
         _as_float32_array(group.source_height),
-        _as_float64_array(position_x),
-        _as_float64_array(position_y),
+        _as_float64_array(dest_x),
+        _as_float64_array(dest_y),
+        _as_float64_array(dest_width),
+        _as_float64_array(dest_height),
+        _as_float64_array(origin_x),
+        _as_float64_array(origin_y),
+        _as_float64_array(rotation),
         (color.r, color.g, color.b, color.a),
     )
-    return True
 
 
 def _require_texture_ref(texture: ArepyTexture) -> _TextureRef:
