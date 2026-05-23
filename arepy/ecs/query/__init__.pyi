@@ -121,6 +121,7 @@ class Query(Generic[TEntity, TFilter]):
 
 
 class BatchQuery(Query[Entity, Any], Generic[*TBatchComponents]):
+    def components(self, component_type: Type[C1]) -> list[C1]: ...
     def scalar(
         self, component_type: Type[Component], attribute_name: str
     ) -> ScalarBatch: ...

@@ -17,7 +17,7 @@ from . import (
     ShaderValue,
     TextureFilter,
 )
-from .texture_atlas import TextureAtlasCollection, TextureBatchPlan
+from .texture_atlas import TextureAtlasCollection, TextureBatchLayout
 
 FloatBatchView = NDArray[np.float64]
 
@@ -111,12 +111,12 @@ class Renderer2D(Protocol):
     def draw_texture_batch(
         self,
         atlases: TextureAtlasCollection,
-        plan: TextureBatchPlan,
+        layout: TextureBatchLayout,
         position_x: FloatBatchView,
         position_y: FloatBatchView,
         color: Color,
     ) -> None:
-        """Draw a preplanned atlas-backed sprite batch using NumPy position views."""
+        """Draw a precomputed atlas-backed sprite batch using NumPy position views."""
         ...
 
     def draw_rectangle(self, rect: Rect, color: Color) -> None:

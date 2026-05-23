@@ -27,7 +27,7 @@ from numpy.typing import NDArray
 
 from ...math.vec2 import Vec2
 from ...math.vec3 import Vec3
-from ..components import Component, ComponentIndex, ComponentPool
+from ..components import Component, ComponentIndex, ComponentPool, TComponent
 from ..constants import MAX_COMPONENTS
 from ..exceptions import RegistryNotSetError
 from ..utils import Signature
@@ -102,6 +102,7 @@ def _python_value(value: object) -> object:
 
 @dataclass(frozen=True, slots=True)
 class _BatchAttributeAccessor:
+    get_one: Callable[[Component], object]
     get_many: Callable[[Sequence[Component]], list[object]]
     set_many: Callable[
         [Sequence[Component], Iterable[object], Callable[[object], object]], None
@@ -120,13 +121,13 @@ def _build_attribute_accessor(attribute_name: str) -> _BatchAttributeAccessor:
     if "." not in attribute_name:
         getter = cast(Callable[[Component], object], attrgetter(attribute_name))
 
-    def get_many(components: Sequence[Component]) -> list[object]:
+    def get_one(component: Component) -> object:
         if getter is not None:
-            return [getter(component) for component in components]
-        return [
-            type(component).__getattribute__(component, attribute_name)
-            for component in components
-        ]
+            return getter(component)
+        return type(component).__getattribute__(component, attribute_name)
+
+    def get_many(components: Sequence[Component]) -> list[object]:
+        return [get_one(component) for component in components]
 
     def set_many(
         components: Sequence[Component],
@@ -153,11 +154,57 @@ def _build_attribute_accessor(attribute_name: str) -> _BatchAttributeAccessor:
             )
 
     return _BatchAttributeAccessor(
+        get_one=get_one,
         get_many=get_many,
         set_many=set_many,
         bind_vec2_storage=bind_vec2_storage,
         bind_vec3_storage=bind_vec3_storage,
     )
+
+
+def _uses_storage(vector: object, storages: Sequence[object], index: int) -> bool:
+    vector_storage = getattr(vector, "_storage", None)
+    vector_index = getattr(vector, "_index", None)
+    if vector_storage is None or vector_index != index:
+        return False
+    return len(vector_storage) == len(storages) and all(
+        actual is expected for actual, expected in zip(vector_storage, storages)
+    )
+
+
+def _vec2_batch_is_current(
+    components: Sequence[Component],
+    accessor: _BatchAttributeAccessor,
+    batch: Vec2Batch,
+) -> bool:
+    if not components:
+        return True
+    return _uses_storage(accessor.get_one(components[0]), (batch.x, batch.y), 0)
+
+
+def _vec3_batch_is_current(
+    components: Sequence[Component],
+    accessor: _BatchAttributeAccessor,
+    batch: Vec3Batch,
+) -> bool:
+    if not components:
+        return True
+    return _uses_storage(
+        accessor.get_one(components[0]), (batch.x, batch.y, batch.z), 0
+    )
+
+
+def _refresh_vec2_batch(batch: Vec2Batch, vectors: Sequence[Vec2]) -> None:
+    for index, vector in enumerate(vectors):
+        batch.x[index] = vector.x
+        batch.y[index] = vector.y
+
+
+def _refresh_vec3_batch(batch: Vec3Batch, vectors: Sequence[Vec3]) -> None:
+    for index, vector in enumerate(vectors):
+        batch.x[index] = vector.x
+        batch.y[index] = vector.y
+        batch.z[index] = vector.z
 
 
 def _get_attribute_accessor(attribute_name: str) -> _BatchAttributeAccessor:
@@ -220,9 +267,9 @@ class Query(Generic[TEntity, TFilter]):
         self._thread_id: Optional[int] = None
         self._registry: Optional["Registry"] = None
         self._version = 0
-        self._component_rows_cache: dict[
-            tuple[Type[Component], ...], _ResolvedRows
-        ] = {}
+        self._component_rows_cache: dict[tuple[Type[Component], ...], _ResolvedRows] = (
+            {}
+        )
         self._entity_component_rows_cache: dict[
             tuple[Type[Component], ...], _ResolvedRows
         ] = {}
@@ -331,7 +378,9 @@ class Query(Generic[TEntity, TFilter]):
                     resolved_rows.append(tuple(components))
             rows = tuple(resolved_rows)
 
-        self._component_rows_cache[key] = _ResolvedRows(current_revision, cast(tuple[tuple[object, ...], ...], rows))
+        self._component_rows_cache[key] = _ResolvedRows(
+            current_revision, cast(tuple[tuple[object, ...], ...], rows)
+        )
         return rows
 
     def _get_entity_component_rows(
@@ -341,7 +390,9 @@ class Query(Generic[TEntity, TFilter]):
         cached = self._entity_component_rows_cache.get(key)
         current_revision = self._get_registry_component_revision()
         if cached is not None and cached.revision == current_revision:
-            return cast(tuple[tuple["Entity", *tuple[Component, ...]], ...], cached.rows)
+            return cast(
+                tuple[tuple["Entity", *tuple[Component, ...]], ...], cached.rows
+            )
 
         component_pools = self._get_component_pools(component_types)
         if component_pools is None:
@@ -360,7 +411,9 @@ class Query(Generic[TEntity, TFilter]):
                     resolved_rows.append((entity, *components))
             rows = tuple(resolved_rows)
 
-        self._entity_component_rows_cache[key] = _ResolvedRows(current_revision, cast(tuple[tuple[object, ...], ...], rows))
+        self._entity_component_rows_cache[key] = _ResolvedRows(
+            current_revision, cast(tuple[tuple[object, ...], ...], rows)
+        )
         return rows
 
     def _get_registry_component_revision(self) -> int:
@@ -381,6 +434,7 @@ class BatchQuery(Query["Entity", Any], Generic[*TBatchComponents]):
         "_component_cache",
         "_entity_id_batch",
         "_seen_query_version",
+        "_seen_component_revision",
         "_scalar_batches",
         "_vec2_batches",
         "_vec3_batches",
@@ -392,6 +446,7 @@ class BatchQuery(Query["Entity", Any], Generic[*TBatchComponents]):
         self._component_cache: dict[Type[Component], list[Component]] = {}
         self._entity_id_batch: NDArray[np.int64] | None = None
         self._seen_query_version = -1
+        self._seen_component_revision = -1
         self._scalar_batches: dict[tuple[Type[Component], str], ScalarBatch] = {}
         self._vec2_batches: dict[tuple[Type[Component], str], Vec2Batch] = {}
         self._vec3_batches: dict[tuple[Type[Component], str], Vec3Batch] = {}
@@ -417,14 +472,21 @@ class BatchQuery(Query["Entity", Any], Generic[*TBatchComponents]):
     def vec2(self, component_type: Type[Component], attribute_name: str) -> Vec2Batch:
         self._assert_component_allowed(component_type)
 
+        components = self._get_batch_components(component_type)
+        accessor = _get_attribute_accessor(attribute_name)
         key = (component_type, attribute_name)
         cached = self._vec2_batches.get(key)
         if cached is not None:
-            return cached
+            if _vec2_batch_is_current(components, accessor, cached):
+                return cached
 
-        components = self._get_batch_components(component_type)
-        accessor = _get_attribute_accessor(attribute_name)
-        vectors = accessor.get_many(components)
+            vectors = cast(list[Vec2], accessor.get_many(components))
+            if len(cached.x) == len(vectors):
+                _refresh_vec2_batch(cached, vectors)
+                accessor.bind_vec2_storage(components, cached.x, cached.y)
+                return cached
+
+        vectors = cast(list[Vec2], accessor.get_many(components))
         x = np.fromiter(
             (vector.x for vector in vectors), dtype=np.float64, count=len(vectors)
         )
@@ -439,14 +501,21 @@ class BatchQuery(Query["Entity", Any], Generic[*TBatchComponents]):
     def vec3(self, component_type: Type[Component], attribute_name: str) -> Vec3Batch:
         self._assert_component_allowed(component_type)
 
+        components = self._get_batch_components(component_type)
+        accessor = _get_attribute_accessor(attribute_name)
         key = (component_type, attribute_name)
         cached = self._vec3_batches.get(key)
         if cached is not None:
-            return cached
+            if _vec3_batch_is_current(components, accessor, cached):
+                return cached
 
-        components = self._get_batch_components(component_type)
-        accessor = _get_attribute_accessor(attribute_name)
-        vectors = accessor.get_many(components)
+            vectors = cast(list[Vec3], accessor.get_many(components))
+            if len(cached.x) == len(vectors):
+                _refresh_vec3_batch(cached, vectors)
+                accessor.bind_vec3_storage(components, cached.x, cached.y, cached.z)
+                return cached
+
+        vectors = cast(list[Vec3], accessor.get_many(components))
         x = np.fromiter(
             (vector.x for vector in vectors), dtype=np.float64, count=len(vectors)
         )
@@ -469,10 +538,22 @@ class BatchQuery(Query["Entity", Any], Generic[*TBatchComponents]):
             )
         return self._entity_id_batch
 
+    def components(self, component_type: TComponent) -> list[TComponent]:
+        self._assert_component_allowed(component_type)
+        return self._get_batch_components(component_type)
+
     def _prepare_for_system_run(self) -> None:
-        if self._seen_query_version == self._version:
+        if self._registry is None:
+            raise RegistryNotSetError
+
+        component_revision = self._registry.get_component_revision()
+        if (
+            self._seen_query_version == self._version
+            and self._seen_component_revision == component_revision
+        ):
             return
         self._seen_query_version = self._version
+        self._seen_component_revision = component_revision
         self._invalidate_cache()
 
     def _flush_after_system_run(self) -> None:

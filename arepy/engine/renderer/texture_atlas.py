@@ -45,7 +45,7 @@ class TextureBatchGroup:
 
 
 @dataclass(frozen=True, slots=True)
-class TextureBatchPlan:
+class TextureBatchLayout:
     groups: tuple[TextureBatchGroup, ...]
 
 
@@ -66,18 +66,18 @@ class _AtlasPageLayout:
 
 
 @dataclass(slots=True)
-class _PlanCacheEntry:
+class _LayoutCacheEntry:
     signature: tuple[tuple[str, tuple[int, int, int, int]], ...]
-    plan: TextureBatchPlan
+    layout: TextureBatchLayout
 
 
 @dataclass(slots=True)
 class TextureAtlasCollection:
     atlases: tuple[TextureAtlas, ...]
     regions: dict[str, TextureAtlasRegion]
-    _plan_cache: dict[tuple[int, int], _PlanCacheEntry] = field(default_factory=dict)
+    _layout_cache: dict[tuple[int, int], _LayoutCacheEntry] = field(default_factory=dict)
 
-    def get_batch_plan(self, sprites: Sequence[Sprite]) -> TextureBatchPlan:
+    def get_batch_layout(self, sprites: Sequence[Sprite]) -> TextureBatchLayout:
         if not self.atlases:
             raise RuntimeError("draw_texture_batch requires at least one texture atlas.")
 
@@ -86,9 +86,9 @@ class TextureAtlasCollection:
             for sprite in sprites
         )
         cache_key = (id(sprites), len(sprites))
-        cached = self._plan_cache.get(cache_key)
+        cached = self._layout_cache.get(cache_key)
         if cached is not None and cached.signature == signature:
-            return cached.plan
+            return cached.layout
 
         grouped_entity_indices: dict[int, list[int]] = {}
         grouped_source_x: dict[int, list[float]] = {}
@@ -134,17 +134,19 @@ class TextureAtlasCollection:
                 )
             )
 
-        plan = TextureBatchPlan(tuple(groups))
-        self._plan_cache[cache_key] = _PlanCacheEntry(signature=signature, plan=plan)
-        return plan
+        layout = TextureBatchLayout(tuple(groups))
+        self._layout_cache[cache_key] = _LayoutCacheEntry(
+            signature=signature, layout=layout
+        )
+        return layout
 
-    def clear_plan_cache(self) -> None:
-        self._plan_cache.clear()
+    def clear_layout_cache(self) -> None:
+        self._layout_cache.clear()
 
     def unload(self, renderer: "Renderer2D") -> None:
         for atlas in self.atlases:
             renderer.unload_texture(atlas.texture)
-        self.clear_plan_cache()
+        self.clear_layout_cache()
 
 
 def build_texture_atlas(
@@ -346,6 +348,6 @@ __all__ = [
     "TextureAtlasCollection",
     "TextureAtlasRegion",
     "TextureBatchGroup",
-    "TextureBatchPlan",
+    "TextureBatchLayout",
     "build_texture_atlas",
 ]

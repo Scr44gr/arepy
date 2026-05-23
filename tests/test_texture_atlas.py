@@ -31,7 +31,7 @@ def test_pack_texture_pages_spills_when_page_is_full() -> None:
     assert tuple(placement.asset_id for placement in pages[1].placements) == ("coin",)
 
 
-def test_texture_batch_plan_groups_sprites_by_atlas_and_reuses_cache() -> None:
+def test_texture_batch_layout_groups_sprites_by_atlas_and_reuses_cache() -> None:
     atlas_0 = TextureAtlas(texture=_make_texture(10, (64, 64)), index=0, size=(64, 64))
     atlas_1 = TextureAtlas(texture=_make_texture(11, (64, 64)), index=1, size=(64, 64))
     atlas_collection = TextureAtlasCollection(
@@ -47,14 +47,14 @@ def test_texture_batch_plan_groups_sprites_by_atlas_and_reuses_cache() -> None:
         Sprite("hero", (8, 8, 8, 8), 0),
     ]
 
-    first_plan = atlas_collection.get_batch_plan(sprites)
-    second_plan = atlas_collection.get_batch_plan(sprites)
+    first_layout = atlas_collection.get_batch_layout(sprites)
+    second_layout = atlas_collection.get_batch_layout(sprites)
 
-    assert first_plan is second_plan
-    assert len(first_plan.groups) == 2
+    assert first_layout is second_layout
+    assert len(first_layout.groups) == 2
 
-    hero_group = first_plan.groups[0]
-    enemy_group = first_plan.groups[1]
+    hero_group = first_layout.groups[0]
+    enemy_group = first_layout.groups[1]
 
     assert hero_group.texture is atlas_0.texture
     assert hero_group.entity_indices.tolist() == [0, 2]
@@ -69,7 +69,7 @@ def test_texture_batch_plan_groups_sprites_by_atlas_and_reuses_cache() -> None:
     assert enemy_group.source_y.tolist() == [4.0]
 
 
-def test_texture_batch_plan_refreshes_when_sprite_frame_changes() -> None:
+def test_texture_batch_layout_refreshes_when_sprite_frame_changes() -> None:
     atlas = TextureAtlas(texture=_make_texture(10, (64, 64)), index=0, size=(64, 64))
     atlas_collection = TextureAtlasCollection(
         atlases=(atlas,),
@@ -79,19 +79,19 @@ def test_texture_batch_plan_refreshes_when_sprite_frame_changes() -> None:
     )
     sprites = [Sprite("hero", (0, 0, 16, 16), 0)]
 
-    first_plan = atlas_collection.get_batch_plan(sprites)
+    first_layout = atlas_collection.get_batch_layout(sprites)
     sprites[0].src_rect = (8, 12, 8, 8)
-    second_plan = atlas_collection.get_batch_plan(sprites)
+    second_layout = atlas_collection.get_batch_layout(sprites)
 
-    assert second_plan is not first_plan
-    assert second_plan.groups[0].source_x.tolist() == [12.0]
-    assert second_plan.groups[0].source_y.tolist() == [18.0]
-    assert second_plan.groups[0].source_width.tolist() == [8.0]
-    assert second_plan.groups[0].source_height.tolist() == [8.0]
+    assert second_layout is not first_layout
+    assert second_layout.groups[0].source_x.tolist() == [12.0]
+    assert second_layout.groups[0].source_y.tolist() == [18.0]
+    assert second_layout.groups[0].source_width.tolist() == [8.0]
+    assert second_layout.groups[0].source_height.tolist() == [8.0]
 
 
-def test_texture_batch_plan_requires_at_least_one_atlas() -> None:
+def test_texture_batch_layout_requires_at_least_one_atlas() -> None:
     atlas_collection = TextureAtlasCollection(atlases=(), regions={})
 
     with pytest.raises(RuntimeError, match="at least one texture atlas"):
-        atlas_collection.get_batch_plan([Sprite("hero", (0, 0, 16, 16), 0)])
+        atlas_collection.get_batch_layout([Sprite("hero", (0, 0, 16, 16), 0)])

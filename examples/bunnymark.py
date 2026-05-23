@@ -1,6 +1,5 @@
 import random
 from dataclasses import dataclass
-from typing import cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -11,7 +10,7 @@ from arepy.bundle.components.sprite import Sprite
 from arepy.bundle.components.transform import Transform
 from arepy.ecs import BatchQuery
 from arepy.ecs.world import World
-from arepy.engine.renderer.texture_atlas import TextureBatchPlan
+from arepy.engine.renderer.texture_atlas import TextureBatchLayout
 from arepy.math import Vec2
 
 WHITE_COLOR = Color(255, 255, 255, 255)
@@ -26,7 +25,7 @@ WINDOW_HEIGHT = 480
 class BunnyBatchState:
     position_x: NDArray[np.float64] | None = None
     position_y: NDArray[np.float64] | None = None
-    plan: TextureBatchPlan | None = None
+    layout: TextureBatchLayout | None = None
 
 
 def movement_system(
@@ -80,14 +79,14 @@ def render_system(
             "BunnyMark batch rendering requires movement_system to publish position views."
         )
 
-    sprites = cast(list[Sprite], batch.components(Sprite))
-    batch_plan = batch_state.plan
-    if batch_plan is None:
-        batch_plan = texture_atlas.get_batch_plan(sprites)
-        batch_state.plan = batch_plan
+    sprites = batch.components(Sprite)
+    batch_layout = batch_state.layout
+    if batch_layout is None:
+        batch_layout = texture_atlas.get_batch_layout(sprites)
+        batch_state.layout = batch_layout
     renderer.draw_texture_batch(
         texture_atlas,
-        batch_plan,
+        batch_layout,
         batch_state.position_x,
         batch_state.position_y,
         WHITE_COLOR,

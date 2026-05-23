@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Dict
 from ..engine.audio import ArepyMusic, ArepySound, AudioDevice
 from ..engine.renderer import ArepyTexture
 from ..engine.renderer.renderer_2d import Renderer2D
+from ..engine.renderer.texture_atlas import TextureAtlasCollection
 
 if TYPE_CHECKING:
     from ..engine.renderer.renderer_3d import (
@@ -32,6 +33,7 @@ class AssetStore:
     models: Dict[str, "ArepyModel"] = field(default_factory=dict)
     meshes: Dict[str, "ArepyMesh"] = field(default_factory=dict)
     materials: Dict[str, "ArepyMaterial"] = field(default_factory=dict)
+    texture_atlas: TextureAtlasCollection | None = None
 
     def create_render_texture(
         self,
@@ -40,6 +42,7 @@ class AssetStore:
         width: int,
         height: int,
     ) -> ArepyTexture:
+        self._invalidate_texture_atlas(renderer)
         texture = renderer.create_render_texture(width, height)
         self.textures[name] = texture
         return texture
@@ -53,6 +56,7 @@ class AssetStore:
         if not exists(path):
             raise FileNotFoundError(f"Texture file not found: {path}")
 
+        self._invalidate_texture_atlas(renderer)
         self.textures[name] = renderer.create_texture(path=Path(path))
 
     def load_font(self, name: str, path: str, size: int) -> None: ...
@@ -63,9 +67,48 @@ class AssetStore:
         return self.fonts[name]
 
     def unload_texture(self, renderer: Renderer2D, name: str) -> None:
+        self._invalidate_texture_atlas(renderer)
 
         texture = self.textures.pop(name)
         renderer.unload_texture(texture)
+
+    def build_texture_atlas(
+        self,
+        renderer: Renderer2D,
+        *,
+        max_size: tuple[int, int] = (2048, 2048),
+        padding: int = 1,
+    ) -> TextureAtlasCollection:
+        self._invalidate_texture_atlas(renderer)
+        from ..engine.renderer.texture_atlas import build_texture_atlas
+
+        atlas = build_texture_atlas(
+            self,
+            renderer,
+            max_size=max_size,
+            padding=padding,
+        )
+        object.__setattr__(self, "texture_atlas", atlas)
+        return atlas
+
+    def clear_texture_atlas(self, renderer: Renderer2D | None = None) -> None:
+        atlas = self.texture_atlas
+        if atlas is None:
+            return
+        if renderer is not None:
+            atlas.unload(renderer)
+        object.__setattr__(self, "texture_atlas", None)
+
+    def get_texture_atlas(self) -> TextureAtlasCollection | None:
+        return self.texture_atlas
+
+    def _invalidate_texture_atlas(self, renderer: Renderer2D | None) -> None:
+        atlas = self.texture_atlas
+        if atlas is None:
+            return
+        if renderer is not None:
+            atlas.unload(renderer)
+        object.__setattr__(self, "texture_atlas", None)
 
     # Audio related methods
     def load_sound(self, audio_device: AudioDevice, name: str, path: str):

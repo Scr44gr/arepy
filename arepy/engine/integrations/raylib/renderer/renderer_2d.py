@@ -24,7 +24,7 @@ from arepy.engine.renderer import (
     ShaderValue,
     TextureFilter,
 )
-from arepy.engine.renderer.texture_atlas import TextureAtlasCollection, TextureBatchPlan
+from arepy.engine.renderer.texture_atlas import TextureAtlasCollection, TextureBatchLayout
 
 _SHADER_UNIFORM_TYPE_MAP = {
     ShaderUniformType.FLOAT: rl.SHADER_UNIFORM_FLOAT,
@@ -376,7 +376,7 @@ def draw_texture_ex(
 
 def draw_texture_batch(
     atlases: TextureAtlasCollection,
-    plan: TextureBatchPlan,
+    layout: TextureBatchLayout,
     position_x: NDArray[np.float64],
     position_y: NDArray[np.float64],
     color: Color,
@@ -385,11 +385,11 @@ def draw_texture_batch(
         raise RuntimeError("draw_texture_batch requires at least one texture atlas.")
     if len(position_x) != len(position_y):
         raise ValueError("draw_texture_batch requires position_x and position_y with the same length.")
-    if not plan.groups:
+    if not layout.groups:
         return
 
     native_used = False
-    for group in plan.groups:
+    for group in layout.groups:
         if _native_batch.draw_texture_batch_group(group, position_x, position_y, color):
             native_used = True
             continue
