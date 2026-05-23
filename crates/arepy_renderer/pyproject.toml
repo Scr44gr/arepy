@@ -9,3 +9,6 @@ dynamic = ["version"]
 
 [tool.maturin]
 bindings = "pyo3"
+python-source = "../.."
+python-packages = ["arepy"]
+module-name = "arepy.arepy_renderer"

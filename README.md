@@ -50,6 +50,8 @@ cd arepy
 uv sync --extra docs
 ```
 
+Source installs from this repository use `maturin`, so `pip install .` builds the bundled native extension automatically. If no wheel is available, make sure Rust is installed.
+
 If you also want the optional ImGui extra:
 
 ```bash
@@ -267,7 +269,7 @@ renderer.draw_texture_batch(
 
 `layout.default_dest_width` and `layout.default_dest_height` are cached with the layout, so you do not need to rebuild those arrays every frame unless you want custom destination sizes.
 
-`draw_texture_batch(...)` requires at least one atlas page and the native `arepy_renderer` module. There is no Python fallback path.
+`draw_texture_batch(...)` requires at least one atlas page and the bundled native extension. Installs from PyPI include it, and `pip install .` builds it automatically from source. There is no Python fallback path.
 
 ---
 

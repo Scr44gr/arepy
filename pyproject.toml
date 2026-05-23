@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=72"]
-build-backend = "setuptools.build_meta"
+requires = ["maturin>=1.8,<2.0"]
+build-backend = "maturin"
 
 [project]
 name = "arepy"
@@ -46,12 +46,13 @@ dev-dependencies = [
     "mkdocstrings[python]>=0.28.0",
 ]
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["arepy", "arepy.*"]
-
-[tool.setuptools.dynamic]
-version = { attr = "arepy.__version__" }
+[tool.maturin]
+bindings = "pyo3"
+manifest-path = "crates/arepy_renderer/Cargo.toml"
+python-source = "."
+python-packages = ["arepy"]
+module-name = "arepy.arepy_renderer"
+include = ["arepy/py.typed", "arepy/**/*.pyi"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

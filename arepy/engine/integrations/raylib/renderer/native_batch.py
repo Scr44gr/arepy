@@ -31,7 +31,7 @@ def _load_native_module() -> Any | None:
 
     _native_checked = True
     try:
-        _native_module = import_module("arepy_renderer")
+        _native_module = import_module("arepy.arepy_renderer")
     except ImportError:
         _native_module = None
     return _native_module
@@ -79,7 +79,7 @@ def draw_texture_batch_group(
     draw_texture_batch = _draw_texture_batch
     if draw_texture_batch is None:
         raise RuntimeError(
-            "draw_texture_batch requires the native 'arepy_renderer' module to be installed."
+            "draw_texture_batch requires the bundled native 'arepy.arepy_renderer' module to be installed."
         )
 
     texture_ref = _require_texture_ref(group.texture)

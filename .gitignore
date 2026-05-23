@@ -5,6 +5,8 @@ __pycache__/
 .pyvenv/
 # C extensions
 *.so
+*.dylib
+*.pyd
 
 # Distribution / packaging
 .Python

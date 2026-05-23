@@ -16,6 +16,8 @@ pip install arepy
 
 If you only want to use the engine in a game project, that is enough.
 
+The packaged install includes the native renderer extension used by atlas batch rendering.
+
 ## Local setup with `uv`
 
 ```bash
@@ -25,6 +27,8 @@ uv sync --extra docs
 ```
 
 This gives you the runtime dependencies plus the documentation toolchain used by this site.
+
+Source installs from this repository use `maturin`, so `pip install .` builds the bundled native extension automatically. If no wheel is available, make sure Rust is installed.
 
 ## Build the docs locally
 
