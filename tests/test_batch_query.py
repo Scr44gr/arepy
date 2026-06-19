@@ -1,5 +1,6 @@
 import pytest
 
+from arepy.bundle.components import Transform
 from arepy.ecs import Component
 from arepy.ecs.components import ComponentIndex
 from arepy.ecs.query import BatchQuery
@@ -89,6 +90,81 @@ def test_batch_query_scalar_updates_components_and_entity_ids_are_sorted() -> No
     assert health_two is not None
     assert health_one.value == 11
     assert health_two.value == 22
+
+
+def test_batch_query_readonly_scalar_uses_requested_dtype_without_writeback() -> None:
+    registry = Registry()
+
+    def health_system(batch: BatchQuery[Health]) -> None:
+        values = batch.scalar(
+            Health,
+            "value",
+            dtype=float,
+            writeback=False,
+        )
+        values += 5.0
+        assert values.dtype.kind == "f"
+
+    registry.add_system(SystemPipeline.UPDATE, SystemState.ON, health_system)
+
+    entity = registry.create_entity()
+    registry.add_component(entity, Health, Health(10))
+    registry.update()
+    registry.run(SystemPipeline.UPDATE)
+
+    health = registry.get_component(entity, Health)
+    assert health is not None
+    assert health.value == 10
+
+
+def test_batch_query_keeps_vector_storage_for_unrelated_component_changes() -> None:
+    registry = Registry()
+    storage_ids: list[int] = []
+
+    def movement_system(batch: BatchQuery[Position, Velocity]) -> None:
+        position = batch.vec2(Position, "value")
+        storage_ids.append(id(position.x))
+
+    registry.add_system(SystemPipeline.UPDATE, SystemState.ON, movement_system)
+
+    entity = registry.create_entity()
+    registry.add_component(entity, Position, Position(1.0, 2.0))
+    registry.add_component(entity, Velocity, Velocity(3.0, 4.0))
+    registry.update()
+    registry.run(SystemPipeline.UPDATE)
+
+    registry.add_component(entity, Health, Health(50), sync_queries=True)
+    registry.update()
+    registry.run(SystemPipeline.UPDATE)
+
+    assert storage_ids[0] == storage_ids[1]
+
+
+def test_batch_query_bound_scalar_reuses_storage_and_tracks_classic_mutation() -> None:
+    registry = Registry()
+    storage_ids: list[int] = []
+    seen_values: list[float] = []
+
+    def rotation_system(batch: BatchQuery[Transform]) -> None:
+        rotation = batch.scalar(Transform, "rotation", dtype=float, bind=True)
+        storage_ids.append(id(rotation))
+        seen_values.append(float(rotation[0]))
+        rotation += 1.0
+
+    registry.add_system(SystemPipeline.UPDATE, SystemState.ON, rotation_system)
+
+    entity = registry.create_entity()
+    transform = Transform(rotation=10.0)
+    registry.add_component(entity, Transform, transform)
+    registry.update()
+    registry.run(SystemPipeline.UPDATE)
+
+    transform.rotation = 25.0
+    registry.run(SystemPipeline.UPDATE)
+
+    assert storage_ids[0] == storage_ids[1]
+    assert seen_values == [10.0, 25.0]
+    assert transform.rotation == pytest.approx(26.0)
 
 
 def test_batch_query_rejects_components_outside_annotation() -> None:

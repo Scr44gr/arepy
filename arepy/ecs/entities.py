@@ -25,7 +25,8 @@ class Entity:
         if self._registry is None:
             raise RegistryNotSetError
 
-        if component := self._component_cache.get(component_type):
+        component = self._component_cache.get(component_type)
+        if component is not None:
             return component
 
         component = self._registry.get_component(self, component_type)
@@ -40,8 +41,7 @@ class Entity:
             raise RegistryNotSetError
         self._registry.remove_component(self, component_type)
 
-        if component_type in self._component_cache:
-            del self._component_cache[component_type]
+        self._component_cache.pop(component_type, None)
 
     def add_component(self, component: Component) -> None:
         component_type = type(component)
@@ -75,4 +75,4 @@ class Entity:
         return self._id == other._id
 
     def __hash__(self) -> int:
-        return hash(self._id)
+        return self._id

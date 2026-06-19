@@ -5,7 +5,6 @@ from typing import (
     List,
     Optional,
     ParamSpec,
-    Protocol,
     Type,
     TypeVar,
 )
@@ -15,18 +14,24 @@ class ComponentIndex:
     """A class to manage component IDs for classes with the same name."""
 
     __id_counters: dict[str, int] = {}
-    __last_insert: Optional[str] = None
+    __last_id = 0
 
     @classmethod
     def get_id(cls, class_name: str) -> int:
-        internal_class_name = f"{class_name}_{id(cls)}"
-        if not internal_class_name in cls.__id_counters:
-            counter = 0
-            if cls.__last_insert:
-                counter = cls.__id_counters[cls.__last_insert]
-            cls.__id_counters[internal_class_name] = counter + 1
-            cls.__last_insert = internal_class_name
-        return cls.__id_counters[internal_class_name]
+        component_id = cls.__id_counters.get(class_name)
+        if component_id is None:
+            cls.__last_id += 1
+            component_id = cls.__last_id
+            cls.__id_counters[class_name] = component_id
+        return component_id
+
+    @classmethod
+    def get_type_id(cls, component_type: type) -> int:
+        component_id = component_type.__dict__.get("_arepy_component_id")
+        if component_id is None:
+            component_id = cls.get_id(component_type.__name__)
+            setattr(component_type, "_arepy_component_id", component_id)
+        return component_id
 
 
 class Component:
@@ -36,8 +41,7 @@ class Component:
     """
 
     def __init__(self, *args, **kwargs):
-        class_name = type(self).__name__
-        self.id = ComponentIndex.get_id(class_name)
+        self.id = ComponentIndex.get_type_id(type(self))
 
     def get_id(self) -> int:
         """Return the unique id of the component."""
@@ -83,7 +87,6 @@ class ComponentPool(Generic[TComponent], IComponentPool):
     """
 
     def __init__(self, component_type: Type[TComponent]):
-        # default size == 32
         self._component_type = component_type
         self._components: List[Optional[TComponent]] = list()
 

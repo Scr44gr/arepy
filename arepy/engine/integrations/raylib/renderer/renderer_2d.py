@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from numbers import Integral, Real
 from os import PathLike
-from typing import Optional, cast
+from typing import Optional
 
 import numpy as np
 import raylib as rl
@@ -393,7 +393,8 @@ def draw_texture_batch(
         raise RuntimeError("draw_texture_batch requires at least one texture atlas.")
     entity_count = layout.default_dest_height.shape[0]
     if (
-        len(dest_y) != entity_count
+        len(dest_x) != entity_count
+        or len(dest_y) != entity_count
         or len(dest_width) != entity_count
         or len(dest_height) != entity_count
         or len(origin_x) != entity_count

@@ -64,6 +64,33 @@ Here the first returned value is the `Entity`, and the rest follow the component
 
 For gameplay loops, prefer `iter_components(...)` or `iter_entities_components(...)` over repeated `entity.get_component(...)` calls. The bundled movement and render systems already follow this pattern.
 
+## Batch queries
+
+Use `BatchQuery[...]` for vectorized NumPy updates:
+
+```python
+def movement_system(batch: BatchQuery[Transform, RigidBody2D]) -> None:
+    position = batch.vec2(Transform, "position")
+    velocity = batch.vec2(RigidBody2D, "velocity")
+    position.x += velocity.x
+    position.y += velocity.y
+```
+
+For scalar fields that support bound storage, `bind=True` keeps one persistent
+NumPy array instead of copying values and writing them back every frame:
+
+```python
+rotation = batch.scalar(
+    Transform,
+    "rotation",
+    dtype=np.float64,
+    bind=True,
+)
+```
+
+Use `writeback=False` for read-only scalar views that do not support bound
+storage.
+
 ## Ordering
 
 Query iteration is deterministic: entities are yielded ordered by entity id. That makes gameplay logic, replayability, and debugging easier to reason about.

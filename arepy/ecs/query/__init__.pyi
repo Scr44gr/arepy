@@ -5,7 +5,6 @@ from typing import (
     Any,
     Callable,
     Generic,
-    Iterable,
     Iterator,
     Mapping,
     Sequence,
@@ -67,7 +66,7 @@ class Query(Generic[TEntity, TFilter]):
     def get_entities(self) -> set[Entity]: ...
     def add_entity(self, entity: Entity) -> None: ...
     def remove_entity(self, entity: Entity) -> None: ...
-    def __iter__(self) -> Iterable[Entity]: ...
+    def __iter__(self) -> Iterator[Entity]: ...
     def set_registry(self, registry: Registry) -> None: ...
     def matches(self, entity_signature: Signature) -> bool: ...
     @overload
@@ -119,7 +118,13 @@ class Query(Generic[TEntity, TFilter]):
 class BatchQuery(Query[Entity, Any], Generic[*TBatchComponents]):
     def components(self, component_type: Type[C1]) -> list[C1]: ...
     def scalar(
-        self, component_type: Type[Component], attribute_name: str
+        self,
+        component_type: Type[Component],
+        attribute_name: str,
+        *,
+        dtype: object = ...,
+        writeback: bool = ...,
+        bind: bool = ...,
     ) -> ScalarBatch: ...
     def vec2(
         self, component_type: Type[Component], attribute_name: str

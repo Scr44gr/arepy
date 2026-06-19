@@ -250,7 +250,12 @@ import numpy as np
 
 position = batch.vec2(Transform, "position")
 origin = batch.vec2(Transform, "origin")
-rotation = np.require(batch.scalar(Transform, "rotation"), dtype=np.float64)
+rotation = batch.scalar(
+    Transform,
+    "rotation",
+    dtype=np.float64,
+    bind=True,
+)
 sprites = batch.components(Sprite)
 layout = texture_atlas.get_batch_layout(sprites)
 renderer.draw_texture_batch(

@@ -183,7 +183,7 @@ def test_entity_component_cache_invalidation(entity):
     entity.add_component(pos)
 
     # Access component to cache it
-    cached_pos = entity.get_component(Position)
+    entity.get_component(Position)
     assert Position in entity._component_cache
 
     # Remove component
@@ -191,6 +191,18 @@ def test_entity_component_cache_invalidation(entity):
 
     # Cache should be invalidated
     assert Position not in entity._component_cache
+
+
+def test_registry_component_replacement_refreshes_entity_cache(entity):
+    original = Position(10.0, 20.0)
+    replacement = Position(30.0, 40.0)
+    entity._registry.add_component(entity, Position, original)
+
+    assert entity.get_component(Position) is original
+
+    entity._registry.add_component(entity, Position, replacement)
+
+    assert entity.get_component(Position) is replacement
 
 
 def test_entity_in_set_and_dict(registry):

@@ -43,6 +43,10 @@ TBatchComponents = TypeVarTuple("TBatchComponents")
 FloatBatch = NDArray[np.float64]
 ScalarBatch = NDArray[Any]
 BoolMask = NDArray[np.bool_]
+_ENTITY_ID_GETTER = attrgetter("_id")
+_X_GETTER = attrgetter("x")
+_Y_GETTER = attrgetter("y")
+_Z_GETTER = attrgetter("z")
 
 
 class With(Generic[P]): ...
@@ -53,7 +57,8 @@ class Without(Generic[P]): ...
 
 @dataclass(slots=True)
 class _ResolvedRows:
-    revision: int
+    query_version: int
+    component_revisions: tuple[int, ...]
     rows: tuple[tuple[object, ...], ...]
 
 
@@ -87,71 +92,74 @@ class _ScalarWriteback:
     values: ScalarBatch
 
     def flush(self) -> None:
-        self.accessor.set_many(self.components, self.values, _python_value)
-
-
-def _python_value(value: object) -> object:
-    try:
-        item = value.item
-    except AttributeError:
-        return value
-    if callable(item):
-        return item()
-    return value
+        self.accessor.set_many(self.components, self.values.tolist())
 
 
 @dataclass(frozen=True, slots=True)
 class _BatchAttributeAccessor:
     get_one: Callable[[Component], object]
     get_many: Callable[[Sequence[Component]], list[object]]
-    set_many: Callable[
-        [Sequence[Component], Iterable[object], Callable[[object], object]], None
-    ]
+    set_many: Callable[[Sequence[Component], Iterable[object]], None]
     bind_vec2_storage: Callable[[Sequence[Component], FloatBatch, FloatBatch], None]
     bind_vec3_storage: Callable[
         [Sequence[Component], FloatBatch, FloatBatch, FloatBatch], None
     ]
+    bind_scalar_storage: Callable[[Sequence[Component], ScalarBatch], bool]
+    scalar_storage_is_current: Callable[[Sequence[Component], ScalarBatch], bool]
 
 
 _ATTRIBUTE_ACCESSORS: dict[str, _BatchAttributeAccessor] = {}
 
 
 def _build_attribute_accessor(attribute_name: str) -> _BatchAttributeAccessor:
-    getter: Callable[[Component], object] | None = None
-    if "." not in attribute_name:
-        getter = cast(Callable[[Component], object], attrgetter(attribute_name))
+    getter = cast(Callable[[Component], object], attrgetter(attribute_name))
 
     def get_one(component: Component) -> object:
-        if getter is not None:
-            return getter(component)
-        return type(component).__getattribute__(component, attribute_name)
+        return getter(component)
 
     def get_many(components: Sequence[Component]) -> list[object]:
-        return [get_one(component) for component in components]
+        return list(map(getter, components))
 
     def set_many(
         components: Sequence[Component],
         values: Iterable[object],
-        convert: Callable[[object], object],
     ) -> None:
         for component, value in zip(components, values):
-            type(component).__setattr__(component, attribute_name, convert(value))
+            setattr(component, attribute_name, value)
 
     def bind_vec2_storage(
         components: Sequence[Component], x: FloatBatch, y: FloatBatch
     ) -> None:
         for index, component in enumerate(components):
-            type(component).__setattr__(
-                component, attribute_name, Vec2.from_storage(x, y, index)
-            )
+            setattr(component, attribute_name, Vec2.from_storage(x, y, index))
 
     def bind_vec3_storage(
         components: Sequence[Component], x: FloatBatch, y: FloatBatch, z: FloatBatch
     ) -> None:
         for index, component in enumerate(components):
-            type(component).__setattr__(
-                component, attribute_name, Vec3.from_storage(x, y, z, index)
-            )
+            setattr(component, attribute_name, Vec3.from_storage(x, y, z, index))
+
+    def bind_scalar_storage(
+        components: Sequence[Component], values: ScalarBatch
+    ) -> bool:
+        if not components:
+            return True
+        binder = getattr(type(components[0]), "_bind_scalar_storage", None)
+        if binder is None:
+            return False
+        for index, component in enumerate(components):
+            binder(component, attribute_name, values, index)
+        return True
+
+    def scalar_storage_is_current(
+        components: Sequence[Component], values: ScalarBatch
+    ) -> bool:
+        if not components:
+            return True
+        checker = getattr(type(components[0]), "_uses_scalar_storage", None)
+        return checker is not None and checker(
+            components[0], attribute_name, values, 0
+        )
 
     return _BatchAttributeAccessor(
         get_one=get_one,
@@ -159,6 +167,8 @@ def _build_attribute_accessor(attribute_name: str) -> _BatchAttributeAccessor:
         set_many=set_many,
         bind_vec2_storage=bind_vec2_storage,
         bind_vec3_storage=bind_vec3_storage,
+        bind_scalar_storage=bind_scalar_storage,
+        scalar_storage_is_current=scalar_storage_is_current,
     )
 
 
@@ -218,9 +228,7 @@ def _get_attribute_accessor(attribute_name: str) -> _BatchAttributeAccessor:
 
 
 class Query(Generic[TEntity, TFilter]):
-    """
-
-    Query class to filter entities based on the components they have.
+    """Filter entities based on their component signatures.
 
     Example:
     ```python
@@ -235,12 +243,6 @@ class Query(Generic[TEntity, TFilter]):
             position.x += velocity.x
             position.y += velocity.y
     ```
-
-
-    TODO:
-        Need to improve the query system, with TEntity we need to be able to get an specific entity
-        I think we can improve the performance using only an entity with threads, so a system can get the entity and the system enqueue only the entity
-        and the threads will process every entity(in chunks) instead of processing a loop of entities.
     """
 
     __slots__ = [
@@ -281,31 +283,55 @@ class Query(Generic[TEntity, TFilter]):
         return self._excluded_signature
 
     def matches(self, entity_signature: Signature) -> bool:
-        required_matches = self._signature.matches(entity_signature)
-        excluded_bits = self._excluded_signature.get_bits()
-        has_excluded_components = (entity_signature.get_bits() & excluded_bits).any()
-        return required_matches and not has_excluded_components
+        return self._signature.matches(
+            entity_signature
+        ) and not self._excluded_signature.intersects(entity_signature)
 
     def get_entities(self) -> set["Entity"]:
         return self._entities
 
     def add_entity(self, entity: "Entity") -> None:
-        if entity not in self._entities:
-            self._entities.add(entity)
+        entities = self._entities
+        previous_size = len(entities)
+        entities.add(entity)
+        if len(entities) != previous_size:
             self._is_order_dirty = True
             self._version += 1
-            self._invalidate_iteration_cache()
 
     def remove_entity(self, entity: "Entity") -> None:
-        try:
-            self._entities.remove(entity)
+        entities = self._entities
+        previous_size = len(entities)
+        entities.discard(entity)
+        if len(entities) != previous_size:
             self._is_order_dirty = True
             self._version += 1
-            self._invalidate_iteration_cache()
-        except KeyError:
-            pass
 
-    def __iter__(self) -> Iterable["Entity"]:
+    def _sync_entities(
+        self,
+        dirty_entities: set["Entity"],
+        entity_signatures: Sequence[Signature],
+    ) -> None:
+        matching_entities = {
+            entity
+            for entity in dirty_entities
+            if self.matches(entity_signatures[entity._id - 1])
+        }
+        current_dirty_entities = self._entities.intersection(dirty_entities)
+        if current_dirty_entities == matching_entities:
+            return
+
+        self._entities.difference_update(dirty_entities)
+        self._entities.update(matching_entities)
+        self._is_order_dirty = True
+        self._version += 1
+
+    def _remove_entities(self, entities: set["Entity"]) -> None:
+        if not self._entities.isdisjoint(entities):
+            self._entities.difference_update(entities)
+            self._is_order_dirty = True
+            self._version += 1
+
+    def __iter__(self) -> Iterator["Entity"]:
         return iter(self._get_ordered_entities())
 
     def set_registry(self, registry: "Registry") -> None:
@@ -315,14 +341,12 @@ class Query(Generic[TEntity, TFilter]):
     def iter_components(
         self, *component_types: Type[Component]
     ) -> Iterator[tuple[Component, ...]]:
-        rows = self._get_component_rows(component_types)
-        yield from cast(Iterable[tuple[Component, ...]], rows)
+        return iter(self._get_component_rows(component_types))
 
     def iter_entities_components(
         self, *component_types: Type[Component]
     ) -> Iterator[tuple["Entity", *tuple[Component, ...]]]:
-        rows = self._get_entity_component_rows(component_types)
-        yield from cast(Iterable[tuple["Entity", *tuple[Component, ...]]], rows)
+        return iter(self._get_entity_component_rows(component_types))
 
     def _get_component_pools(
         self, component_types: Sequence[Type[Component]]
@@ -332,7 +356,7 @@ class Query(Generic[TEntity, TFilter]):
 
         component_pools: list[ComponentPool[Component]] = []
         for component_type in component_types:
-            component_id = ComponentIndex.get_id(component_type.__name__)
+            component_id = ComponentIndex.get_type_id(component_type)
             if component_id > len(self._registry.component_pools):
                 return None
 
@@ -346,7 +370,7 @@ class Query(Generic[TEntity, TFilter]):
     def _get_ordered_entities(self) -> tuple["Entity", ...]:
         if self._is_order_dirty:
             self._ordered_entities_cache = tuple(
-                sorted(self._entities, key=lambda entity: entity.get_id())
+                sorted(self._entities, key=_ENTITY_ID_GETTER)
             )
             self._is_order_dirty = False
 
@@ -357,20 +381,25 @@ class Query(Generic[TEntity, TFilter]):
     ) -> tuple[tuple[Component, ...], ...]:
         key = tuple(component_types)
         cached = self._component_rows_cache.get(key)
-        current_revision = self._get_registry_component_revision()
-        if cached is not None and cached.revision == current_revision:
+        component_revisions = self._get_registry_component_revisions(key)
+        if (
+            cached is not None
+            and cached.query_version == self._version
+            and cached.component_revisions == component_revisions
+        ):
             return cast(tuple[tuple[Component, ...], ...], cached.rows)
 
         component_pools = self._get_component_pools(component_types)
         if component_pools is None:
             rows: tuple[tuple[Component, ...], ...] = ()
         else:
+            component_arrays = [pool.get_all() for pool in component_pools]
             resolved_rows: list[tuple[Component, ...]] = []
             for entity in self._get_ordered_entities():
-                entity_id = entity.get_id() - 1
+                entity_id = entity._id - 1
                 components: list[Component] = []
-                for component_pool in component_pools:
-                    component = component_pool.get(entity_id)
+                for component_array in component_arrays:
+                    component = component_array[entity_id]
                     if component is None:
                         break
                     components.append(component)
@@ -379,7 +408,9 @@ class Query(Generic[TEntity, TFilter]):
             rows = tuple(resolved_rows)
 
         self._component_rows_cache[key] = _ResolvedRows(
-            current_revision, cast(tuple[tuple[object, ...], ...], rows)
+            self._version,
+            component_revisions,
+            cast(tuple[tuple[object, ...], ...], rows),
         )
         return rows
 
@@ -388,8 +419,12 @@ class Query(Generic[TEntity, TFilter]):
     ) -> tuple[tuple["Entity", *tuple[Component, ...]], ...]:
         key = tuple(component_types)
         cached = self._entity_component_rows_cache.get(key)
-        current_revision = self._get_registry_component_revision()
-        if cached is not None and cached.revision == current_revision:
+        component_revisions = self._get_registry_component_revisions(key)
+        if (
+            cached is not None
+            and cached.query_version == self._version
+            and cached.component_revisions == component_revisions
+        ):
             return cast(
                 tuple[tuple["Entity", *tuple[Component, ...]], ...], cached.rows
             )
@@ -398,12 +433,13 @@ class Query(Generic[TEntity, TFilter]):
         if component_pools is None:
             rows: tuple[tuple["Entity", *tuple[Component, ...]], ...] = ()
         else:
+            component_arrays = [pool.get_all() for pool in component_pools]
             resolved_rows: list[tuple["Entity", *tuple[Component, ...]]] = []
             for entity in self._get_ordered_entities():
-                entity_id = entity.get_id() - 1
+                entity_id = entity._id - 1
                 components: list[Component] = []
-                for component_pool in component_pools:
-                    component = component_pool.get(entity_id)
+                for component_array in component_arrays:
+                    component = component_array[entity_id]
                     if component is None:
                         break
                     components.append(component)
@@ -412,14 +448,18 @@ class Query(Generic[TEntity, TFilter]):
             rows = tuple(resolved_rows)
 
         self._entity_component_rows_cache[key] = _ResolvedRows(
-            current_revision, cast(tuple[tuple[object, ...], ...], rows)
+            self._version,
+            component_revisions,
+            cast(tuple[tuple[object, ...], ...], rows),
         )
         return rows
 
-    def _get_registry_component_revision(self) -> int:
+    def _get_registry_component_revisions(
+        self, component_types: Sequence[Type[Component]]
+    ) -> tuple[int, ...]:
         if self._registry is None:
             raise RegistryNotSetError
-        return self._registry.get_component_revision()
+        return self._registry.get_component_revisions(component_types)
 
     def _invalidate_iteration_cache(self) -> None:
         self._component_rows_cache.clear()
@@ -434,11 +474,12 @@ class BatchQuery(Query["Entity", Any], Generic[*TBatchComponents]):
         "_component_cache",
         "_entity_id_batch",
         "_seen_query_version",
-        "_seen_component_revision",
+        "_seen_component_revisions",
         "_scalar_batches",
         "_vec2_batches",
         "_vec3_batches",
         "_scalar_writebacks",
+        "_transient_scalar_keys",
     )
 
     def __init__(self) -> None:
@@ -446,27 +487,60 @@ class BatchQuery(Query["Entity", Any], Generic[*TBatchComponents]):
         self._component_cache: dict[Type[Component], list[Component]] = {}
         self._entity_id_batch: NDArray[np.int64] | None = None
         self._seen_query_version = -1
-        self._seen_component_revision = -1
-        self._scalar_batches: dict[tuple[Type[Component], str], ScalarBatch] = {}
+        self._seen_component_revisions: tuple[int, ...] = ()
+        self._scalar_batches: dict[
+            tuple[Type[Component], str, object, bool, bool], ScalarBatch
+        ] = {}
         self._vec2_batches: dict[tuple[Type[Component], str], Vec2Batch] = {}
         self._vec3_batches: dict[tuple[Type[Component], str], Vec3Batch] = {}
         self._scalar_writebacks: list[_ScalarWriteback] = []
+        self._transient_scalar_keys: list[
+            tuple[Type[Component], str, object, bool, bool]
+        ] = []
 
     def scalar(
-        self, component_type: Type[Component], attribute_name: str
+        self,
+        component_type: Type[Component],
+        attribute_name: str,
+        *,
+        dtype: object = None,
+        writeback: bool = True,
+        bind: bool = False,
     ) -> ScalarBatch:
         self._assert_component_allowed(component_type)
 
-        key = (component_type, attribute_name)
-        cached = self._scalar_batches.get(key)
-        if cached is not None:
-            return cached
-
+        if bind:
+            writeback = False
+        array_dtype = np.dtype(dtype) if dtype is not None else None
+        key = (component_type, attribute_name, array_dtype, writeback, bind)
         components = self._get_batch_components(component_type)
         accessor = _get_attribute_accessor(attribute_name)
-        values = np.asarray(accessor.get_many(components))
+        cached = self._scalar_batches.get(key)
+        if cached is not None:
+            if not bind or accessor.scalar_storage_is_current(components, cached):
+                return cached
+
+        if array_dtype is None:
+            values = np.asarray(accessor.get_many(components))
+        else:
+            values = np.fromiter(
+                map(accessor.get_one, components),
+                dtype=array_dtype,
+                count=len(components),
+            )
+        if bind and not accessor.bind_scalar_storage(components, values):
+            raise TypeError(
+                f"Component {component_type.__name__}.{attribute_name} "
+                "does not support bound scalar storage."
+            )
         self._scalar_batches[key] = values
-        self._scalar_writebacks.append(_ScalarWriteback(components, accessor, values))
+        if bind:
+            return values
+        self._transient_scalar_keys.append(key)
+        if writeback:
+            self._scalar_writebacks.append(
+                _ScalarWriteback(components, accessor, values)
+            )
         return values
 
     def vec2(self, component_type: Type[Component], attribute_name: str) -> Vec2Batch:
@@ -487,12 +561,8 @@ class BatchQuery(Query["Entity", Any], Generic[*TBatchComponents]):
                 return cached
 
         vectors = cast(list[Vec2], accessor.get_many(components))
-        x = np.fromiter(
-            (vector.x for vector in vectors), dtype=np.float64, count=len(vectors)
-        )
-        y = np.fromiter(
-            (vector.y for vector in vectors), dtype=np.float64, count=len(vectors)
-        )
+        x = np.fromiter(map(_X_GETTER, vectors), dtype=np.float64, count=len(vectors))
+        y = np.fromiter(map(_Y_GETTER, vectors), dtype=np.float64, count=len(vectors))
         batch = Vec2Batch(x, y)
         accessor.bind_vec2_storage(components, x, y)
         self._vec2_batches[key] = batch
@@ -516,15 +586,9 @@ class BatchQuery(Query["Entity", Any], Generic[*TBatchComponents]):
                 return cached
 
         vectors = cast(list[Vec3], accessor.get_many(components))
-        x = np.fromiter(
-            (vector.x for vector in vectors), dtype=np.float64, count=len(vectors)
-        )
-        y = np.fromiter(
-            (vector.y for vector in vectors), dtype=np.float64, count=len(vectors)
-        )
-        z = np.fromiter(
-            (vector.z for vector in vectors), dtype=np.float64, count=len(vectors)
-        )
+        x = np.fromiter(map(_X_GETTER, vectors), dtype=np.float64, count=len(vectors))
+        y = np.fromiter(map(_Y_GETTER, vectors), dtype=np.float64, count=len(vectors))
+        z = np.fromiter(map(_Z_GETTER, vectors), dtype=np.float64, count=len(vectors))
         batch = Vec3Batch(x, y, z)
         accessor.bind_vec3_storage(components, x, y, z)
         self._vec3_batches[key] = batch
@@ -533,7 +597,7 @@ class BatchQuery(Query["Entity", Any], Generic[*TBatchComponents]):
     def entity_ids(self) -> NDArray[np.int64]:
         if self._entity_id_batch is None:
             self._entity_id_batch = np.asarray(
-                [entity.get_id() for entity in self._get_ordered_entities()],
+                [entity._id for entity in self._get_ordered_entities()],
                 dtype=np.int64,
             )
         return self._entity_id_batch
@@ -546,20 +610,23 @@ class BatchQuery(Query["Entity", Any], Generic[*TBatchComponents]):
         if self._registry is None:
             raise RegistryNotSetError
 
-        component_revision = self._registry.get_component_revision()
+        component_types = cast(tuple[Type[Component], ...], self._kind)
+        component_revisions = self._registry.get_component_revisions(component_types)
         if (
             self._seen_query_version == self._version
-            and self._seen_component_revision == component_revision
+            and self._seen_component_revisions == component_revisions
         ):
             return
         self._seen_query_version = self._version
-        self._seen_component_revision = component_revision
+        self._seen_component_revisions = component_revisions
         self._invalidate_cache()
 
     def _flush_after_system_run(self) -> None:
         for writeback in self._scalar_writebacks:
             writeback.flush()
-        self._scalar_batches.clear()
+        for key in self._transient_scalar_keys:
+            self._scalar_batches.pop(key, None)
+        self._transient_scalar_keys.clear()
         self._scalar_writebacks.clear()
 
     def _get_batch_components(self, component_type: Type[Component]) -> list[Component]:
@@ -572,9 +639,10 @@ class BatchQuery(Query["Entity", Any], Generic[*TBatchComponents]):
             return []
 
         component_pool = component_pools[0]
+        component_array = component_pool.get_all()
         components: list[Component] = []
         for entity in self._get_ordered_entities():
-            component = component_pool.get(entity.get_id() - 1)
+            component = component_array[entity._id - 1]
             if component is not None:
                 components.append(component)
         self._component_cache[component_type] = components
@@ -586,11 +654,11 @@ class BatchQuery(Query["Entity", Any], Generic[*TBatchComponents]):
         self._scalar_batches.clear()
         self._vec2_batches.clear()
         self._vec3_batches.clear()
+        self._transient_scalar_keys.clear()
         self._scalar_writebacks.clear()
 
     def _assert_component_allowed(self, component_type: Type[Component]) -> None:
-        batch_types = self._kind if isinstance(self._kind, tuple) else ()
-        if batch_types and component_type not in batch_types:
+        if self._kind and component_type not in self._kind:
             raise TypeError(
                 f"Component {component_type.__name__} is not part of this BatchQuery"
             )
@@ -648,7 +716,7 @@ def sign_queries(
                     raise TypeError(
                         f"BatchQuery {name} has an invalid component type: {component_type}."
                     )
-                component_id = ComponentIndex.get_id(component_type.__name__)
+                component_id = ComponentIndex.get_type_id(component_type)
                 batch_query._signature.set(component_id, True)
 
             signed_queries.append((name, batch_query))
@@ -678,7 +746,7 @@ def sign_queries(
                         f"Query {name} has an invalid component type: {component_type.__name__}. "
                         "Make sure to use a valid component type."
                     )
-                component_id = ComponentIndex.get_id(component_type.__name__)
+                component_id = ComponentIndex.get_type_id(component_type)
                 component_signature.set(component_id, True)
 
         signed_queries.append((name, query))

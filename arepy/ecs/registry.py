@@ -4,22 +4,31 @@ from collections import deque
 from dataclasses import dataclass, field
 from inspect import isclass, iscoroutinefunction, isfunction
 from types import ModuleType
-from typing import Dict, List, Optional, Set, Type, cast
+from typing import Dict, List, Optional, Sequence, Set, Type
 
-from .components import (Component, ComponentIndex, ComponentPool,
-                         IComponentPool, TComponent)
+from .components import (
+    Component,
+    ComponentIndex,
+    ComponentPool,
+    IComponentPool,
+    TComponent,
+)
 from .constants import MAX_COMPONENTS
 from .entities import Entity
 from .exceptions import MaximumComponentsExceededError
-from .query import (get_queries_instance_from_arguments,
-                    get_signed_query_arguments)
+from .query import (
+    BatchQuery,
+    Query,
+    get_queries_instance_from_arguments,
+    get_signed_query_arguments,
+)
 from .systems import System, SystemPipeline, SystemState
 from .utils import Signature
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class ResourceMarker:
     name: str
     index: int
@@ -35,9 +44,8 @@ class Registry:
         Dict[SystemState, Set[System]],
     ] = field(
         default_factory=lambda: {
-            pipeline: {state: set()}
+            pipeline: {state: set() for state in SystemState}
             for pipeline in SystemPipeline
-            for state in SystemState
         }
     )
     queries: dict[System, List[object]] = field(default_factory=dict)
@@ -55,10 +63,16 @@ class Registry:
     resources: dict[str, object] = field(default_factory=dict)
     global_resources: dict[str, object] = field(default_factory=dict)
     component_revision: int = 0
+    component_revisions: List[int] = field(default_factory=list)
+    _all_queries: List[Query] = field(default_factory=list, init=False, repr=False)
+    _system_batch_queries: Dict[System, List[BatchQuery]] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    _async_systems: Set[System] = field(default_factory=set, init=False, repr=False)
 
     def create_entity(self) -> Entity:
 
-        if len(self.free_entity_ids) == 0:
+        if not self.free_entity_ids:
             self.number_of_entities += 1
             entity_id = self.number_of_entities
             if entity_id >= len(self.entity_component_signatures):
@@ -81,78 +95,103 @@ class Registry:
         if sync_queries:
             self.entities_to_be_synced_on_add.add(entity)
 
-        entity_id = entity.get_id()
-        component_id = ComponentIndex.get_id(component_type.__name__)
+        entity_id = entity._id
+        entity_index = entity_id - 1
+        component_id = ComponentIndex.get_type_id(component_type)
+        component_index = component_id - 1
+        component_pools = self.component_pools
 
-        if component_id >= len(self.component_pools):
+        if component_id >= len(component_pools):
             if component_id >= MAX_COMPONENTS:
                 raise MaximumComponentsExceededError(MAX_COMPONENTS)
             new_size = component_id + 1
-            self.component_pools.extend([None] * (new_size - len(self.component_pools)))
+            component_pools.extend([None] * (new_size - len(component_pools)))
+            self.component_revisions.extend(
+                [0] * (new_size - len(self.component_revisions))
+            )
 
-        if self.component_pools[component_id - 1] is None:
-            self.component_pools[component_id - 1] = ComponentPool(component_type)
+        component_pool = component_pools[component_index]
+        if component_pool is None:
+            component_pool = ComponentPool(component_type)
+            component_pools[component_index] = component_pool
 
-        component_pool = cast(
-            ComponentPool[TComponent], self.component_pools[component_id - 1]
-        )
+        components = component_pool._components
+        if entity_id >= len(components):
+            new_pool_size = max(entity_id + 1, len(components) * 2)
+            components.extend([None] * (new_pool_size - len(components)))
 
-        if entity_id >= len(component_pool):
-            new_pool_size = max(entity_id + 1, len(component_pool) * 2)
-            component_pool.extend([None] * (new_pool_size - len(component_pool)))
-
-        component_pool.set(entity_id - 1, component)
-        self.entity_component_signatures[entity_id - 1].set(component_id, True)
+        components[entity_index] = component
+        entity._component_cache[component_type] = component
+        self.entity_component_signatures[entity_index].set(component_id, True)
         self.component_revision += 1
+        self.component_revisions[component_index] += 1
 
     def get_component(
         self,
         entity: Entity,
         component_type: Type[TComponent],
     ) -> Optional[TComponent]:
-        entity_id: int = entity.get_id()
-        component_id: int = ComponentIndex.get_id(component_type.__name__)
+        entity_index = entity._id - 1
+        component_id: int = ComponentIndex.get_type_id(component_type)
+        component_index = component_id - 1
+        component_pools = self.component_pools
         if (
-            component_id > len(self.component_pools)
-            or self.component_pools[component_id - 1] is None
+            component_index >= len(component_pools)
+            or component_pools[component_index] is None
         ):
             return None
 
-        component_pool: ComponentPool[TComponent] = cast(
-            ComponentPool[TComponent], self.component_pools[component_id - 1]
-        )
-        return component_pool.get(entity_id - 1)
+        component_pool = component_pools[component_index]
+        components = component_pool._components
+        if entity_index >= len(components):
+            return None
+        return components[entity_index]
 
     def remove_component(
         self,
         entity: Entity,
         component_type: Type[TComponent],
     ) -> None:
-        entity_id: int = entity.get_id()
-        component_id: int = ComponentIndex.get_id(component_type.__name__)
-        if component_id - 1 > len(self.component_pools):
+        entity_id = entity._id
+        component_id: int = ComponentIndex.get_type_id(component_type)
+        component_index = component_id - 1
+        component_pools = self.component_pools
+        if (
+            component_index >= len(component_pools)
+            or component_pools[component_index] is None
+        ):
             return
 
-        component_pool = cast(
-            ComponentPool[Component],
-            self.component_pools[component_id - 1],
-        )
-        component_pool.set(entity.get_id() - 1, None)  # type: ignore
+        component_pool = component_pools[component_index]
+        component_pool._components[entity_id - 1] = None
+        entity._component_cache.pop(component_type, None)
 
         self.entity_component_signatures[entity_id - 1].clear_bit(component_id)
         self.entities_to_be_synced_on_remove.add(entity)
         self.component_revision += 1
+        self.component_revisions[component_index] += 1
 
     def get_component_revision(self) -> int:
         return self.component_revision
+
+    def get_component_revisions(
+        self, component_types: Sequence[Type[Component]]
+    ) -> tuple[int, ...]:
+        revisions = self.component_revisions
+        result: list[int] = []
+        for component_type in component_types:
+            component_id = ComponentIndex.get_type_id(component_type)
+            index = component_id - 1
+            result.append(revisions[index] if index < len(revisions) else 0)
+        return tuple(result)
 
     def has_component(
         self,
         entity: Entity,
         component_type: Type[TComponent],
     ) -> bool:
-        entity_id: int = entity.get_id()
-        component_id: int = ComponentIndex.get_id(component_type.__name__)
+        entity_id = entity._id
+        component_id: int = ComponentIndex.get_type_id(component_type)
         return self.entity_component_signatures[entity_id - 1].test(component_id)
 
     def add_system(
@@ -162,13 +201,20 @@ class Registry:
         markers = self._extract_resource_markers(arguments)
         self.queries[system] = list(arguments.values())
         self.resource_markers[system] = markers
-        for query in get_queries_instance_from_arguments(self.queries[system]):
+        system_queries = get_queries_instance_from_arguments(self.queries[system])
+        for query in system_queries:
             query.set_registry(self)
+        self._all_queries.extend(system_queries)
+        self._system_batch_queries[system] = [
+            query for query in system_queries if isinstance(query, BatchQuery)
+        ]
 
         if self.systems.get(pipeline) is None:
             self.systems[pipeline] = dict()
         if not isfunction(system):
             raise ValueError("System must be a function")
+        if iscoroutinefunction(system):
+            self._async_systems.add(system)
 
         self.systems[pipeline].setdefault(state, set()).add(system)
         self.number_of_systems += 1
@@ -198,21 +244,26 @@ class Registry:
         self.sync_entity_queries(entity)
 
     def remove_entity_from_systems(self, entity: Entity) -> None:
-        for arguments in self.queries.values():
-            queries = get_queries_instance_from_arguments(arguments)
-            for query in queries:
-                query.remove_entity(entity)
+        for query in self._all_queries:
+            query.remove_entity(entity)
+
+    def _remove_entities_from_systems(self, entities: Set[Entity]) -> None:
+        for query in self._all_queries:
+            query._remove_entities(entities)
 
     def sync_entity_queries(self, entity: Entity) -> None:
-        entity_id = entity.get_id()
+        entity_id = entity._id
         component_signature = self.entity_component_signatures[entity_id - 1]
-        for arguments in self.queries.values():
-            affected_queries = get_queries_instance_from_arguments(arguments)
-            for affected_query in affected_queries:
-                if affected_query.matches(component_signature):
-                    affected_query.add_entity(entity)
-                else:
-                    affected_query.remove_entity(entity)
+        for query in self._all_queries:
+            if query.matches(component_signature):
+                query.add_entity(entity)
+            else:
+                query.remove_entity(entity)
+
+    def _sync_entities_queries(self, entities: Set[Entity]) -> None:
+        signatures = self.entity_component_signatures
+        for query in self._all_queries:
+            query._sync_entities(entities, signatures)
 
     def kill_entity(self, entity: Entity) -> None:
         self.entities_to_be_removed.add(entity)
@@ -230,75 +281,64 @@ class Registry:
 
         prev_state = prev_state[0]
         self.systems[pipeline][prev_state].remove(system)
-        if not state in self.systems[pipeline]:
+        if state not in self.systems[pipeline]:
             self.systems[pipeline][state] = set()
 
         self.systems[pipeline][state].add(system)
 
     # Update
     def update(self) -> None:
+        removed_entities = self.entities_to_be_removed
+        dirty_entities = self.entities_to_be_added | self.entities_to_be_synced_on_add
+        dirty_entities.update(self.entities_to_be_synced_on_remove)
+        if removed_entities:
+            dirty_entities.difference_update(removed_entities)
 
-        if self.entities_to_be_synced_on_add:
-            for entity in self.entities_to_be_synced_on_add:
-                self.sync_entity_queries(entity)
-            self.entities_to_be_synced_on_add.clear()
+        if dirty_entities:
+            self._sync_entities_queries(dirty_entities)
 
-        if self.entities_to_be_synced_on_remove:
-            for entity in self.entities_to_be_synced_on_remove:
-                self.sync_entity_queries(entity)
-            self.entities_to_be_synced_on_remove.clear()
+        self.entities_to_be_added.clear()
+        self.entities_to_be_synced_on_add.clear()
+        self.entities_to_be_synced_on_remove.clear()
 
-        if self.entities_to_be_added:
-            for entity in self.entities_to_be_added:
-                self.add_entity_to_systems(entity)
-            self.entities_to_be_added.clear()
-
-        if self.entities_to_be_removed:
-            for entity in self.entities_to_be_removed:
-                self.remove_entity_from_systems(entity)
-                self.entity_component_signatures[entity.get_id() - 1].clear()
-                self.free_entity_ids.append(entity.get_id())
-            self.entities_to_be_removed.clear()
+        if removed_entities:
+            self._remove_entities_from_systems(removed_entities)
+            for entity in removed_entities:
+                entity_id = entity._id
+                self.entity_component_signatures[entity_id - 1].clear()
+                self.free_entity_ids.append(entity_id)
+            removed_entities.clear()
 
     def run(self, pipeline: SystemPipeline) -> None:
         pipeline_systems = self.systems.get(pipeline, {})
-        for state, systems in pipeline_systems.items():
-            if state == SystemState.OFF:
+        for system in pipeline_systems.get(SystemState.ON, ()):
+            args = self._resolve_system_args(system)
+            batch_queries = self._system_batch_queries[system]
+            if system in self._async_systems:
+                asyncio.create_task(
+                    self._run_async_system(system, args, batch_queries)
+                )
                 continue
+            system(*args)
+            self._flush_batch_queries(batch_queries)
 
-            for system in systems:
-                args = self._resolve_system_args(system)
-                if iscoroutinefunction(system):
-                    asyncio.create_task(self._run_async_system(system, args))
-                    continue
-                system(*args)
-                self._flush_system_args(args)
-
-    async def _run_async_system(self, system: System, args: List[object]) -> None:
+    async def _run_async_system(
+        self, system: System, args: List[object], batch_queries: List[BatchQuery]
+    ) -> None:
         try:
             await system(*args)
         finally:
-            self._flush_system_args(args)
+            self._flush_batch_queries(batch_queries)
 
     def _resolve_system_args(self, system: System) -> List[object]:
         args = self.queries[system]
         markers = self.resource_markers.get(system, [])
         for marker in markers:
             args[marker.index] = self.get_resource(marker.name)
-        for arg in args:
-            try:
-                prepare = arg._prepare_for_system_run
-            except AttributeError:
-                continue
-            if callable(prepare):
-                prepare()
+        for batch_query in self._system_batch_queries[system]:
+            batch_query._prepare_for_system_run()
         return args
 
-    def _flush_system_args(self, args: List[object]) -> None:
-        for arg in args:
-            try:
-                flush = arg._flush_after_system_run
-            except AttributeError:
-                continue
-            if callable(flush):
-                flush()
+    def _flush_batch_queries(self, batch_queries: List[BatchQuery]) -> None:
+        for batch_query in batch_queries:
+            batch_query._flush_after_system_run()

@@ -7,7 +7,6 @@ from arepy.ecs.entities import Entity
 from arepy.ecs.query import (Query, With, Without, get_signed_query_arguments,
                              sign_queries)
 from arepy.ecs.registry import Registry
-from arepy.ecs.utils import Signature
 
 
 class Position(Component):
@@ -296,6 +295,33 @@ def test_query_iter_components_reuses_cached_rows_until_structure_changes(regist
 
     assert len(first_rows) == 1
     assert first_rows[0] is second_rows[0]
+
+
+def test_query_iter_components_keeps_cache_for_unrelated_component_changes(registry):
+    def movement_system(query: Query[Entity, With[Position, Velocity]]) -> None:
+        return None
+
+    from arepy.ecs.systems import SystemPipeline, SystemState
+
+    registry.add_system(SystemPipeline.UPDATE, SystemState.ON, movement_system)
+
+    entity = registry.create_entity()
+    registry.add_component(entity, Position, Position(1.0, 2.0))
+    registry.add_component(entity, Velocity, Velocity(3.0, 4.0))
+    registry.update()
+
+    query = next(
+        argument
+        for argument in registry.queries[movement_system]
+        if isinstance(argument, Query)
+    )
+    first_row = next(query.iter_components(Position, Velocity))
+
+    registry.add_component(entity, Health, Health(50), sync_queries=True)
+    registry.update()
+    second_row = next(query.iter_components(Position, Velocity))
+
+    assert first_row is second_row
 
 
 def test_query_iter_components_refreshes_cache_when_component_is_replaced(registry):

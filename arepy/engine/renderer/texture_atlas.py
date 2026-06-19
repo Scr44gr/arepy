@@ -70,7 +70,8 @@ class _AtlasPageLayout:
 
 @dataclass(slots=True)
 class _LayoutCacheEntry:
-    signature: tuple[tuple[str, tuple[int, int, int, int]], ...]
+    sprites: Sequence[Sprite]
+    sprite_revision: int
     layout: TextureBatchLayout
 
 
@@ -88,13 +89,14 @@ class TextureAtlasCollection:
                 "draw_texture_batch requires at least one texture atlas."
             )
 
-        signature = tuple(
-            (sprite.asset_id, tuple(int(value) for value in sprite.src_rect))
-            for sprite in sprites
-        )
         cache_key = (id(sprites), len(sprites))
         cached = self._layout_cache.get(cache_key)
-        if cached is not None and cached.signature == signature:
+        sprite_revision = Sprite.get_layout_revision()
+        if (
+            cached is not None
+            and cached.sprites is sprites
+            and cached.sprite_revision == sprite_revision
+        ):
             return cached.layout
 
         grouped_entity_indices: dict[int, list[int]] = {}
@@ -169,7 +171,9 @@ class TextureAtlasCollection:
             np.asarray(default_dest_height, dtype=np.float64),
         )
         self._layout_cache[cache_key] = _LayoutCacheEntry(
-            signature=signature, layout=layout
+            sprites=sprites,
+            sprite_revision=sprite_revision,
+            layout=layout,
         )
         return layout
 

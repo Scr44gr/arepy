@@ -33,10 +33,12 @@ def render_system(
     if texture_atlas is not None and texture_atlas.atlases:
         position = batch.vec2(Transform, "position")
         origin = batch.vec2(Transform, "origin")
-        rotation = np.require(
-            batch.scalar(Transform, "rotation"),
+        rotation = batch.scalar(
+            Transform,
+            "rotation",
             dtype=np.float64,
-            requirements=("C", "ALIGNED"),
+            writeback=False,
+            bind=True,
         )
         sprites = cast(list[Sprite], batch.components(Sprite))
         batch_layout = texture_atlas.get_batch_layout(sprites)

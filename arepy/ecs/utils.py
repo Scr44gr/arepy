@@ -3,6 +3,8 @@ import logging
 from os import getenv
 from sys import stdout
 
+from bitarray import bitarray
+
 try:
     from dotenv import find_dotenv, load_dotenv
 
@@ -36,44 +38,55 @@ logging.basicConfig(
     ],
 )
 
-from bitarray import bitarray
-
 
 class Signature:
-    __slots__ = ["__bits", "__flipped"]
+    __slots__ = ["__bits", "__flipped", "__mask", "__size_mask"]
 
     def __init__(self, size: int):
         self.__bits = bitarray(size)
         self.__bits.setall(False)
         self.__flipped = False
+        self.__mask = 0
+        self.__size_mask = (1 << size) - 1
 
     def set(self, index, value: bool):
         self.__bits[index] = value
+        bit = 1 << index
+        if value:
+            self.__mask |= bit
+        else:
+            self.__mask &= ~bit
 
     def flip(self):
         self.__flipped = not self.__flipped
         self.__bits = ~self.__bits
+        self.__mask ^= self.__size_mask
 
     def clear_bit(self, index: int):
         self.__bits[index] = False
+        self.__mask &= ~(1 << index)
 
     def test(self, index: int):
-        return self.__bits[index] == True
+        return bool(self.__mask & (1 << index))
 
     def get_bits(self):
         return self.__bits
 
     def matches(self, other_signature: "Signature"):
-        matches = (other_signature.get_bits() & self.get_bits()) == self.get_bits()
-        return matches
+        return (other_signature.__mask & self.__mask) == self.__mask
+
+    def intersects(self, other_signature: "Signature") -> bool:
+        return bool(self.__mask & other_signature.__mask)
 
     def clear(self):
         self.__bits.setall(False)
+        self.__mask = 0
 
     def copy(self) -> "Signature":
         signature = Signature(len(self.__bits))
         signature.__bits = self.__bits.copy()
         signature.__flipped = self.__flipped
+        signature.__mask = self.__mask
         return signature
 
     @property
