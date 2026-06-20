@@ -1,5 +1,6 @@
 import pytest
 
+from arepy.asset_store import AssetStore
 from arepy.bundle.components import Sprite
 from arepy.engine.renderer import ArepyTexture
 from arepy.engine.renderer.texture_atlas import (
@@ -64,6 +65,7 @@ def test_texture_batch_layout_groups_sprites_by_atlas_and_reuses_cache() -> None
     assert hero_group.source_y.tolist() == [0.0, 8.0]
     assert hero_group.source_width.tolist() == [16.0, 8.0]
     assert hero_group.source_height.tolist() == [16.0, 8.0]
+    assert hero_group.uses_dense_entity_order is False
 
     assert enemy_group.texture is atlas_1.texture
     assert enemy_group.entity_indices.tolist() == [1]
@@ -92,6 +94,7 @@ def test_texture_batch_layout_refreshes_when_sprite_frame_changes() -> None:
     assert second_layout.groups[0].source_y.tolist() == [18.0]
     assert second_layout.groups[0].source_width.tolist() == [8.0]
     assert second_layout.groups[0].source_height.tolist() == [8.0]
+    assert second_layout.groups[0].uses_dense_entity_order is True
 
 
 def test_texture_batch_layout_requires_at_least_one_atlas() -> None:
@@ -99,3 +102,29 @@ def test_texture_batch_layout_requires_at_least_one_atlas() -> None:
 
     with pytest.raises(RuntimeError, match="at least one texture atlas"):
         atlas_collection.get_batch_layout([Sprite("hero", (0, 0, 16, 16), 0)])
+
+
+def test_asset_store_delegates_atlas_build_to_explicit_renderer_method() -> None:
+    expected = TextureAtlasCollection(atlases=(), regions={})
+
+    class Renderer:
+        def build_texture_atlas(
+            self,
+            asset_store: AssetStore,
+            *,
+            max_size: tuple[int, int],
+            padding: int,
+        ) -> TextureAtlasCollection:
+            assert max_size == (1024, 512)
+            assert padding == 2
+            return expected
+
+    store = AssetStore()
+
+    result = store.build_texture_atlas(
+        Renderer(),  # type: ignore[arg-type]
+        max_size=(1024, 512),
+        padding=2,
+    )
+
+    assert result is expected
