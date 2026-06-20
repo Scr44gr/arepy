@@ -1,4 +1,4 @@
-from types import ModuleType
+from types import BuiltinFunctionType, FunctionType, MethodType, ModuleType
 from typing import Any, Callable, Dict, List, Optional, Set, Type, TypeVar, cast, overload
 
 from ..engine.animator import Animator
@@ -105,7 +105,7 @@ class World:
             resource, (int, float, str, bool, type(None))
         ):
             raise TypeError("Resource must be a class instance")
-        if callable(resource) and not hasattr(resource, "__class__"):
+        if isinstance(resource, (BuiltinFunctionType, FunctionType, MethodType)):
             raise TypeError("Resource cannot be a function")
 
         resource_name = _resource_name(resource)

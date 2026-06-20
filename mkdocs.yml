@@ -124,6 +124,7 @@ nav:
       - Resources and Systems: guide/resources.md
       - Built-in Bundle: guide/bundle.md
       - Math Helpers: guide/math.md
+      - Game Builder: guide/builder.md
   - API Reference:
       - api/index.md
       - Engine: api/engine.md

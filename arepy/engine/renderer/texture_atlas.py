@@ -5,10 +5,12 @@ from typing import TYPE_CHECKING, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
-from raylib import ffi, rl
 
 from ...bundle.components import Sprite
 from . import ArepyTexture, TextureFilter
+
+_ffi: object | None = None
+_rl: object | None = None
 
 if TYPE_CHECKING:
     from ...asset_store import AssetStore
@@ -43,6 +45,7 @@ class TextureBatchGroup:
     source_y: Float32Array
     source_width: Float32Array
     source_height: Float32Array
+    uses_dense_entity_order: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,6 +164,10 @@ class TextureAtlasCollection:
                     ),
                     source_height=np.asarray(
                         grouped_source_height[atlas.index], dtype=np.float32
+                    ),
+                    uses_dense_entity_order=all(
+                        entity_index == dense_index
+                        for dense_index, entity_index in enumerate(atlas_indices)
                     ),
                 )
             )
@@ -313,6 +320,8 @@ def _build_atlas_texture(
     page_layout: _AtlasPageLayout,
     renderer: "Renderer2D",
 ) -> ArepyTexture:
+    ffi, rl = _raylib_modules()
+
     atlas_image = ffi.new(
         "Image *",
         rl.GenImageColor(page_layout.size[0], page_layout.size[1], (0, 0, 0, 0)),
@@ -356,6 +365,8 @@ def _require_texture_ref(texture: ArepyTexture) -> object:
 
 
 def _make_rectangle(x: float, y: float, width: int, height: int) -> object:
+    ffi, _ = _raylib_modules()
+
     return ffi.new(
         "Rectangle *",
         (float(x), float(y), float(width), float(height)),
@@ -363,7 +374,19 @@ def _make_rectangle(x: float, y: float, width: int, height: int) -> object:
 
 
 def _make_color(r: int, g: int, b: int, a: int) -> object:
+    ffi, _ = _raylib_modules()
+
     return ffi.new("Color *", (r, g, b, a))[0]
+
+
+def _raylib_modules() -> tuple[object, object]:
+    global _ffi, _rl
+    if _ffi is None or _rl is None:
+        from raylib import ffi, rl
+
+        _ffi = ffi
+        _rl = rl
+    return _ffi, _rl
 
 
 def _validate_source_rect(

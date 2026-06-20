@@ -1,13 +1,12 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from os.path import exists
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict
 
 from ..engine.audio import ArepyMusic, ArepySound, AudioDevice
 from ..engine.renderer import ArepyTexture
 from ..engine.renderer.renderer_2d import Renderer2D
 from ..engine.renderer.texture_atlas import TextureAtlasCollection
+from ..runtime_assets import resolve_asset_path
 
 if TYPE_CHECKING:
     from ..engine.renderer.renderer_3d import (
@@ -23,7 +22,7 @@ class TextureFilter(Enum):
     LINEAR = 1
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class AssetStore:
     textures: Dict[str, ArepyTexture] = field(default_factory=dict)
     fonts: Dict[str, Any] = field(default_factory=dict)
@@ -53,11 +52,12 @@ class AssetStore:
         name: str,
         path: str,
     ) -> None:
-        if not exists(path):
+        resolved_path = resolve_asset_path(path)
+        if not resolved_path.exists():
             raise FileNotFoundError(f"Texture file not found: {path}")
 
         self._invalidate_texture_atlas(renderer)
-        self.textures[name] = renderer.create_texture(path=Path(path))
+        self.textures[name] = renderer.create_texture(path=resolved_path)
 
     def load_font(self, name: str, path: str, size: int) -> None: ...
     def get_texture(self, name: str) -> ArepyTexture:
@@ -80,15 +80,12 @@ class AssetStore:
         padding: int = 1,
     ) -> TextureAtlasCollection:
         self._invalidate_texture_atlas(renderer)
-        from ..engine.renderer.texture_atlas import build_texture_atlas
-
-        atlas = build_texture_atlas(
+        atlas = renderer.build_texture_atlas(
             self,
-            renderer,
             max_size=max_size,
             padding=padding,
         )
-        object.__setattr__(self, "texture_atlas", atlas)
+        self.texture_atlas = atlas
         return atlas
 
     def clear_texture_atlas(self, renderer: Renderer2D | None = None) -> None:
@@ -97,7 +94,7 @@ class AssetStore:
             return
         if renderer is not None:
             atlas.unload(renderer)
-        object.__setattr__(self, "texture_atlas", None)
+        self.texture_atlas = None
 
     def get_texture_atlas(self) -> TextureAtlasCollection | None:
         return self.texture_atlas
@@ -108,15 +105,15 @@ class AssetStore:
             return
         if renderer is not None:
             atlas.unload(renderer)
-        object.__setattr__(self, "texture_atlas", None)
+        self.texture_atlas = None
 
     # Audio related methods
     def load_sound(self, audio_device: AudioDevice, name: str, path: str):
-        sound = audio_device.load_sound(Path(path))
+        sound = audio_device.load_sound(resolve_asset_path(path))
         self.sounds[name] = sound
 
     def load_music(self, audio_device: AudioDevice, name: str, path: str):
-        music = audio_device.load_music(Path(path))
+        music = audio_device.load_music(resolve_asset_path(path))
         self.musics[name] = music
 
     def get_sound(self, name: str) -> ArepySound:
@@ -136,10 +133,11 @@ class AssetStore:
     # 3D Asset methods
     def load_model(self, renderer: "Renderer3D", name: str, path: str) -> None:
         """Load a 3D model from file."""
-        if not exists(path):
+        resolved_path = resolve_asset_path(path)
+        if not resolved_path.exists():
             raise FileNotFoundError(f"Model file not found: {path}")
 
-        self.models[name] = renderer.load_model(Path(path))
+        self.models[name] = renderer.load_model(resolved_path)
 
     def create_mesh_cube(
         self,

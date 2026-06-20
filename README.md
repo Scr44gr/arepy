@@ -23,6 +23,7 @@ It gives you a small but practical set of engine services out of the box: worlds
 - Raylib-backed 2D and 3D rendering
 - World-local `Timers` and `Animator` services
 - Optional Dear ImGui integration for tools, debug panels, and quick editors
+- Extensible Windows and web game builder with encrypted asset packs
 - Query filters with `With[...]` and `Without[...]`
 - Fluent entity builder API
 
@@ -152,6 +153,18 @@ You do not need to call `imgui.render()` yourself.
 See [docs/guide/imgui.md](docs/guide/imgui.md) and [examples/imgui_minimal.py](examples/imgui_minimal.py) for the full workflow.
 
 ---
+
+## Exporting games
+
+Install the builder extra and export a configured game to Windows or web:
+
+```bash
+pip install "arepy[builder]"
+arepy --export windows web --config examples/bunnymark.build.toml
+```
+
+See [docs/guide/builder.md](docs/guide/builder.md) for configuration, asset
+protection, update manifests, and current web backend coverage.
 
 ## Core Concepts
 

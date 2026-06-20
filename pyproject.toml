@@ -24,8 +24,18 @@ dependencies = ["bitarray==3.8.1", "raylib==5.5.0.4", "numpy>=2.2.0"]
 dynamic = ['version']
 readme = "README.md"
 
+[project.scripts]
+arepy = "arepy.builder.cli:main"
+arepy-build = "arepy.builder.cli:main"
+
 [project.optional-dependencies]
 imgui = ["imgui-bundle==1.92.700", "zengl>=2.7.2", "PyOpenGL==3.1.10"]
+builder = [
+    "cryptography>=45.0.0",
+    "nuitka>=2.7.0",
+    "ordered-set>=4.1.0",
+    "zstandard>=0.23.0",
+]
 testing = ["pytest>=8.0.0", "pytest-cov>=4.0.0", "pytest-mock>=3.12.0"]
 docs = [
     "mkdocs>=1.6.1",

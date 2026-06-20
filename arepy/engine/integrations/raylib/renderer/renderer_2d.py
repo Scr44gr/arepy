@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from numbers import Integral, Real
 from os import PathLike
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 import raylib as rl
@@ -27,7 +27,11 @@ from arepy.engine.renderer import (
 from arepy.engine.renderer.texture_atlas import (
     TextureAtlasCollection,
     TextureBatchLayout,
+    build_texture_atlas as build_raylib_texture_atlas,
 )
+
+if TYPE_CHECKING:
+    from arepy.asset_store import AssetStore
 
 _SHADER_UNIFORM_TYPE_MAP = {
     ShaderUniformType.FLOAT: rl.SHADER_UNIFORM_FLOAT,
@@ -306,6 +310,32 @@ def unload_texture(texture: ArepyTexture) -> None:
     if texture._ref_texture is not None:
         rl.UnloadTexture(texture._ref_texture)  # type: ignore[arg-type]
         texture._ref_texture = None
+
+
+def build_texture_atlas(
+    asset_store: "AssetStore",
+    *,
+    max_size: tuple[int, int] = (2048, 2048),
+    padding: int = 1,
+) -> TextureAtlasCollection:
+    return build_raylib_texture_atlas(
+        asset_store,
+        renderer=_RAYLIB_ATLAS_BUILDER,  # type: ignore[arg-type]
+        max_size=max_size,
+        padding=padding,
+    )
+
+
+class _RaylibAtlasBuilder:
+    def set_texture_filter(
+        self,
+        texture: ArepyTexture,
+        filter: TextureFilter,
+    ) -> None:
+        set_texture_filter(texture, filter)
+
+
+_RAYLIB_ATLAS_BUILDER = _RaylibAtlasBuilder()
 
 
 def set_max_framerate(max_frame_rate: int) -> None:

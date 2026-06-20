@@ -1,6 +1,6 @@
 import asyncio
 from os import PathLike
-from types import ModuleType
+from types import BuiltinFunctionType, FunctionType, MethodType, ModuleType
 from typing import Any, Dict, Optional, Type, TypeVar, cast, overload
 
 from arepy.ecs.world import World
@@ -14,8 +14,10 @@ from .display import Display, WindowFlag
 from .renderer.renderer_2d import Renderer2D
 from .renderer.renderer_3d import Renderer3D
 from .time import Time
+from ..platform import is_web
 
 T = TypeVar("T")
+_IS_WEB = is_web()
 
 
 def _resource_name(resource: object) -> str:
@@ -95,6 +97,11 @@ class ArepyEngine:
         self._global_resources[class_name] = resource
 
     def run(self):
+        if _IS_WEB:
+            task = asyncio.create_task(self.run_async())
+            _WEB_TASKS.add(task)
+            task.add_done_callback(_WEB_TASKS.discard)
+            return task
         self.on_startup()
         self.__check_and_set_world()
         while not self.display.window_should_close():
@@ -110,7 +117,7 @@ class ArepyEngine:
         while not self.display.window_should_close():
             self.__next_frame()
             self.__check_and_set_world()
-            await asyncio.sleep(0)
+            await _wait_for_next_frame()
         self.__shutdown_current_world()
         self.on_shutdown()
 
@@ -191,7 +198,7 @@ class ArepyEngine:
             resource, (int, float, str, bool, type(None))
         ):
             raise TypeError("Resource must be a class instance")
-        if callable(resource) and not hasattr(resource, "__class__"):
+        if isinstance(resource, (BuiltinFunctionType, FunctionType, MethodType)):
             raise TypeError("Resource cannot be a function")
         resource_name = _resource_name(resource)
         if resource_name in self._global_resources:
@@ -268,3 +275,10 @@ class ArepyEngine:
     def on_update(self): ...
     def on_shutdown(self): ...
     def on_render(self): ...
+
+
+_WEB_TASKS: set[asyncio.Task[Any]] = set()
+
+
+async def _wait_for_next_frame() -> None:
+    await asyncio.sleep(1.0 / 60.0 if _IS_WEB else 0)

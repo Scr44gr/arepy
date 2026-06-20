@@ -3,7 +3,29 @@ import logging
 from os import getenv
 from sys import stdout
 
-from bitarray import bitarray
+try:
+    from bitarray import bitarray
+except ImportError:
+    class bitarray(list):
+        """Small compatibility fallback for WebAssembly runtimes."""
+
+        def __init__(self, size: int):
+            super().__init__([False] * size)
+
+        def setall(self, value: bool) -> None:
+            for index in range(len(self)):
+                self[index] = value
+
+        def __invert__(self):
+            inverted = bitarray(len(self))
+            for index, value in enumerate(self):
+                inverted[index] = not value
+            return inverted
+
+        def copy(self):
+            duplicate = bitarray(len(self))
+            duplicate[:] = self
+            return duplicate
 
 try:
     from dotenv import find_dotenv, load_dotenv

@@ -1,7 +1,7 @@
 """Public 2D rendering protocol and helper value objects."""
 
 from os import PathLike
-from typing import Optional, Protocol
+from typing import TYPE_CHECKING, Optional, Protocol
 
 import numpy as np
 from numpy.typing import NDArray
@@ -18,6 +18,9 @@ from . import (
     TextureFilter,
 )
 from .texture_atlas import TextureAtlasCollection, TextureBatchLayout
+
+if TYPE_CHECKING:
+    from ...asset_store import AssetStore
 
 FloatBatchView = NDArray[np.float64]
 
@@ -40,6 +43,16 @@ class Renderer2D(Protocol):
 
     def unload_texture(self, texture: ArepyTexture) -> None:
         """Release a texture when you no longer need it."""
+        ...
+
+    def build_texture_atlas(
+        self,
+        asset_store: "AssetStore",
+        *,
+        max_size: tuple[int, int] = (2048, 2048),
+        padding: int = 1,
+    ) -> TextureAtlasCollection:
+        """Build a backend-specific texture atlas for the loaded textures."""
         ...
 
     # Shader methods
