@@ -1,79 +1,121 @@
 # ECS API
 
-This page highlights the ECS types you will touch most often.
+This page is a map of the ECS types used by gameplay code.
 
-- `World` is where entities, resources, and systems live.
-- `EntityBuilder` gives you a friendly way to create entities.
-- `Component` is the base type for ECS components.
-- `Entity` is the lightweight identifier used by the world.
-- `Query`, `With`, and `Without` help filter entities.
+- `World` owns a registry, entities, resources, systems, and lifecycle hooks.
+- `EntityBuilder` creates an entity and attaches its initial components.
+- `Component` is the base type for data attached to an entity.
+- `Entity` is a lightweight handle for one live entity.
+- `Query`, `With`, and `Without` select matching entities for a system.
 
-## Start here if you want to...
+## A small, complete setup
 
-- create entities and attach components
-- register gameplay systems into `UPDATE`, `RENDER`, or `INPUT`
-- add world-local resources for one scene
-- understand where `Query`, `With`, and `Without` fit into normal gameplay code
+The following program defines one component, creates one entity, and registers
+one update system. It intentionally leaves rendering out so the ECS roles stay
+visible:
+
+```python
+from arepy import ArepyEngine, SystemPipeline
+from arepy.ecs import Component, Entity, Query, With
+
+
+class Health(Component):
+    __slots__ = ("value", "maximum")
+
+    def __init__(self, value: int, maximum: int) -> None:
+        self.value = value
+        self.maximum = maximum
+
+
+def regenerate(query: Query[Entity, With[Health]]) -> None:
+    for (health,) in query.iter_components(Health):
+        if health.value < health.maximum:
+            health.value += 1
+
+
+engine = ArepyEngine(title="ECS example")
+world = engine.create_world("main")
+player = world.create_entity().with_component(Health(80, 100)).build()
+
+world.add_system(SystemPipeline.UPDATE, regenerate)
+engine.set_current_world("main")
+engine.run()
+```
+
+`player` is an `Entity` handle. The `Health` object lives in its component pool,
+and `regenerate` receives a query prepared by the world.
 
 ## Main concepts
 
 ### `World`
 
-`World` is the place where scene-level ECS work happens.
+Use a world as the public scene-level object. A world provides:
 
-Typical usage looks like this:
+- `create_entity()` for an `EntityBuilder`
+- `add_system()` and `add_system_with_state()` for pipeline registration
+- `add_resource()` for scene-local services and state
+- `on_startup`, `on_update`, `on_render`, and `on_shutdown` callbacks
+
+World resources are checked before engine-global resources when Arepy resolves
+a system parameter.
+
+### `Entity` and `Entities`
+
+`Entity` represents one live entity slot and generation. It is the type used in
+new query annotations:
 
 ```python
-world = engine.create_world("main")
-
-player = (
-	world.create_entity()
-	.with_component(Transform(...))
-	.with_component(Sprite(...))
-	.build()
-)
-
-world.add_system(SystemPipeline.UPDATE, movement_system)
-world.add_system(SystemPipeline.RENDER, render_system)
+Query[Entity, With[Health]]
 ```
 
-Worlds now support two related ideas:
-
-- local resources that only belong to that world
-- lifecycle hooks such as `world.on_startup` and `world.on_shutdown`
-
-That makes `World` more than just a thin wrapper around the registry. It becomes the public scene object you shape during normal game setup.
+`Entities` is a separate typing alias for a `set[Entity]`; it is not an entity
+constructor and it does not represent one handle. Use `Entity` when iterating a
+query or accepting an individual entity. Use `query.get_entities()` when code
+specifically needs the matching set.
 
 ### `EntityBuilder`
 
-`EntityBuilder` is the fluent way to create entities without manually touching component pools or signatures.
+`world.create_entity()` reserves an entity and returns an `EntityBuilder`.
+Chain `with_component(...)` for the initial data, then call `build()` once:
 
-It is a good fit when scene creation is mostly declarative: “spawn this entity with these components”.
+```python
+player = (
+    world.create_entity()
+    .with_component(Health(value=80, maximum=100))
+    .build()
+)
+```
+
+Gameplay code does not need to manipulate component pools or signatures
+directly.
 
 ### `Query`, `With`, and `Without`
 
-Queries are the main filtering tool for gameplay systems.
+The filter describes membership; iteration describes the data the system needs:
 
 ```python
-def movement_system(
-	query: Query[Entity, With[Transform, Velocity]],
-	renderer: Renderer2D,
+def damaged_entities(
+    query: Query[Entity, With[Health]],
 ) -> None:
-	...
+    for entity, health in query.iter_entities_components(Health):
+        if health.value == 0:
+            entity.kill()
 ```
 
-That signature reads as: “run this system over entities that have `Transform` and `Velocity`, and also give me access to the renderer service”.
+Read the annotation as: "select entities that have `Health`." Add
+`Without[Disabled]` in a tuple filter when a component must be absent; the
+[Queries guide](../guide/queries.md) shows that form.
 
-### Resource lookup inside ECS systems
+### Resource lookup inside systems
 
-When a system parameter is a class type such as `Renderer2D` or `GameSettings`, Arepy resolves it from resources.
+When a parameter is a class type such as `Renderer2D` or `GameSettings`, Arepy
+resolves an instance by type name. Lookup order is:
 
-The lookup order is:
+1. resources on the current world
+2. global resources owned by the engine
 
-1. current world resources
-2. global engine resources
-
-That lets you keep scene state local while still using the shared engine services everywhere.
+This keeps scene state local while shared services remain available to every
+world.
 
 ## Good companion pages
 
@@ -81,16 +123,13 @@ That lets you keep scene state local while still using the shared engine service
 - [Queries](../guide/queries.md)
 - [Resources and Systems](../guide/resources.md)
 
-## Generated reference
+## Generated modules
 
-- [World module](reference/arepy/ecs/world/)
-- [Registry module](reference/arepy/ecs/registry/)
-- [Builders module](reference/arepy/ecs/builders/)
-- [Components module](reference/arepy/ecs/components/)
-- [Entities module](reference/arepy/ecs/entities/)
-- [Query module](reference/arepy/ecs/query/)
+- [World module](reference/arepy/ecs/world.md)
+- [Builders module](reference/arepy/ecs/builders.md)
+- [Components module](reference/arepy/ecs/components.md)
+- [Entity and Entities module](reference/arepy/ecs/entities.md)
+- [Query module](reference/arepy/ecs/query/index.md)
 
-## Where to keep reading
-
-- Use the generated module reference for complete member-level details.
-- Use the guide pages when you want examples and workflow instead of raw API entries.
+For member-level details, continue through the generated modules in
+**Public API**. Use the guide pages for workflows and explanations.

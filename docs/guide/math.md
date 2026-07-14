@@ -1,41 +1,99 @@
-# Math Helpers
+# Vectors for movement and positions
 
-Arepy ships a small math layer under `arepy.math`.
+Arepy's `Vec2` and `Vec3` are small mutable vectors used by transforms,
+velocities, cameras, and renderer calls.
 
-## Public exports
+## Create and read a vector
 
-The current public module exports:
+```python
+from arepy.math import Vec2, Vec3
 
-- `Vec2`
-- `vec2`
-- `vec2_zero`
-- `Vec3`
-- `vec3`
-- `vec3_zero`
-- `check_collision_point_rec`
 
-## `Vec2`
+position = Vec2(120.0, 80.0)
+camera_position = Vec3(10.0, 8.0, 10.0)
 
-`Vec2` is the main 2D vector type used by bundle components such as `Transform` and `RigidBody2D`.
+print(position.x, position.y)
+print(camera_position.to_tuple())
+```
 
-In practice, `Vec2` is built to handle the operations you reach for constantly in 2D gameplay code:
+`vec2(x, y)`, `vec3(x, y, z)`, `vec2_zero()`, and `vec3_zero()` are convenience
+constructors for the same types.
 
-- scalar multiplication on both sides
-- in-place arithmetic operations
-- safe normalization of the zero vector
+## Mutate in place in a frame loop
 
-## `Vec3`
+When an entity already owns a vector, update its coordinates:
 
-`Vec3` is the 3D counterpart used by 3D bundle components.
+```python
+transform.position.x += body.velocity.x * time.delta_seconds
+transform.position.y += body.velocity.y * time.delta_seconds
+```
 
-`Vec3` covers the same day-to-day needs on the 3D side:
+This keeps the same vector identity and works with `BatchQuery`'s bound vector
+storage. Replacing it with `transform.position = Vec2(...)` creates another
+Python object and may require a batch rebind.
 
-- scalar multiplication on both sides
-- in-place arithmetic operations
-- safe normalization of zero vectors
-- safe `angle()` behavior when one vector has zero length
-- safe `project()` behavior when the target vector has zero length
+In-place operators also preserve the object:
 
-## Why this matters
+```python
+velocity *= 0.95
+position += velocity
+```
 
-These helpers show up all over the engine, especially in movement, transforms, and rendering-related data.
+Normal arithmetic such as `a + b`, `a - b`, or `a * 2.0` returns a new vector,
+which is useful outside a hot loop or when the result must be independent.
+
+## Direction and distance in 2D
+
+```python
+to_target = target - position
+distance = abs(to_target)
+direction = to_target.normalize()
+```
+
+`normalize()` returns a new unit vector. `normalize_ip()` changes the existing
+vector. Both handle a zero-length vector safely; its normalized result remains
+zero.
+
+Other useful `Vec2` operations include:
+
+- `dot(other)` for alignment;
+- `distance_to(other)` for distance between points;
+- `angle_to(other)` for the angle from this point to another;
+- `lerp(other, t)` for interpolation;
+- `rotate(angle)` for a new rotated vector.
+
+Angles used by vector rotation are in radians. Sprite and camera rotation APIs
+may use degrees, so check the receiving method rather than assuming one unit
+everywhere.
+
+## 3D helpers
+
+`Vec3` adds a `z` coordinate plus operations commonly used with cameras and
+surfaces:
+
+```python
+forward = Vec3(0.0, 0.0, -1.0)
+up = Vec3(0.0, 1.0, 0.0)
+travel_direction = Vec3(1.0, 0.0, -1.0).normalize()
+velocity_3d = Vec3(4.0, -2.0, 1.0)
+surface_direction = Vec3(1.0, 0.0, 0.0)
+right = forward.cross(up)
+
+alignment = forward.dot(travel_direction)
+angle_radians = forward.angle(travel_direction)
+on_surface = velocity_3d.project(surface_direction)
+```
+
+`angle()` and `project()` return safe results when one of the required vectors
+has zero length.
+
+## Point inside a rectangle
+
+`check_collision_point_rec(point, rect)` is the lightweight 2D helper exported
+by `arepy.math`. Use it for simple pointer and rectangle checks; use a dedicated
+collision system when the game needs broad-phase spatial queries or complex
+shapes.
+
+Continue with [2D and 3D graphics](graphics.md), or see how
+[BatchQuery vector views](queries.md#vec2-and-vec3-fields) update many vectors
+together.

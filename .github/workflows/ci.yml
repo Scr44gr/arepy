@@ -61,6 +61,9 @@ jobs:
     - name: Install dependencies
       run: |
         uv sync --locked --no-dev --extra testing
+
+    - name: Compile examples
+      run: uv run --no-sync python -m compileall -q examples
     
     - name: Run tests with pytest
       run: |
@@ -100,4 +103,4 @@ jobs:
 
     - name: Build docs with MkDocs
       run: |
-        uv run --no-sync mkdocs build
+        uv run --no-sync mkdocs build --strict

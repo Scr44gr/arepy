@@ -112,5 +112,10 @@ def set_exit_key(key: Key) -> None:
     return None
 
 
-def pool_events() -> None:
+def _finish_frame() -> None:
     arepyRuntime.finishInputFrame()
+
+
+def pool_events() -> None:
+    """Preserve the legacy public adapter behavior."""
+    _finish_frame()

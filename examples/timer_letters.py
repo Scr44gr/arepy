@@ -4,7 +4,7 @@ from collections import deque
 from arepy import ArepyEngine, Color, Renderer2D, SystemPipeline, Time, Timers, World
 from arepy.bundle.components.rigidbody import RigidBody2D
 from arepy.bundle.components.transform import Transform
-from arepy.ecs import Component, Entities, Entity, Query, With
+from arepy.ecs import Component, Entity, Query, With
 from arepy.math import Vec2
 
 WIDTH = 960
@@ -79,7 +79,7 @@ def burst_word(world: World, letters: deque[Entity], word: str) -> None:
 
 
 def physics_system(
-    query: Query[Entities, With[Transform, RigidBody2D, Letter]],
+    query: Query[Entity, With[Transform, RigidBody2D, Letter]],
     time: Time,
 ) -> None:
     dt = time.delta_seconds
@@ -112,7 +112,7 @@ def physics_system(
 
 
 def render_system(
-    query: Query[Entities, With[Transform, Letter]],
+    query: Query[Entity, With[Transform, Letter]],
     renderer: Renderer2D,
     time: Time,
 ) -> None:

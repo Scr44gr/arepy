@@ -27,7 +27,7 @@ This project adheres to a Code of Conduct that we expect all contributors to fol
 
 ### Prerequisites
 
-- Python 3.11 or higher
+- CPython 3.11, 3.12, 3.13, or 3.14
 - Git
 - Basic knowledge of Python and game development concepts
 - Familiarity with ECS (Entity Component System) architecture is helpful
@@ -99,6 +99,13 @@ git checkout -b fix/issue-description
 - Keep components as **pure data** containers
 - Put logic in **systems**, not components
 - Use **queries** to filter entities efficiently
+- In per-frame loops, prefer `query.iter_components(...)` and direct field
+  access over repeated `entity.get_component(...)`, `getattr(...)`, or
+  `setattr(...)`
+- Mutate reusable values such as `transform.position.x` and
+  `transform.position.y` instead of replacing the `Vec2` every frame
+- Benchmark performance-sensitive architecture changes before and after under
+  comparable conditions
 - Follow the **single responsibility principle**
 
 #### **Code Organization**
@@ -135,10 +142,7 @@ from arepy.ecs import Query, Entity, With
 
 def movement_system(query: Query[Entity, With[Transform, Velocity]]):
     """System that applies velocity to transform positions."""
-    for entity in query.get_entities():
-        transform = entity.get_component(Transform)
-        velocity = entity.get_component(Velocity)
-        
+    for transform, velocity in query.iter_components(Transform, Velocity):
         transform.position.x += velocity.x
         transform.position.y += velocity.y
 ```
@@ -171,7 +175,7 @@ uv run mkdocs build
 uv run mkdocs serve
 ```
 
-- Keep guides aligned with real code in `arepy/`, `examples/`, and `tests/`
+- Keep guides aligned with the public API and runnable examples
 - Prefer updating docs together with public API or behavior changes
 - Make sure the docs build passes before opening a pull request
 
@@ -184,25 +188,26 @@ uv run mkdocs serve
 
 #### Test Example
 ```python
-import pytest
-from arepy.ecs import Registry, Entity
 from arepy.bundle.components import Transform
+from arepy.ecs.registry import Registry
+from arepy.math import Vec2
+
 
 def test_entity_component_operations():
     """Test adding, getting, and removing components from entities."""
     registry = Registry()
     entity = registry.create_entity()
-    transform = Transform(x=10.0, y=20.0)
-    
+    transform = Transform(position=Vec2(10.0, 20.0))
+
     # Add component
     entity.add_component(transform)
     assert entity.has_component(Transform)
-    
+
     # Get component
     retrieved = entity.get_component(Transform)
-    assert retrieved.x == 10.0
-    assert retrieved.y == 20.0
-    
+    assert retrieved.position.x == 10.0
+    assert retrieved.position.y == 20.0
+
     # Remove component
     entity.remove_component(Transform)
     assert not entity.has_component(Transform)

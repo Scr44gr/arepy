@@ -1,72 +1,138 @@
 # Engine API
 
-This page points you to the main engine entry points.
+This page points to the objects that start the application and connect worlds
+to shared services.
 
-- `ArepyEngine` is the main object that owns shared services and worlds.
-- `SystemPipeline` helps organize the order in which systems run.
-- `SystemState` stores the state object used by stateful systems.
+- `ArepyEngine` owns the window, runtime loop, global resources, and worlds.
+- `SystemPipeline` chooses when a system runs.
+- `SystemState` enables or disables a registered system.
 
-## Start here if you want to...
-
-- open a window and boot the engine with `ArepyEngine(...)`
-- create or switch scenes with `create_world(...)` and `set_current_world(...)`
-- expose shared services such as rendering, input, audio, assets, timing, and events
-- understand when engine hooks and world hooks run during a frame
-
-## Main concepts
-
-### `ArepyEngine`
-
-`ArepyEngine` owns the application-level services and the runtime loop.
-
-The most important calls are:
+## Create and run an engine
 
 ```python
-engine = ArepyEngine(title="My Game")
+from arepy import ArepyEngine
+
+
+engine = ArepyEngine(
+    title="My Game",
+    width=960,
+    height=540,
+    max_frame_rate=120,
+)
 world = engine.create_world("main")
+
 engine.set_current_world("main")
 engine.run()
 ```
 
-Engine resources are global. They are visible from every world and include objects such as `Display`, `Time`, `Renderer2D`, `Renderer3D`, `Input`, `AudioDevice`, `AssetStore`, and `EventManager`.
+`set_current_world()` schedules the named world to become active. `run()`
+starts the loop and applies that selection before the first frame.
 
-### Worlds managed by the engine
+## Global and world-local resources
 
-When you create a world through the engine, that world receives access to the engine's global resources and can also define local resources of its own.
+Engine resources are global: every engine-created world can resolve them.
+Built-in global resources include `Display`, `Time`, `Renderer2D`,
+`Renderer3D`, `Input`, `AudioDevice`, `AssetStore`, and `EventManager`.
 
-Each world also starts with a built-in `Timers` resource for delayed callbacks, repeating callbacks, and cooldown helpers.
-
-That makes this pattern possible:
+A world can add local state with `add_resource()`. Local resources take
+precedence over global resources of the same type name:
 
 ```python
 class DialogueState:
-	def __init__(self) -> None:
-		self.current_line = 0
+    __slots__ = ("current_line",)
+
+    def __init__(self) -> None:
+        self.current_line = 0
 
 
-world = engine.create_world("dialogue")
-world.add_resource(DialogueState())
+dialogue_world = engine.create_world("dialogue")
+dialogue_world.add_resource(DialogueState())
 ```
 
-Inside systems registered on that world, `DialogueState` resolves locally, while services such as `Renderer2D` still come from the engine.
+Each world also owns an `Animator` and `Timers` resource. Systems registered on
+`dialogue_world` can request `DialogueState`, while renderer and input services
+continue to resolve from the engine.
 
-### Engine hooks vs world hooks
+## Pipelines and system state
 
-`ArepyEngine` still exposes its own hooks:
+Register each system in the phase where its job belongs:
 
-- `on_startup()`
-- `on_update()`
-- `on_render()`
-- `on_shutdown()`
+```python
+from arepy import ArepyEngine, Color, Renderer2D, SystemPipeline
+from arepy.ecs.systems import SystemState
 
-In addition, each world can register:
 
-- `world.on_startup`
-- `world.on_update`
-- `world.on_render`
-- `world.on_shutdown`
+PIPELINE_BACKGROUND = Color(15, 20, 32, 255)
 
-Use engine hooks for app-wide behavior. Use world hooks for scene-specific setup, teardown, or small pieces of orchestration that belong to one world.
+
+def read_controls() -> None:
+    ...
+
+
+def move_entities() -> None:
+    ...
+
+
+def render_scene(renderer: Renderer2D) -> None:
+    renderer.start_frame()
+    renderer.clear(PIPELINE_BACKGROUND)
+    renderer.end_frame()
+
+
+def render_debug_ui() -> None:
+    ...
+
+
+engine = ArepyEngine(title="Pipeline example")
+world = engine.create_world("main")
+world.add_system(SystemPipeline.INPUT, read_controls)
+world.add_system(SystemPipeline.UPDATE, move_entities)
+world.add_system(SystemPipeline.RENDER, render_scene)
+world.add_system_with_state(
+    SystemPipeline.RENDER_UI,
+    render_debug_ui,
+    SystemState.OFF,
+)
+```
+
+The placeholder bodies keep the pipeline example runnable; replace them with
+game logic. Use `world.set_system_state(...)` with the same pipeline and
+function to change the debug system between `SystemState.ON` and
+`SystemState.OFF`.
+
+## Engine hooks and world hooks
+
+Engine hooks are methods to override in an `ArepyEngine` subclass. They are for
+application-wide behavior:
+
+```python
+from arepy import ArepyEngine
+
+
+class Game(ArepyEngine):
+    def on_startup(self) -> None:
+        print("Application started")
+
+    def on_shutdown(self) -> None:
+        print("Application stopped")
+```
+
+World hooks register callbacks on one scene and can be used as decorators:
+
+```python
+@world.on_startup
+def enter_level() -> None:
+    print("Level entered")
+
+
+@world.on_shutdown
+def leave_level() -> None:
+    print("Level left")
+```
+
+Use world shutdown hooks to release resources owned by that world. A switch to
+another world invokes the outgoing world's shutdown callbacks; closing the
+application invokes them for the active world.
 
 ## Good companion pages
 
@@ -74,7 +140,7 @@ Use engine hooks for app-wide behavior. Use world hooks for scene-specific setup
 - [Resources and Systems](../guide/resources.md)
 - [Core Services](services.md)
 
-## Generated reference
+## Generated modules
 
 - [ArepyEngine module](reference/arepy/engine/engine.md)
 - [Display module](reference/arepy/engine/display.md)
@@ -83,7 +149,5 @@ Use engine hooks for app-wide behavior. Use world hooks for scene-specific setup
 - [Input module](reference/arepy/engine/input.md)
 - [Audio module](reference/arepy/engine/audio.md)
 
-## Where to keep reading
-
-- For the full module layout, browse the generated module reference in `API Reference`.
-- For a friendlier walkthrough, start with the guide pages about engine lifecycle and resources.
+For the full module layout, browse **Public API**. For a guided workflow, start
+with engine lifecycle and resources.

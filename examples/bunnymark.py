@@ -1,10 +1,11 @@
 import random
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 from numpy.typing import NDArray
 
-from arepy import ArepyEngine, Color, Renderer2D, SystemPipeline
+from arepy import ArepyEngine, Color, Rect, Renderer2D, SystemPipeline
 from arepy.bundle.components.rigidbody import RigidBody2D
 from arepy.bundle.components.sprite import Sprite
 from arepy.bundle.components.transform import Transform
@@ -14,11 +15,19 @@ from arepy.engine.renderer.texture_atlas import TextureBatchLayout
 from arepy.math import Vec2
 
 WHITE_COLOR = Color(255, 255, 255, 255)
+HUD_COLOR = Color(14, 20, 34, 235)
+HUD_TEXT_COLOR = Color(238, 244, 255, 255)
+HUD_ACCENT_COLOR = Color(85, 225, 160, 255)
+HUD_RECT = Rect(8, 8, 232, 68)
 BUNNY_ASSET = "bunny.png"
+BUNNY_PATH = Path(__file__).resolve().parent / "assets" / BUNNY_ASSET
 
 BUNNY_COUNT = 50_000
 WINDOW_WIDTH = 640
 WINDOW_HEIGHT = 480
+SPRITE_SIZE = 16
+MAX_BUNNY_X = WINDOW_WIDTH - SPRITE_SIZE
+MAX_BUNNY_Y = WINDOW_HEIGHT - SPRITE_SIZE
 
 
 @dataclass(slots=True)
@@ -28,6 +37,8 @@ class BunnyBatchState:
     origin_x: NDArray[np.float64] | None = None
     origin_y: NDArray[np.float64] | None = None
     rotation: NDArray[np.float64] | None = None
+    delta_scratch: NDArray[np.float64] | None = None
+    boundary_mask: NDArray[np.bool_] | None = None
     layout: TextureBatchLayout | None = None
 
 
@@ -36,44 +47,53 @@ def movement_system(
     renderer: Renderer2D,
     batch_state: BunnyBatchState,
 ) -> None:
-    """Simple movement system using the experimental BatchQuery path."""
+    """Move every bunny through the vectorized BatchQuery path."""
     delta_time: float = renderer.get_delta_time()
-    sprite_size: int = 16
     position = batch.vec2(Transform, "position")
     velocity = batch.vec2(RigidBody2D, "velocity")
+    position_storage_changed = (
+        batch_state.position_x is not position.x
+        or batch_state.position_y is not position.y
+    )
     batch_state.position_x = position.x
     batch_state.position_y = position.y
     if (
-        batch_state.origin_x is None
+        position_storage_changed
+        or batch_state.origin_x is None
         or batch_state.origin_y is None
-        or len(batch_state.origin_x) != len(position.x)
-        or len(batch_state.origin_y) != len(position.y)
     ):
         origin = batch.vec2(Transform, "origin")
         batch_state.origin_x = origin.x
         batch_state.origin_y = origin.y
-    if batch_state.rotation is None or len(batch_state.rotation) != len(position.x):
+    if position_storage_changed or batch_state.rotation is None:
         batch_state.rotation = np.zeros_like(position.x)
+    delta_scratch = batch_state.delta_scratch
+    boundary_mask = batch_state.boundary_mask
+    if delta_scratch is None or boundary_mask is None or position_storage_changed:
+        delta_scratch = np.empty_like(position.x)
+        boundary_mask = np.empty_like(position.x, dtype=np.bool_)
+        batch_state.delta_scratch = delta_scratch
+        batch_state.boundary_mask = boundary_mask
 
-    position.x += velocity.x * delta_time
-    position.y += velocity.y * delta_time
+    np.multiply(velocity.x, delta_time, out=delta_scratch)
+    np.add(position.x, delta_scratch, out=position.x)
 
-    left = position.x <= 0
-    right = position.x >= WINDOW_WIDTH - sprite_size
-    top = position.y <= 0
-    bottom = position.y >= WINDOW_HEIGHT - sprite_size
+    np.less_equal(position.x, 0.0, out=boundary_mask)
+    np.copysign(velocity.x, 1.0, out=velocity.x, where=boundary_mask)
 
-    position.x[left] = 0
-    velocity.x[left] = abs(velocity.x[left])
+    np.greater_equal(position.x, MAX_BUNNY_X, out=boundary_mask)
+    np.copysign(velocity.x, -1.0, out=velocity.x, where=boundary_mask)
+    np.clip(position.x, 0.0, MAX_BUNNY_X, out=position.x)
 
-    position.x[right] = WINDOW_WIDTH - sprite_size
-    velocity.x[right] = -abs(velocity.x[right])
+    np.multiply(velocity.y, delta_time, out=delta_scratch)
+    np.add(position.y, delta_scratch, out=position.y)
 
-    position.y[top] = 0
-    velocity.y[top] = abs(velocity.y[top])
+    np.less_equal(position.y, 0.0, out=boundary_mask)
+    np.copysign(velocity.y, 1.0, out=velocity.y, where=boundary_mask)
 
-    position.y[bottom] = WINDOW_HEIGHT - sprite_size
-    velocity.y[bottom] = -abs(velocity.y[bottom])
+    np.greater_equal(position.y, MAX_BUNNY_Y, out=boundary_mask)
+    np.copysign(velocity.y, -1.0, out=velocity.y, where=boundary_mask)
+    np.clip(position.y, 0.0, MAX_BUNNY_Y, out=position.y)
 
 
 def render_system(
@@ -117,13 +137,14 @@ def render_system(
         WHITE_COLOR,
     )
 
+    renderer.draw_rectangle_rounded(HUD_RECT, 0.18, 8, HUD_COLOR)
+    renderer.draw_text("BUNNYMARK", (20, 16), 16, HUD_ACCENT_COLOR)
     renderer.draw_text(
-        f"Entities: {len(sprites)}",
-        (10, 30),
-        font_size=20,
-        color=Color(0, 0, 0, 255),
+        f"{len(sprites):,} entities  |  {renderer.get_framerate()} FPS",
+        (20, 43),
+        font_size=18,
+        color=HUD_TEXT_COLOR,
     )
-    renderer.draw_fps((10, 10))
     renderer.end_frame()
 
 
@@ -150,8 +171,14 @@ def main() -> None:
     world: World = game.create_world("bunnymark")
     asset_store = game.get_asset_store()
     renderer = game.renderer_2d
-    asset_store.load_texture(renderer, BUNNY_ASSET, f"./assets/{BUNNY_ASSET}")
+    asset_store.load_texture(renderer, BUNNY_ASSET, str(BUNNY_PATH))
     asset_store.build_texture_atlas(renderer)
+
+    @world.on_shutdown
+    def unload_assets() -> None:
+        # unload_texture() also invalidates and releases the atlas first.
+        asset_store.unload_texture(renderer, BUNNY_ASSET)
+
     world.add_resource(BunnyBatchState())
     spawn_bunnies(world, BUNNY_COUNT)
     world.add_system(SystemPipeline.UPDATE, movement_system)

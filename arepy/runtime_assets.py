@@ -9,9 +9,10 @@ import json
 import os
 import shutil
 import struct
+import sys
 import tempfile
 from functools import lru_cache
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 _MAGIC = b"ARPK\x01"
 _EXTRACTED: dict[str, Path] = {}
@@ -24,6 +25,10 @@ def resolve_asset_path(path: str | os.PathLike[str]) -> Path:
     requested = Path(path)
     if requested.exists():
         return requested
+
+    web_asset = _resolve_web_zip_asset(requested)
+    if web_asset is not None:
+        return web_asset
 
     pack_value = os.getenv("AREPY_ASSET_PACK")
     key_value = os.getenv("AREPY_ASSET_KEY")
@@ -56,6 +61,56 @@ def resolve_asset_path(path: str | os.PathLike[str]) -> Path:
     output.write_bytes(plaintext)
     _EXTRACTED[logical_path] = output
     return output
+
+
+def _resolve_web_zip_asset(requested: Path) -> Path | None:
+    """Map a zipimport path to the decrypted Pyodide filesystem asset."""
+
+    if os.getenv("AREPY_PLATFORM") != "web":
+        return None
+
+    web_path = PurePosixPath(requested.as_posix())
+    parts = web_path.parts
+    if not web_path.is_absolute() or ".." in parts:
+        return None
+
+    for index, part in enumerate(parts):
+        if PurePosixPath(part).suffix.casefold() != ".zip":
+            continue
+
+        archive = PurePosixPath(*parts[: index + 1]).as_posix()
+        if not _is_active_zip_import(archive):
+            continue
+
+        relative_parts = parts[index + 1 :]
+        if not relative_parts:
+            return None
+
+        # Source modules keep their directory inside ``game.zip``, while each
+        # configured asset root is extracted from its own basename.  Try the
+        # exact zip-relative path first, then progressively remove only leading
+        # source-module directories.  The longest existing suffix wins.
+        for start in range(len(relative_parts)):
+            candidate = Path("/").joinpath(*relative_parts[start:])
+            try:
+                if candidate.is_file():
+                    return candidate
+            except OSError:
+                return None
+        return None
+
+    return None
+
+
+def _is_active_zip_import(archive: str) -> bool:
+    for import_root in sys.path:
+        try:
+            normalized = os.fspath(import_root).replace("\\", "/").rstrip("/")
+        except TypeError:
+            continue
+        if normalized == archive:
+            return True
+    return False
 
 
 def _normalize_asset_path(path: Path) -> str:

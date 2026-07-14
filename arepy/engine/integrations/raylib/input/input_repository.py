@@ -300,5 +300,5 @@ def set_exit_key(key: Key) -> None:
 
 
 def pool_events() -> None:
-    """Pool the events."""
+    """Poll the events."""
     rl.PollInputEvents()

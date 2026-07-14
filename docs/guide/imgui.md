@@ -1,140 +1,140 @@
-# ImGui in Arepy
+# Debug tools with ImGui
 
-ImGui is the optional UI layer you can use for debug panels, small tools, sliders, buttons, and quick in-game editors.
+Dear ImGui is ideal for information that helps you build the game but is not
+part of the final game UI: entity inspectors, live values, profilers, spawn
+buttons, and editor tools.
 
-The important part is this: in Arepy, ImGui is meant to feel simple.
+![An ImGui debug panel over an Arepy scene](../assets/images/imgui-debug-panel.png){ .arepy-screenshot }
+<p class="arepy-caption">The scene is drawn in <code>RENDER</code>; the debug window is described in <code>RENDER_UI</code>.</p>
 
-- you install the optional extra
-- you import `imgui` from `arepy`
-- you put your UI code in `SystemPipeline.RENDER_UI`
-- the engine handles the frame setup and the final draw call for you
+## Install the optional extra
 
-You do not need a wrapper class.
-You do not need to call `imgui.new_frame()` yourself.
-You do not need to call `imgui.render()` yourself.
+=== "pip"
 
-## 1. Install the extra
+    ```bash
+    pip install "arepy[imgui]"
+    ```
 
-If you use Arepy from PyPI:
+=== "uv"
 
-```bash
-pip install "arepy[imgui]"
-```
+    ```bash
+    uv add "arepy[imgui]"
+    ```
 
-If you are working inside this repository with `uv`:
+Inside the Arepy repository, use `uv sync --extra imgui`.
 
-```bash
-uv sync --extra imgui
-```
+## The immediate-mode mental model
 
-If you are also building the docs locally:
-
-```bash
-uv sync --extra docs --extra imgui
-```
-
-## 2. Import `imgui`
-
-Once the extra is installed, you can import `imgui` directly from Arepy:
+With retained UI toolkits, you create a button object and keep it alive. With
+ImGui, your code describes the desired window again each frame:
 
 ```python
-from arepy import imgui
+if imgui.button("Spawn bunny"):
+    spawn_bunny()
 ```
 
-That gives you the real `imgui_bundle.imgui` module.
+The call draws the button and returns `True` only on the frame it was clicked.
+Your game owns the meaningful state; ImGui owns short-lived interaction state.
 
-## 3. Put ImGui code in `RENDER_UI`
+## A complete panel
 
-This is the recommended place for ImGui systems.
-
-Use `RENDER` for your normal game drawing and `RENDER_UI` for Dear ImGui windows and widgets.
-
-Here is a small example:
+Keep panel state in a world resource instead of module globals:
 
 ```python
-from arepy import ArepyEngine, Display, SystemPipeline, imgui
+from dataclasses import dataclass, field
 
-show_demo_window = False
+from arepy import Display, Time, imgui
 
 
-def debug_ui(display: Display) -> None:
-    global show_demo_window
+@dataclass(slots=True)
+class DebugPanel:
+    visible: bool = True
+    background: list[float] = field(
+        default_factory=lambda: [0.10, 0.13, 0.18]
+    )
 
-    is_open, _ = imgui.begin("Debug")
-    if is_open:
-        imgui.text("Hello from Arepy")
-        _, show_demo_window = imgui.checkbox(
-            "Show Dear ImGui demo",
-            show_demo_window,
+
+def debug_ui(panel: DebugPanel, display: Display, time: Time) -> None:
+    if not panel.visible:
+        return
+
+    expanded, panel.visible = imgui.begin("Arepy debug", panel.visible)
+    if expanded:
+        imgui.text(f"Frame time: {time.delta_seconds * 1000.0:.2f} ms")
+        _, panel.background = imgui.color_edit3(
+            "Background",
+            panel.background,
         )
 
         if imgui.button("Rename window"):
-            display.set_window_title("Arepy Debug")
+            display.set_window_title("Debugging Arepy")
     imgui.end()
+```
 
-    if show_demo_window:
-        show_demo_window = bool(imgui.show_demo_window(show_demo_window))
+Register the resource and system once:
 
-
-engine = ArepyEngine(title="ImGui Example")
-world = engine.create_world("main")
+```python
+panel = DebugPanel()
+world.add_resource(panel)
 world.add_system(SystemPipeline.RENDER_UI, debug_ui)
-engine.set_current_world("main")
-engine.run()
 ```
 
-## 4. What the engine does for you
+## What Arepy manages
 
-When ImGui is enabled, Arepy automatically does this every frame:
+Arepy's ImGui integration already:
 
-1. starts a new ImGui frame
-2. runs your `RENDER_UI` systems
-3. finishes the ImGui frame
-4. sends the draw data to the backend
+1. forwards keyboard and mouse state to the backend;
+2. starts a new ImGui frame;
+3. runs `RENDER_UI` systems;
+4. builds and submits the draw data.
 
-So your job is only to describe the UI.
+Do not call `imgui.new_frame()` or `imgui.render()` yourself. Import the module
+directly with `from arepy import imgui`; a wrapper is not required.
 
-## 5. Do I need to use `world.get_resource(imgui)`?
+## Prevent UI input from controlling the game
 
-Usually, no.
-
-For most games and tools, the simplest approach is:
+When the user is typing or dragging a panel, let ImGui consume that device:
 
 ```python
-from arepy import imgui
+def player_input(input_device: Input) -> None:
+    io = imgui.get_io()
+
+    if not io.want_capture_keyboard:
+        read_movement_keys(input_device)
+
+    if not io.want_capture_mouse:
+        read_aiming_mouse(input_device)
 ```
 
-and then use `imgui` directly.
+This check belongs in shared keyboard/mouse handling. A game that never places
+ImGui over interactive gameplay does not need it.
 
-Arepy also registers `imgui` as a global resource, so this works too:
+## Useful first widgets
 
-```python
-imgui_module = world.get_resource(imgui)
-```
+| Widget | Use |
+| --- | --- |
+| `imgui.text()` | Metrics and labels. |
+| `imgui.button()` | Trigger a one-shot action. |
+| `imgui.checkbox()` | Toggle a boolean. |
+| `imgui.slider_float()` | Tune speed, volume, or timing live. |
+| `imgui.color_edit3()` | Tune RGB colors. |
+| `imgui.show_demo_window()` | Explore the widgets included with Dear ImGui. |
 
-That lookup exists mostly for advanced cases or when you want to treat ImGui like another engine-managed dependency.
+Every successful `imgui.begin()` must be paired with `imgui.end()`, even when
+the window is collapsed.
 
-If you are just starting, prefer the direct import.
+## Where ImGui belongs
 
-## 6. A simple mental model
+Use ImGui for development tools and inspectors. For a shipped title screen,
+HUD, or diegetic interface, draw your own game UI through `Renderer2D` so it
+matches the game's art and works on every target.
 
-If you are new to ImGui, think of it like this:
+!!! note "Development-time support"
 
-- `imgui.begin("Window name")` opens a window
-- `imgui.text(...)` draws text inside that window
-- `imgui.button(...)` draws a button and tells you if it was pressed
-- `imgui.checkbox(...)` shows a checkbox and returns its new value
-- `imgui.end()` closes the window you opened with `begin(...)`
+    ImGui is available in the desktop development environment when the optional
+    extra is installed. The current web target disables it, and the current
+    Windows one-file builder excludes the ImGui stack. Use it as a development
+    tool unless your own packaging pipeline explicitly includes its backend.
 
-You redraw the UI every frame. That is normal in Dear ImGui.
-
-## 7. Common mistakes
-
-- Do not call `imgui.new_frame()` yourself. The engine already does it.
-- Do not call `imgui.render()` yourself. The engine already does it.
-- Do not put ImGui windows in a normal `RENDER` system unless you have a very specific reason.
-- Do not add a custom wrapper class just to use basic buttons, text, and checkboxes.
-
-## 8. Smallest working example
-
-See `examples/imgui_minimal.py` for the smallest full example currently shipped with the project.
+Run [`examples/imgui_minimal.py`](https://github.com/Scr44gr/arepy/blob/main/examples/imgui_minimal.py)
+for the scene shown above.

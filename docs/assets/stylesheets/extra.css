@@ -1,5 +1,5 @@
 :root {
-  --md-text-font-size: 0.72rem;
+  --md-text-font-size: 0.84rem;
   --md-typeset-a-color: #9a6700;
   --md-primary-fg-color: #6d28d9;
   --md-primary-fg-color--dark: #5b21b6;
@@ -22,8 +22,8 @@
 }
 
 .md-typeset {
-  font-size: 0.72rem;
-  line-height: 1.5;
+  font-size: 0.84rem;
+  line-height: 1.62;
 }
 
 .md-typeset p,
@@ -36,35 +36,35 @@
 
 .md-typeset h1 {
   margin: 0 0 0.7rem;
-  font-size: 1.68rem;
-  line-height: 1.15;
+  font-size: 2rem;
+  line-height: 1.18;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
 
 .md-typeset h2 {
   margin: 1.45rem 0 0.65rem;
-  font-size: 1.08rem;
+  font-size: 1.3rem;
   font-weight: 700;
 }
 
 .md-typeset h3 {
   margin: 1.05rem 0 0.5rem;
-  font-size: 0.9rem;
+  font-size: 1rem;
   font-weight: 700;
 }
 
 .md-typeset code {
-  font-size: 0.68rem;
+  font-size: 0.8rem;
 }
 
 .md-typeset pre > code {
-  font-size: 0.66rem;
-  line-height: 1.45;
+  font-size: 0.78rem;
+  line-height: 1.55;
 }
 
 .md-grid {
-  max-width: 66rem;
+  max-width: 72rem;
 }
 
 .md-main__inner {
@@ -72,7 +72,7 @@
 }
 
 .md-content__inner {
-  max-width: 42rem;
+  max-width: 48rem;
   margin: 0 auto;
   padding-bottom: 2.75rem;
 }
@@ -80,7 +80,7 @@
 .md-header__title,
 .md-header__topic,
 .md-ellipsis {
-  font-size: 0.72rem;
+  font-size: 0.82rem;
 }
 
 .md-header {
@@ -134,27 +134,28 @@
 
 .arepy-hero {
   display: grid;
-  gap: 1rem;
+  gap: 1.15rem;
   justify-items: center;
   text-align: center;
-  padding: 0.35rem 0 1.05rem;
+  padding: 0.8rem 0 1.5rem;
 }
 
 .arepy-hero__logo {
   display: block;
   margin: 0 auto;
-  max-width: 300px;
-  width: min(100%, 300px);
+  max-width: 330px;
+  width: min(100%, 330px);
 }
 
 .arepy-hero__lead {
-  max-width: 34rem;
-  font-size: 0.8rem;
+  max-width: 39rem;
+  font-size: 0.98rem;
+  line-height: 1.55;
   color: var(--md-default-fg-color--light);
 }
 
 .arepy-hero__title {
-  font-size: 0.64rem;
+  font-size: 0.82rem;
   font-weight: 600;
   letter-spacing: 0.08em;
   color: var(--md-default-fg-color--lighter);
@@ -172,9 +173,20 @@
   height: 18px;
 }
 
+.arepy-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.65rem;
+}
+
+.arepy-hero__actions .md-button {
+  margin: 0;
+}
+
 .arepy-section-intro {
   color: var(--md-default-fg-color--light);
-  max-width: 34rem;
+  max-width: 39rem;
   margin: 0 auto;
   text-align: center;
 }
@@ -196,12 +208,12 @@
 
 .md-typeset .admonition,
 .md-typeset details {
-  font-size: 0.7rem;
+  font-size: 0.82rem;
 }
 
 .md-nav,
 .md-tabs {
-  font-size: 0.69rem;
+  font-size: 0.82rem;
 }
 
 .md-search__form {
@@ -211,7 +223,69 @@
 .md-sidebar,
 .md-nav__title,
 .md-nav__link {
-  font-size: 0.69rem;
+  font-size: 0.82rem;
+}
+
+.arepy-figure {
+  margin: 1.5rem auto 2rem;
+  max-width: 56rem;
+}
+
+.arepy-screenshot {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--md-default-fg-color--lightest, rgba(15, 23, 42, 0.14));
+  border-radius: 0.9rem;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.14);
+}
+
+.arepy-caption,
+.arepy-figure figcaption {
+  margin: 0.65rem auto 0;
+  max-width: 44rem;
+  color: var(--md-default-fg-color--light);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.arepy-steps {
+  counter-reset: arepy-step;
+  list-style: none;
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+}
+
+.arepy-steps > li {
+  position: relative;
+  min-height: 2.1rem;
+  padding-left: 3rem;
+  margin-bottom: 1rem;
+}
+
+.arepy-steps > li::before {
+  counter-increment: arepy-step;
+  content: counter(arepy-step);
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--md-primary-fg-color);
+  color: #fff;
+  font-weight: 700;
+}
+
+.arepy-callout {
+  margin: 1.4rem 0;
+  padding: 1rem 1.2rem;
+  border-left: 0.25rem solid var(--md-accent-fg-color);
+  border-radius: 0.4rem;
+  background: color-mix(in srgb, var(--md-accent-fg-color) 8%, transparent);
 }
 
 [data-md-color-scheme="slate"] .md-typeset .grid.cards > ul > li,
@@ -221,7 +295,7 @@
 
 @media screen and (max-width: 76.2344em) {
   .md-typeset h1 {
-    font-size: 1.5rem;
+    font-size: 1.7rem;
   }
 
   .arepy-hero__logo {

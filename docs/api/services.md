@@ -1,6 +1,7 @@
 # Core Services API
 
-These are the shared services and helper types you will most often use around the engine.
+These are the shared services and helper types used around the engine. A system
+can request any registered service by annotating a parameter with its type.
 
 ## Window and display
 
@@ -82,7 +83,13 @@ Useful entry points:
 - `draw_cube(...)`
 - `get_delta_time()`
 
-`Renderer2D.get_delta_time()` is still available, but `Time.delta_seconds` is now the preferred gameplay-facing timing source.
+Use `Time.delta_seconds` for gameplay timing. `Renderer2D.get_delta_time()` is
+available when renderer-local timing is specifically needed.
+
+Custom fonts are loaded and released directly by the renderer:
+`Renderer2D.load_font_ex(...)` returns an `ArepyFont`, and
+`Renderer2D.unload_font(font)` releases it. Font loading is not part of the
+documented `AssetStore` workflow.
 
 ## Input
 
@@ -131,12 +138,27 @@ Useful entry points:
 
 - `AssetStore`
 
-Start here if you want a named store for textures, fonts, sounds, music, models, meshes, and materials.
+Start here if you want a named store for textures, sounds, music, models,
+meshes, and materials. The engine owns one shared `AssetStore`; individual
+worlds must define which of those assets they own.
 
 Useful entry points:
 
 - [Asset store reference](reference/arepy/asset_store/asset_store.md)
-- `add_*` and `get_*` methods on `AssetStore`
+- textures: `load_texture()`, `create_render_texture()`, `get_texture()`, and
+  `unload_texture()`
+- texture atlases: `build_texture_atlas()`, `get_texture_atlas()`, and
+  `clear_texture_atlas(renderer)`
+- audio: `load_sound()` / `unload_sound()` and
+  `load_music()` / `unload_music()`
+- 3D resources: `load_model()`, `create_mesh_*()`, `create_material()`, the
+  matching getters, and the matching unload methods
+
+Call an unload method with the same renderer or audio device used to load the
+asset. `AssetStore` removes the named handle and delegates the actual release to
+that backend. A world-owned asset therefore belongs in `world.on_startup` and
+`world.on_shutdown`; a shared asset needs an application-level owner and must
+remain loaded until its last user is finished.
 
 ## Events
 
@@ -148,12 +170,14 @@ Start here if you want loose communication between systems or gameplay modules.
 Useful entry points:
 
 - [Event manager reference](reference/arepy/event_manager/event_manager.md)
-- event subscribe / emit / process methods on `EventManager`
+- `subscribe(EventType, callback)` and `unsubscribe(EventType, callback)`
+- `emit(event)` to queue callbacks for an event instance
+- `process_events()` to deliver the queue
 
 In the normal engine loop, queued events are processed during the update phase.
 
 ## Where to keep reading
 
-- The generated module reference shows every method, attribute, and nested module.
+- **Public API** contains the generated modules and their member-level details.
 - The engine services guide explains what each service is for in plain language.
 - Read [Engine Services](../guide/engine-services.md) for examples of how these services are injected into systems.

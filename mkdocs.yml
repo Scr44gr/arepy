@@ -15,7 +15,6 @@ theme:
     code: JetBrains Mono
   features:
     - navigation.sections
-    - navigation.expand
     - navigation.indexes
     - navigation.top
     - navigation.tracking
@@ -78,7 +77,17 @@ plugins:
         - arepy
       exclude:
         - arepy.engine.integrations
-      nav_section_title: API Reference
+        - arepy.arepy_imgui
+        - arepy.builder
+        - arepy.container
+        - arepy.platform
+        - arepy.runtime_assets
+        - arepy.ecs.constants
+        - arepy.ecs.registry
+        - arepy.ecs.threading
+        - arepy.ecs.utils
+        - arepy.event_manager.handlers
+      nav_section_title: Public API
       api_root_uri: api/reference
       nav_item_prefix: ""
       exclude_private: true
@@ -102,7 +111,11 @@ markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.tabbed:
       alternate_style: true
 
@@ -110,23 +123,34 @@ extra_css:
   - assets/stylesheets/extra.css
 
 nav:
-  - Home: index.md
-  - Getting Started:
-      - getting-started/index.md
+  - Start Here:
+      - Welcome: index.md
+      - Learning Path: getting-started/index.md
       - Installation: getting-started/installation.md
-      - Quickstart: getting-started/quickstart.md
-  - Guide:
-      - guide/index.md
+      - Your First Game: getting-started/quickstart.md
+  - Core Concepts:
+      - How Arepy Fits Together: guide/index.md
       - Engine Lifecycle: guide/engine-lifecycle.md
-      - Engine Services: guide/engine-services.md
-      - ECS Basics: guide/ecs.md
-      - Queries: guide/queries.md
+      - Entities, Components, and Systems: guide/ecs.md
       - Resources and Systems: guide/resources.md
+  - Gameplay:
+      - Graphics and Textures: guide/graphics.md
+      - Keyboard, Mouse, and Gamepads: guide/input.md
+      - Audio: guide/audio.md
+      - Debug UI with ImGui: guide/imgui.md
+      - Engine Services: guide/engine-services.md
       - Built-in Bundle: guide/bundle.md
       - Math Helpers: guide/math.md
+  - Data & Performance:
+      - Queries and Batch Queries: guide/queries.md
+      - Performance and Recycling: guide/performance.md
+      - Benchmarks: guide/benchmarks.md
+  - Build & Ship:
       - Game Builder: guide/builder.md
-  - API Reference:
-      - api/index.md
+  - Examples:
+      - Example Gallery: guide/examples.md
+  - Public API:
+      - API Overview: api/index.md
       - Engine: api/engine.md
       - Core Services: api/services.md
       - ECS: api/ecs.md

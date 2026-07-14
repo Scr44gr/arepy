@@ -102,7 +102,7 @@ class ComponentIndex:
         component_id = component_type.__dict__.get("_arepy_component_id")
         if component_id is None:
             component_id = cls.get_id(component_type.__name__)
-            setattr(component_type, "_arepy_component_id", component_id)
+            component_type._arepy_component_id = component_id
         return component_id
 
     @classmethod

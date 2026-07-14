@@ -1,7 +1,7 @@
 import asyncio
 from os import PathLike
 from types import BuiltinFunctionType, FunctionType, MethodType, ModuleType
-from typing import Any, Dict, Optional, Type, TypeVar, cast, overload
+from typing import Any, Callable, Dict, Optional, Type, TypeVar, cast, overload
 
 from arepy.ecs.world import World
 from arepy.engine.audio import AudioDevice
@@ -55,6 +55,14 @@ class ArepyEngine:
         self.renderer_2d = dependencies().renderer_repository
         self.renderer_3d = dependencies().renderer_3d_repository
         self.input = dependencies().input_repository
+        self._finish_input_frame: Optional[Callable[[], None]] = None
+        if _IS_WEB:
+            try:
+                self._finish_input_frame = cast(Any, self.input)._finish_frame
+            except AttributeError:
+                # Third-party web backends written before this internal hook
+                # remain valid; only the built-in adapter needs finalization.
+                pass
         self.audio_device = dependencies().audio_device_repository
         self._global_resources: Dict[str, Any] = {}
         self._register_global_resource(Display.__name__, self.display)
@@ -125,11 +133,14 @@ class ArepyEngine:
         self._time.advance(self.display.get_time())
         if not self._current_world:
             self.renderer_2d.swap_buffers()
-            return
-        # Process input, update and render
-        self.__input_process()
-        self.__update_process()
-        self.__render_process()
+        else:
+            # Process input, update and render.
+            self.__input_process()
+            self.__update_process()
+            self.__render_process()
+
+        if self._finish_input_frame is not None:
+            self._finish_input_frame()
 
     def __check_and_set_world(self):
         if self._next_world_to_set:
@@ -148,8 +159,6 @@ class ArepyEngine:
             self._next_world_to_set = None  # type: ignore
 
     def __input_process(self):
-        # dispatch input events
-        # self.input.pool_events()
         if self.imgui_backend is not None:
             self.imgui_backend.process_inputs()
         self._current_world._registry.run(pipeline=SystemPipeline.INPUT)

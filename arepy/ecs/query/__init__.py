@@ -278,8 +278,10 @@ def _build_attribute_accessor(attribute_name: str) -> _BatchAttributeAccessor:
         global _SCALAR_STORAGE_EPOCH
         if not components:
             return True
-        binder = getattr(type(components[0]), "_bind_scalar_storage", None)
-        if binder is None:
+        component_type = cast(Any, type(components[0]))
+        try:
+            binder = component_type._bind_scalar_storage
+        except AttributeError:
             return False
         _SCALAR_STORAGE_EPOCH += 1
         for index, component in enumerate(components):
@@ -293,8 +295,12 @@ def _build_attribute_accessor(attribute_name: str) -> _BatchAttributeAccessor:
             return False
         if not components:
             return True
-        checker = getattr(type(components[0]), "_uses_scalar_storage", None)
-        return checker is not None and all(
+        component_type = cast(Any, type(components[0]))
+        try:
+            checker = component_type._uses_scalar_storage
+        except AttributeError:
+            return False
+        return all(
             checker(component, attribute_name, values, index)
             for index, component in enumerate(components)
         )
@@ -465,13 +471,16 @@ class Query(Generic[TEntity, TFilter]):
 
     Example:
     ```python
-    from arepy.ecs.query import Query, EntityWith
-    from arepy.bundle.components import Transform, Rigidbody2D
+    from arepy.bundle.components import RigidBody2D, Transform
+    from arepy.ecs import Entity, Query, With
 
-    def movement_system(query: Query[Entity, With[Transform, Rigidbody2D]]):
-        for entity in query.get_entities():
-            position = entity.get_component(Transform).position
-            velocity = entity.get_component(Rigidbody2D).velocity
+    def movement_system(query: Query[Entity, With[Transform, RigidBody2D]]):
+        for transform, rigid_body in query.iter_components(
+            Transform,
+            RigidBody2D,
+        ):
+            position = transform.position
+            velocity = rigid_body.velocity
 
             position.x += velocity.x
             position.y += velocity.y
