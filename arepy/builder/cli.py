@@ -2,13 +2,27 @@
 
 import argparse
 import sys
-from pathlib import Path
 from collections.abc import Sequence
+from pathlib import Path
 
 from .config import BuildConfig
 from .core import Builder
 from .errors import BuilderError
 from .models import BuildTarget
+
+
+_TARGET_VALUES = tuple(target.value for target in BuildTarget)
+
+
+def _legacy_target(value: str) -> str:
+    """Validate a positional target without triggering Python 3.11's nargs bug."""
+
+    if value not in _TARGET_VALUES:
+        choices = ", ".join(repr(target) for target in _TARGET_VALUES)
+        raise argparse.ArgumentTypeError(
+            f"invalid choice: {value!r} (choose from {choices})"
+        )
+    return value
 
 
 def create_parser(prog: str = "arepy") -> argparse.ArgumentParser:
@@ -22,14 +36,14 @@ def create_parser(prog: str = "arepy") -> argparse.ArgumentParser:
         "--export",
         dest="export_targets",
         nargs="+",
-        choices=[target.value for target in BuildTarget],
+        choices=_TARGET_VALUES,
         metavar="TARGET",
         help="Export to one or more platforms.",
     )
     parser.add_argument(
         "legacy_targets",
         nargs="*",
-        choices=[target.value for target in BuildTarget],
+        type=_legacy_target,
         help=argparse.SUPPRESS,
     )
     parser.add_argument(

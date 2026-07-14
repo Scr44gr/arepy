@@ -34,6 +34,11 @@ def test_cli_keeps_legacy_targets_as_compatibility_alias() -> None:
     assert args.legacy_targets == ["windows", "web"]
 
 
+def test_cli_rejects_unknown_legacy_target() -> None:
+    with pytest.raises(SystemExit):
+        create_parser("arepy-build").parse_args(["linux"])
+
+
 def test_cli_removes_duplicate_targets_without_changing_order() -> None:
     targets = _unique_targets(["web", "windows", "web"])
 
