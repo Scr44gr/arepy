@@ -346,4 +346,206 @@ class TestResourceInjection:
         assert entities_processed[0] == entity.get_id()
 
 
+def test_kill_clears_component_slots_and_reuses_pool_capacity() -> None:
+    registry = Registry()
+    entity = registry.create_entity()
+    original = Position(1, 2)
+    registry.add_component(entity, Position, original)
+    registry.update()
+
+    from arepy.ecs.components import ComponentIndex
+
+    component_id = ComponentIndex.get_type_id(Position)
+    pool = registry.component_pools[component_id - 1]
+    assert pool is not None
+    storage = pool._components
+    storage_length = len(storage)
+
+    entity.kill()
+    registry.update()
+
+    assert registry.get_component(entity, Position) is None
+    assert storage[0] is None
+
+    recycled = registry.create_entity()
+    assert recycled.get_id() == entity.get_id()
+    assert pool._components is storage
+    assert len(storage) == storage_length
+    assert registry.get_component(recycled, Position) is None
+
+    replacement = Position(3, 4)
+    registry.add_component(recycled, Position, replacement)
+    assert storage[0] is replacement
+    assert pool._components is storage
+
+
+def test_stale_entity_cannot_release_a_recycled_slot_twice() -> None:
+    registry = Registry()
+    stale = registry.create_entity()
+    registry.update()
+    stale.kill()
+    registry.update()
+
+    recycled = registry.create_entity()
+    registry.add_component(recycled, Position, Position(10, 20))
+    registry.update()
+
+    registry.kill_entity(stale)
+    registry.update()
+
+    assert registry.has_component(recycled, Position)
+    next_entity = registry.create_entity()
+    assert next_entity.get_id() != recycled.get_id()
+
+
+def test_remove_missing_component_outside_current_pool_is_a_noop() -> None:
+    registry = Registry()
+    first = registry.create_entity()
+    second = registry.create_entity()
+    third = registry.create_entity()
+    registry.add_component(first, Position, Position())
+
+    registry.remove_component(third, Position)
+
+    assert registry.has_component(first, Position)
+    assert not registry.has_component(second, Position)
+    assert not registry.has_component(third, Position)
+
+
+def test_component_lookup_does_not_allocate_unknown_type_id() -> None:
+    registry = Registry()
+    entity = registry.create_entity()
+    unknown = type("UnusedLookupComponent", (Component,), {})
+    pool_count = len(registry.component_pools)
+
+    assert registry.get_component(entity, unknown) is None
+    assert not registry.has_component(entity, unknown)
+    registry.remove_component(entity, unknown)
+
+    assert "_arepy_component_id" not in unknown.__dict__
+    assert len(registry.component_pools) == pool_count
+
+
+def test_direct_component_add_on_active_entity_resyncs_query() -> None:
+    from arepy.ecs.entities import Entity
+    from arepy.ecs.query import Query, With
+    from arepy.ecs.systems import SystemPipeline, SystemState
+
+    registry = Registry()
+
+    def movement_system(query: Query[Entity, With[Position, Velocity]]) -> None:
+        pass
+
+    registry.add_system(SystemPipeline.UPDATE, SystemState.ON, movement_system)
+    entity = registry.create_entity()
+    registry.add_component(entity, Position, Position())
+    registry.update()
+
+    registry.add_component(entity, Velocity, Velocity())
+    registry.update()
+
+    query = next(
+        argument
+        for argument in registry.queries[movement_system]
+        if isinstance(argument, Query)
+    )
+    assert entity in query.get_entities()
+
+
+def test_system_registered_after_entities_receives_existing_matches() -> None:
+    from arepy.ecs.entities import Entity
+    from arepy.ecs.query import Query, With
+    from arepy.ecs.systems import SystemPipeline, SystemState
+
+    registry = Registry()
+    entity = registry.create_entity()
+    registry.add_component(entity, Position, Position())
+    registry.update()
+
+    def position_system(query: Query[Entity, With[Position]]) -> None:
+        pass
+
+    registry.add_system(SystemPipeline.UPDATE, SystemState.ON, position_system)
+
+    query = next(
+        argument
+        for argument in registry.queries[position_system]
+        if isinstance(argument, Query)
+    )
+    assert entity in query.get_entities()
+
+
+def test_duplicate_system_registration_is_idempotent() -> None:
+    from arepy.ecs.entities import Entity
+    from arepy.ecs.query import Query, With
+    from arepy.ecs.systems import SystemPipeline, SystemState
+
+    registry = Registry()
+
+    def position_system(query: Query[Entity, With[Position]]) -> None:
+        pass
+
+    registry.add_system(SystemPipeline.UPDATE, SystemState.ON, position_system)
+    registered_query = registry.queries[position_system][0]
+    registry.add_system(SystemPipeline.UPDATE, SystemState.ON, position_system)
+
+    assert registry.number_of_systems == 1
+    assert registry.queries[position_system][0] is registered_query
+    assert len(registry._all_queries) == 1
+
+
+def test_system_execution_preserves_registration_order() -> None:
+    from arepy.ecs.systems import SystemPipeline, SystemState
+
+    registry = Registry()
+    calls: list[str] = []
+
+    def first() -> None:
+        calls.append("first")
+
+    def second() -> None:
+        calls.append("second")
+
+    registry.add_system(SystemPipeline.UPDATE, SystemState.ON, first)
+    registry.add_system(SystemPipeline.UPDATE, SystemState.ON, second)
+    registry.run(SystemPipeline.UPDATE)
+
+    assert calls == ["first", "second"]
+
+
+def test_async_system_does_not_overlap_with_previous_frame() -> None:
+    import asyncio
+
+    from arepy.ecs.systems import SystemPipeline, SystemState
+
+    async def scenario() -> None:
+        registry = Registry()
+        release = asyncio.Event()
+        started = asyncio.Event()
+        concurrent = 0
+        max_concurrent = 0
+
+        async def async_system() -> None:
+            nonlocal concurrent, max_concurrent
+            concurrent += 1
+            max_concurrent = max(max_concurrent, concurrent)
+            started.set()
+            await release.wait()
+            concurrent -= 1
+
+        registry.add_system(SystemPipeline.UPDATE, SystemState.ON, async_system)
+        registry.run(SystemPipeline.UPDATE)
+        registry.run(SystemPipeline.UPDATE)
+        await started.wait()
+
+        assert max_concurrent == 1
+        assert len(registry._async_tasks) == 1
+
+        release.set()
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+
+    asyncio.run(scenario())
+
+
 # to run: pytest tests/test_registry.py

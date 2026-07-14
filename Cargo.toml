@@ -13,3 +13,8 @@ rust_2018_idioms = { level = "deny", priority = -1 }
 
 [workspace.lints.clippy]
 perf = "warn"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"

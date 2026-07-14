@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "arepy_renderer"
-version = "0.5.5"
+version = "0.6.0"
 dependencies = [
  "numpy",
  "pyo3",

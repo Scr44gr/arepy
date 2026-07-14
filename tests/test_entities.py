@@ -218,3 +218,26 @@ def test_entity_in_set_and_dict(registry):
     # Test as dictionary key
     entity_dict = {entity1: "first", entity2: "second"}
     assert entity_dict[entity3] == "first"  # entity3 has same ID as entity1
+
+
+def test_entities_with_same_id_from_different_registries_are_distinct() -> None:
+    first = Registry().create_entity()
+    second = Registry().create_entity()
+
+    assert first.get_id() == second.get_id()
+    assert first != second
+    assert len({first, second}) == 2
+
+
+def test_recycled_entity_generation_is_distinct_from_stale_handle() -> None:
+    registry = Registry()
+    stale = registry.create_entity()
+    registry.update()
+    stale.kill()
+    registry.update()
+
+    recycled = registry.create_entity()
+
+    assert stale.get_id() == recycled.get_id()
+    assert stale != recycled
+    assert len({stale, recycled}) == 2

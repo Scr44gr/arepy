@@ -46,9 +46,27 @@ type DrawTextureProFn = unsafe extern "C" fn(Texture, Rectangle, Rectangle, Vect
 #[derive(Clone, Copy)]
 struct RenderBackendFns {
     draw_texture_pro: DrawTextureProFn,
+    draw_texture_pro_addr: usize,
 }
 
 static RENDER_BACKEND_FNS: OnceLock<RenderBackendFns> = OnceLock::new();
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BackendConfigurationError {
+    AddressMismatch,
+}
+
+fn configure_backend_once(
+    storage: &OnceLock<RenderBackendFns>,
+    backend: RenderBackendFns,
+) -> Result<(), BackendConfigurationError> {
+    let configured = storage.get_or_init(|| backend);
+    if configured.draw_texture_pro_addr == backend.draw_texture_pro_addr {
+        Ok(())
+    } else {
+        Err(BackendConfigurationError::AddressMismatch)
+    }
+}
 
 #[pyfunction]
 fn configure_render_backend(draw_texture_pro_addr: usize) -> PyResult<()> {
@@ -63,10 +81,73 @@ fn configure_render_backend(draw_texture_pro_addr: usize) -> PyResult<()> {
         draw_texture_pro: unsafe {
             mem::transmute::<usize, DrawTextureProFn>(draw_texture_pro_addr)
         },
+        draw_texture_pro_addr,
     };
 
-    let _ = RENDER_BACKEND_FNS.set(fns);
+    configure_backend_once(&RENDER_BACKEND_FNS, fns).map_err(|_| {
+        PyRuntimeError::new_err(
+            "Render backend function pointers have already been configured with different addresses.",
+        )
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BatchValidationError {
+    SourceArrayLength,
+    DrawViewLength,
+    NegativeEntityIndex,
+    EntityIndexOutOfRange,
+}
+
+fn validate_batch_inputs(
+    entity_indices: &[i64],
+    source_lengths: [usize; 4],
+    draw_view_lengths: [usize; 7],
+) -> Result<(), BatchValidationError> {
+    let batch_len = entity_indices.len();
+    if source_lengths.iter().any(|&length| length != batch_len) {
+        return Err(BatchValidationError::SourceArrayLength);
+    }
+
+    let entity_count = draw_view_lengths[0];
+    if draw_view_lengths[1..]
+        .iter()
+        .any(|&length| length != entity_count)
+    {
+        return Err(BatchValidationError::DrawViewLength);
+    }
+
+    for &raw_entity_index in entity_indices {
+        if raw_entity_index < 0 {
+            return Err(BatchValidationError::NegativeEntityIndex);
+        }
+
+        let entity_index = usize::try_from(raw_entity_index)
+            .map_err(|_| BatchValidationError::EntityIndexOutOfRange)?;
+        if entity_index >= entity_count {
+            return Err(BatchValidationError::EntityIndexOutOfRange);
+        }
+    }
+
     Ok(())
+}
+
+fn batch_validation_py_error(error: BatchValidationError) -> PyErr {
+    let message = match error {
+        BatchValidationError::SourceArrayLength => {
+            "All source arrays and entity_indices must have the same length."
+        }
+        BatchValidationError::DrawViewLength => {
+            "Destination, origin, and rotation arrays must have the same length."
+        }
+        BatchValidationError::NegativeEntityIndex => {
+            "Texture batch entity indices must be non-negative."
+        }
+        BatchValidationError::EntityIndexOutOfRange => {
+            "Texture batch entity index is out of range for the provided DrawTexturePro views."
+        }
+    };
+    PyValueError::new_err(message)
 }
 
 #[pyfunction]
@@ -109,27 +190,20 @@ fn draw_texture_batch(
     let origin_y = origin_y.as_slice()?;
     let rotation = rotation.as_slice()?;
 
-    let batch_len = entity_indices.len();
-    if src_x.len() != batch_len
-        || src_y.len() != batch_len
-        || src_width.len() != batch_len
-        || src_height.len() != batch_len
-    {
-        return Err(PyValueError::new_err(
-            "All source arrays and entity_indices must have the same length.",
-        ));
-    }
-    if dest_x.len() != dest_y.len()
-        || dest_x.len() != dest_width.len()
-        || dest_x.len() != dest_height.len()
-        || dest_x.len() != origin_x.len()
-        || dest_x.len() != origin_y.len()
-        || dest_x.len() != rotation.len()
-    {
-        return Err(PyValueError::new_err(
-            "Destination, origin, and rotation arrays must have the same length.",
-        ));
-    }
+    validate_batch_inputs(
+        entity_indices,
+        [src_x.len(), src_y.len(), src_width.len(), src_height.len()],
+        [
+            dest_x.len(),
+            dest_y.len(),
+            dest_width.len(),
+            dest_height.len(),
+            origin_x.len(),
+            origin_y.len(),
+            rotation.len(),
+        ],
+    )
+    .map_err(batch_validation_py_error)?;
 
     let texture = Texture {
         id: texture_id,
@@ -145,42 +219,36 @@ fn draw_texture_batch(
         a: color_rgba.3,
     };
 
-    for index in 0..batch_len {
-        let entity_index = usize::try_from(entity_indices[index]).map_err(|_| {
-            PyValueError::new_err("Texture batch entity indices must be non-negative.")
-        })?;
-        if entity_index >= dest_x.len() {
-            return Err(PyValueError::new_err(
-                "Texture batch entity index is out of range for the provided DrawTexturePro views.",
-            ));
-        }
+    for (index, &raw_entity_index) in entity_indices.iter().enumerate() {
+        let entity_index = raw_entity_index as usize;
 
-        let source = Rectangle {
-            x: src_x[index],
-            y: src_y[index],
-            width: src_width[index],
-            height: src_height[index],
-        };
-        let dest = Rectangle {
-            x: dest_x[entity_index] as f32,
-            y: dest_y[entity_index] as f32,
-            width: dest_width[entity_index] as f32,
-            height: dest_height[entity_index] as f32,
-        };
-        let origin = Vector2 {
-            x: origin_x[entity_index] as f32,
-            y: origin_y[entity_index] as f32,
-        };
-
-        // SAFETY: the function pointer comes from `configure_render_backend`, and the
-        // copied POD structs match raylib's C ABI for this call.
+        // SAFETY: `validate_batch_inputs` established that every source array contains
+        // `index`, every draw view contains `entity_index`, and the signed-to-unsigned
+        // conversion cannot truncate. The configured function pointer remains the only
+        // external trust boundary, and these copied POD structs match raylib's C ABI.
         unsafe {
+            let source = Rectangle {
+                x: *src_x.get_unchecked(index),
+                y: *src_y.get_unchecked(index),
+                width: *src_width.get_unchecked(index),
+                height: *src_height.get_unchecked(index),
+            };
+            let dest = Rectangle {
+                x: *dest_x.get_unchecked(entity_index) as f32,
+                y: *dest_y.get_unchecked(entity_index) as f32,
+                width: *dest_width.get_unchecked(entity_index) as f32,
+                height: *dest_height.get_unchecked(entity_index) as f32,
+            };
+            let origin = Vector2 {
+                x: *origin_x.get_unchecked(entity_index) as f32,
+                y: *origin_y.get_unchecked(entity_index) as f32,
+            };
             (fns.draw_texture_pro)(
                 texture,
                 source,
                 dest,
                 origin,
-                rotation[entity_index] as f32,
+                *rotation.get_unchecked(entity_index) as f32,
                 color,
             );
         }
@@ -200,4 +268,103 @@ fn arepy_renderer(_py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()>
     module.add_function(wrap_pyfunction!(configure_render_backend, module)?)?;
     module.add_function(wrap_pyfunction!(draw_texture_batch, module)?)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    unsafe extern "C" fn draw_texture_pro_a(
+        _texture: Texture,
+        _source: Rectangle,
+        _dest: Rectangle,
+        _origin: Vector2,
+        _rotation: f32,
+        _color: Color,
+    ) {
+    }
+
+    unsafe extern "C" fn draw_texture_pro_b(
+        _texture: Texture,
+        _source: Rectangle,
+        _dest: Rectangle,
+        _origin: Vector2,
+        _rotation: f32,
+        _color: Color,
+    ) {
+    }
+
+    fn backend(draw_texture_pro: DrawTextureProFn) -> RenderBackendFns {
+        RenderBackendFns {
+            draw_texture_pro,
+            draw_texture_pro_addr: draw_texture_pro as usize,
+        }
+    }
+
+    #[test]
+    fn backend_configuration_is_idempotent_for_the_same_address() {
+        let storage = OnceLock::new();
+        let backend = backend(draw_texture_pro_a);
+
+        assert_eq!(configure_backend_once(&storage, backend), Ok(()));
+        assert_eq!(configure_backend_once(&storage, backend), Ok(()));
+    }
+
+    #[test]
+    fn backend_configuration_rejects_a_different_address() {
+        let storage = OnceLock::new();
+
+        assert_eq!(
+            configure_backend_once(&storage, backend(draw_texture_pro_a)),
+            Ok(())
+        );
+        assert_eq!(
+            configure_backend_once(&storage, backend(draw_texture_pro_b)),
+            Err(BackendConfigurationError::AddressMismatch)
+        );
+    }
+
+    #[test]
+    fn raylib_value_types_match_the_expected_c_abi() {
+        assert_eq!(mem::size_of::<Texture>(), 20);
+        assert_eq!(mem::align_of::<Texture>(), 4);
+        assert_eq!(mem::size_of::<Rectangle>(), 16);
+        assert_eq!(mem::align_of::<Rectangle>(), 4);
+        assert_eq!(mem::size_of::<Vector2>(), 8);
+        assert_eq!(mem::align_of::<Vector2>(), 4);
+        assert_eq!(mem::size_of::<Color>(), 4);
+        assert_eq!(mem::align_of::<Color>(), 1);
+    }
+
+    #[test]
+    fn batch_validation_accepts_reordered_and_repeated_entities() {
+        assert_eq!(
+            validate_batch_inputs(&[2, 0, 2], [3, 3, 3, 3], [4, 4, 4, 4, 4, 4, 4]),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn batch_validation_rejects_inconsistent_lengths() {
+        assert_eq!(
+            validate_batch_inputs(&[0, 1], [2, 1, 2, 2], [2, 2, 2, 2, 2, 2, 2]),
+            Err(BatchValidationError::SourceArrayLength)
+        );
+        assert_eq!(
+            validate_batch_inputs(&[0, 1], [2, 2, 2, 2], [2, 2, 1, 2, 2, 2, 2]),
+            Err(BatchValidationError::DrawViewLength)
+        );
+    }
+
+    #[test]
+    fn batch_validation_rejects_invalid_entity_indices() {
+        assert_eq!(
+            validate_batch_inputs(&[-1], [1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1]),
+            Err(BatchValidationError::NegativeEntityIndex)
+        );
+        assert_eq!(
+            validate_batch_inputs(&[1], [1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1]),
+            Err(BatchValidationError::EntityIndexOutOfRange)
+        );
+    }
 }

@@ -3,9 +3,17 @@ from unittest.mock import Mock
 import pytest
 
 from arepy.ecs.components import Component
+from arepy.ecs.constants import MAX_COMPONENTS
 from arepy.ecs.entities import Entity
-from arepy.ecs.query import (Query, With, Without, get_signed_query_arguments,
-                             sign_queries)
+from arepy.ecs.exceptions import MaximumComponentsExceededError
+from arepy.ecs.query import (
+    BatchQuery,
+    Query,
+    With,
+    Without,
+    get_signed_query_arguments,
+    sign_queries,
+)
 from arepy.ecs.registry import Registry
 
 
@@ -558,3 +566,107 @@ def test_query_registry_integration(registry):
 
     # Verify system was registered with queries
     assert movement_system in registry.queries
+
+
+def test_get_entities_mutations_preserve_set_api_and_invalidate_order() -> None:
+    registry = Registry()
+    query = Query()
+    entity_one = registry.create_entity()
+    entity_two = registry.create_entity()
+    entity_three = registry.create_entity()
+    entities = query.get_entities()
+
+    assert isinstance(entities, set)
+
+    entities.update((entity_three, entity_one))
+    assert [entity.get_id() for entity in query] == [1, 3]
+
+    version = query._version
+    entities |= {entity_two}
+    assert query._version == version + 1
+    assert [entity.get_id() for entity in query] == [1, 2, 3]
+
+    version = query._version
+    entities ^= {entity_one, entity_three}
+    assert query._version == version + 1
+    assert [entity.get_id() for entity in query] == [2]
+
+    entities &= {entity_one, entity_two}
+    assert [entity.get_id() for entity in query] == [2]
+
+    entities -= {entity_two}
+    assert list(query) == []
+
+    version = query._version
+    entities.clear()
+    assert query._version == version
+
+
+def test_get_entities_mutation_clears_component_row_cache(registry) -> None:
+    query = Query()
+    query.set_registry(registry)
+    entity = registry.create_entity()
+    position = Position(4.0, 5.0)
+    registry.add_component(entity, Position, position)
+    query.get_entities().add(entity)
+
+    assert list(query.iter_components(Position)) == [(position,)]
+    assert query._component_rows_cache
+
+    query.get_entities().clear()
+
+    assert query._component_rows_cache == {}
+    assert list(query.iter_components(Position)) == []
+
+
+def test_query_fetch_keeps_legacy_none_behavior() -> None:
+    assert Query().fetch() is None
+
+
+def test_query_treats_homonymous_component_pool_as_missing(registry) -> None:
+    first_type = type("PoolCollision", (Component,), {})
+    second_type = type("PoolCollision", (Component,), {})
+    entity = registry.create_entity()
+    registry.add_component(entity, first_type, first_type())
+    query = Query()
+    query.set_registry(registry)
+    query.add_entity(entity)
+
+    assert list(query.iter_components(second_type)) == []
+
+
+def test_query_signatures_support_the_exact_component_limit() -> None:
+    component_at_limit = type(
+        "ComponentAtExactLimit",
+        (Component,),
+        {"_arepy_component_id": MAX_COMPONENTS},
+    )
+
+    def exact_limit_system(
+        query: Query[Entity, With[component_at_limit]],
+    ) -> None:
+        pass
+
+    arguments = get_signed_query_arguments(exact_limit_system)
+    query = arguments["query"]
+
+    assert isinstance(query, Query)
+    assert len(query.get_component_signature().get_bits()) == MAX_COMPONENTS + 1
+    assert query.get_component_signature().test(MAX_COMPONENTS)
+
+
+@pytest.mark.parametrize("query_type", [Query, BatchQuery])
+def test_query_signing_rejects_component_ids_above_limit(query_type) -> None:
+    component_over_limit = type(
+        "ComponentOverLimit",
+        (Component,),
+        {"_arepy_component_id": MAX_COMPONENTS + 1},
+    )
+
+    if query_type is BatchQuery:
+        signature = BatchQuery[component_over_limit]
+    else:
+        signature = Query[Entity, With[component_over_limit]]
+
+    with pytest.raises(MaximumComponentsExceededError):
+        sign_queries([("query", signature)])

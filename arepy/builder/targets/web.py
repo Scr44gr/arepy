@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import hashlib
+import html
 import json
-import shutil
 import zipfile
 from pathlib import Path
+from urllib.parse import quote
 
+from .._staging import staged_output_directory
 from ..assets import AssetPack, build_asset_pack
-from ..config import BuildConfig
+from ..config import BuildConfig, _entry_module_name
 from ..errors import BuilderError
 from ..manifest import write_release_manifest
 from ..models import BuildArtifact, BuildTarget
@@ -36,65 +39,75 @@ class WebTarget:
     def build(self, config: BuildConfig) -> BuildArtifact:
         """Build a browser bundle and an update-ready file manifest."""
 
+        entry_module = _entry_module_name(config)
         target_dir = config.output_dir / "web"
-        if target_dir.exists():
-            shutil.rmtree(target_dir)
-        target_dir.mkdir(parents=True)
+        with staged_output_directory(target_dir) as stage_dir:
+            pack = build_asset_pack(
+                config.assets,
+                stage_dir / f"{config.name}.assets",
+                project_root=config.project_root,
+            )
+            source_zip = stage_dir / "game.zip"
+            _build_source_zip(config, source_zip)
 
-        pack = build_asset_pack(
-            config.assets,
-            target_dir / f"{config.name}.assets",
-            project_root=config.project_root,
-        )
-        source_zip = target_dir / "game.zip"
-        _build_source_zip(config, source_zip)
-        entry_module = _entry_module(config)
+            (stage_dir / "index.html").write_text(
+                _index_html(
+                    title=config.web_title or config.name,
+                    pyodide_version=config.pyodide_version,
+                ),
+                encoding="utf-8",
+            )
+            (stage_dir / "runtime.js").write_text(
+                _runtime_javascript(), encoding="utf-8"
+            )
+            (stage_dir / "bootstrap.js").write_text(
+                _bootstrap_javascript(config, pack, entry_module),
+                encoding="utf-8",
+            )
+            (stage_dir / "service-worker.js").write_text(
+                _service_worker(
+                    config,
+                    revision=hashlib.sha256(pack.key).hexdigest()[:16],
+                ),
+                encoding="utf-8",
+            )
 
-        (target_dir / "index.html").write_text(
-            _index_html(
-                title=config.web_title or config.name,
-                pyodide_version=config.pyodide_version,
-            ),
-            encoding="utf-8",
-        )
-        (target_dir / "runtime.js").write_text(_runtime_javascript(), encoding="utf-8")
-        (target_dir / "bootstrap.js").write_text(
-            _bootstrap_javascript(config, pack, entry_module),
-            encoding="utf-8",
-        )
-        (target_dir / "service-worker.js").write_text(
-            _service_worker(config),
-            encoding="utf-8",
-        )
-
-        files = [
-            path
-            for path in target_dir.iterdir()
-            if path.is_file() and path.name != "release.json"
-        ]
-        manifest = write_release_manifest(
+            files = [
+                path
+                for path in stage_dir.iterdir()
+                if path.is_file() and path.name != "release.json"
+            ]
+            write_release_manifest(
+                stage_dir / "release.json",
+                name=config.name,
+                version=config.version,
+                target=self.target.value,
+                files=files,
+            )
+        return BuildArtifact(
+            self.target,
+            target_dir / "index.html",
             target_dir / "release.json",
-            name=config.name,
-            version=config.version,
-            target=self.target.value,
-            files=files,
         )
-        return BuildArtifact(self.target, target_dir / "index.html", manifest)
 
 
 def _build_source_zip(config: BuildConfig, output: Path) -> None:
     arepy_root = Path(__file__).resolve().parents[2]
+    project_root = config.project_root.resolve()
+    output_dir = config.output_dir.resolve()
     written: set[str] = set()
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for source in arepy_root.rglob("*.py"):
+        for source in sorted(arepy_root.rglob("*.py")):
             if "builder" in source.relative_to(arepy_root).parts:
                 continue
             arcname = (Path("arepy") / source.relative_to(arepy_root)).as_posix()
             archive.write(source, arcname)
             written.add(arcname)
 
-        for source in config.project_root.rglob("*.py"):
-            relative = source.relative_to(config.project_root)
+        for source in sorted(project_root.rglob("*.py")):
+            if source.is_relative_to(output_dir):
+                continue
+            relative = source.relative_to(project_root)
             if any(part in _EXCLUDED_SOURCE_PARTS for part in relative.parts):
                 continue
             if relative.parts and relative.parts[0] == "arepy":
@@ -104,23 +117,14 @@ def _build_source_zip(config: BuildConfig, output: Path) -> None:
                 archive.write(source, arcname)
                 written.add(arcname)
 
-    expected = config.entrypoint.relative_to(config.project_root).as_posix()
+    expected = config.entrypoint.resolve().relative_to(project_root).as_posix()
     if expected not in written:
         raise BuilderError(f"Entrypoint was not included in web source bundle: {expected}")
 
 
-def _entry_module(config: BuildConfig) -> str:
-    relative = config.entrypoint.relative_to(config.project_root)
-    parts = list(relative.with_suffix("").parts)
-    if parts[-1] == "__init__":
-        parts.pop()
-    return ".".join(parts)
-
-
 def _index_html(*, title: str, pyodide_version: str) -> str:
-    safe_title = (
-        title.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    )
+    safe_title = html.escape(title)
+    pyodide_index = _pyodide_index_url(pyodide_version)
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -135,7 +139,7 @@ def _index_html(*, title: str, pyodide_version: str) -> str:
     #status {{ opacity:.8; min-height:20px; }}
     #status.error {{ color:#ff8e8e; white-space:pre-wrap; max-width:90vw; }}
   </style>
-  <script src="https://cdn.jsdelivr.net/pyodide/v{pyodide_version}/full/pyodide.js"></script>
+  <script src="{pyodide_index}pyodide.js"></script>
 </head>
 <body>
   <main id="shell">
@@ -158,9 +162,7 @@ def _bootstrap_javascript(
         "assetPack": pack.path.name,
         "assetKey": pack.encoded_key,
         "entryModule": entry_module,
-        "pyodideIndex": (
-            f"https://cdn.jsdelivr.net/pyodide/v{config.pyodide_version}/full/"
-        ),
+        "pyodideIndex": _pyodide_index_url(config.pyodide_version),
     }
     return (
         "globalThis.AREPY_BUILD = "
@@ -296,11 +298,20 @@ module.main()
 })();"""
 
 
-def _service_worker(config: BuildConfig) -> str:
-    cache_name = f"arepy-{config.name}-{config.version}"
-    return f"""const CACHE={cache_name!r};
+def _pyodide_index_url(version: str) -> str:
+    safe_version = quote(str(version), safe=".-")
+    return f"https://cdn.jsdelivr.net/pyodide/v{safe_version}/full/"
+
+
+def _service_worker(config: BuildConfig, *, revision: str) -> str:
+    app_name = json.dumps(config.name)
+    build_revision = json.dumps(f"{config.version}-{revision}")
+    return f"""const APP={app_name};
+const REVISION={build_revision};
+const CACHE_PREFIX="arepy-" + APP + "-" + self.registration.scope + "-";
+const CACHE=CACHE_PREFIX + REVISION;
 const FILES=["./","./index.html","./runtime.js","./bootstrap.js","./game.zip","./{config.name}.assets","./release.json"];
 self.addEventListener("install", event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(FILES))));
-self.addEventListener("activate", event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key))))));
-self.addEventListener("fetch", event => event.respondWith(caches.match(event.request).then(hit => hit || fetch(event.request))));
+self.addEventListener("activate", event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith(CACHE_PREFIX) && key !== CACHE).map(key => caches.delete(key))))));
+self.addEventListener("fetch", event => event.respondWith(caches.open(CACHE).then(cache => cache.match(event.request).then(hit => hit || fetch(event.request)))));
 """

@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from time import perf_counter
 from typing import Callable, Iterable, cast
 
+import numpy as np
+
 from arepy.bundle.components import RigidBody2D, Transform
 from arepy.bundle.systems.movement_system import (
     movement_system as bundle_movement_system,
@@ -55,6 +57,7 @@ class BenchmarkResult:
     entity_count: int
     runs: int
     mean_seconds: float
+    median_seconds: float
     stdev_seconds: float
     min_seconds: float
     max_seconds: float
@@ -65,9 +68,9 @@ class BenchmarkResult:
 
     @property
     def throughput(self) -> float:
-        if self.mean_seconds == 0:
+        if self.median_seconds == 0:
             return 0.0
-        return self.entity_count / self.mean_seconds
+        return self.entity_count / self.median_seconds
 
 
 def create_registry_with_entities(entity_count: int) -> tuple[Registry, list[Entity]]:
@@ -242,6 +245,108 @@ def make_benchmark_remove_components(entity_count: int) -> BenchmarkAction:
 
         registry.update()
 
+    return action
+
+
+def make_benchmark_recycle_entities(entity_count: int) -> BenchmarkAction:
+    """Despawn and respawn into existing entity/component pool capacity."""
+
+    registry, entities = create_populated_registry(entity_count)
+
+    def action() -> None:
+        for entity in entities:
+            registry.kill_entity(entity)
+        registry.update()
+
+        for index in range(entity_count):
+            entity = registry.create_entity()
+            registry.add_component(
+                entity, Position, Position(float(index), float(index))
+            )
+            registry.add_component(entity, Velocity, Velocity(1.0, -1.0))
+            registry.add_component(entity, Health, Health(100))
+        registry.update()
+
+    return action
+
+
+def make_benchmark_bound_scalar_steady(entity_count: int) -> BenchmarkAction:
+    registry = Registry()
+
+    def scalar_system(batch: BatchQuery[Transform]) -> None:
+        batch.scalar(
+            Transform,
+            "rotation",
+            dtype=np.float64,
+            writeback=False,
+            bind=True,
+        )
+
+    registry.add_system(SystemPipeline.UPDATE, SystemState.ON, scalar_system)
+    for index in range(entity_count):
+        entity = registry.create_entity()
+        registry.add_component(entity, Transform, Transform(rotation=float(index)))
+    registry.update()
+    registry.run(SystemPipeline.UPDATE)
+
+    def action() -> None:
+        registry.run(SystemPipeline.UPDATE)
+
+    return action
+
+
+def make_benchmark_scalar_writeback_steady(entity_count: int) -> BenchmarkAction:
+    registry = Registry()
+
+    def scalar_system(batch: BatchQuery[Health]) -> None:
+        values = batch.scalar(Health, "value", dtype=np.float64)
+        values += 1.0
+
+    registry.add_system(SystemPipeline.UPDATE, SystemState.ON, scalar_system)
+    for index in range(entity_count):
+        entity = registry.create_entity()
+        registry.add_component(entity, Health, Health(index))
+    registry.update()
+    registry.run(SystemPipeline.UPDATE)
+
+    def action() -> None:
+        registry.run(SystemPipeline.UPDATE)
+
+    return action
+
+
+def make_benchmark_vec2_with_transient(entity_count: int) -> BenchmarkAction:
+    registry = Registry()
+
+    def vector_system(batch: BatchQuery[Transform]) -> None:
+        Vec2(0.0, 0.0)
+        batch.vec2(Transform, "position")
+
+    registry.add_system(SystemPipeline.UPDATE, SystemState.ON, vector_system)
+    for index in range(entity_count):
+        entity = registry.create_entity()
+        registry.add_component(
+            entity,
+            Transform,
+            Transform(position=Vec2(float(index), float(index))),
+        )
+    registry.update()
+    registry.run(SystemPipeline.UPDATE)
+
+    def action() -> None:
+        registry.run(SystemPipeline.UPDATE)
+
+    return action
+
+
+def make_benchmark_bundle_movement_batch_query_steady(
+    entity_count: int,
+) -> BenchmarkAction:
+    action = make_benchmark_bundle_movement_batch_query(entity_count)
+    # The first pass binds each vector column. The second lets earlier columns
+    # observe the final shared storage epoch, so measurements are truly steady.
+    action()
+    action()
     return action
 
 
@@ -556,12 +661,14 @@ def run_benchmark(
         samples.append(ended - started)
 
     mean_seconds = statistics.mean(samples)
+    median_seconds = statistics.median(samples)
     stdev_seconds = statistics.stdev(samples) if len(samples) > 1 else 0.0
     return BenchmarkResult(
         name=name,
         entity_count=entity_count,
         runs=runs,
         mean_seconds=mean_seconds,
+        median_seconds=median_seconds,
         stdev_seconds=stdev_seconds,
         min_seconds=min(samples),
         max_seconds=max(samples),
@@ -570,13 +677,14 @@ def run_benchmark(
 
 def format_results(results: Iterable[BenchmarkResult]) -> str:
     lines = [
-        "scenario                        entities  mean_ms   stdev_ms  min_ms    max_ms    entities/s",
-        "------------------------------  --------  --------  --------  --------  --------  ----------",
+        "scenario                        entities  median_ms  mean_ms   stdev_ms  min_ms    max_ms    entities/s",
+        "------------------------------  --------  ---------  --------  --------  --------  --------  ----------",
     ]
     for result in results:
         lines.append(
             f"{result.name:<30}  "
             f"{result.entity_count:>8}  "
+            f"{result.median_seconds * 1000.0:>9.3f}  "
             f"{result.mean_ms:>8.3f}  "
             f"{result.stdev_seconds * 1000.0:>8.3f}  "
             f"{result.min_seconds * 1000.0:>8.3f}  "
@@ -618,6 +726,7 @@ def main() -> None:
         ("update_query_sync", make_benchmark_update_query_sync),
         ("run_movement_system", make_benchmark_run_movement_system),
         ("remove_component_sync", make_benchmark_remove_components),
+        ("recycle_entities_3x", make_benchmark_recycle_entities),
     ]
     detailed_scenarios: list[tuple[str, BenchmarkFactory]] = [
         ("query_iterate_only", make_benchmark_query_iterate_only),
@@ -638,6 +747,13 @@ def main() -> None:
         ("bundle_move_legacy", make_benchmark_bundle_movement_legacy),
         ("bundle_move_optimized", make_benchmark_bundle_movement_optimized),
         ("bundle_move_batch_query", make_benchmark_bundle_movement_batch_query),
+        (
+            "bundle_move_batch_steady",
+            make_benchmark_bundle_movement_batch_query_steady,
+        ),
+        ("batch_bound_scalar_steady", make_benchmark_bound_scalar_steady),
+        ("batch_scalar_writeback_steady", make_benchmark_scalar_writeback_steady),
+        ("batch_vec2_transient_steady", make_benchmark_vec2_with_transient),
     ]
 
     scenarios: list[tuple[str, BenchmarkFactory]] = []

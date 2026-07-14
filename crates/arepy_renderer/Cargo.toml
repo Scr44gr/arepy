@@ -1,7 +1,11 @@
 [package]
 name = "arepy_renderer"
-version = "0.5.5"
+version = "0.6.0"
 edition = "2021"
+publish = false
+description = "Native renderer bridge for the Arepy game engine"
+license = "MIT"
+repository = "https://github.com/Scr44gr/arepy"
 
 [lib]
 name = "arepy_renderer"

@@ -1,3 +1,4 @@
+import builtins
 from typing import NewType, Set, Type
 
 from .components import Component, TComponent
@@ -11,12 +12,28 @@ Entities = NewType("Entities", Set["Entity"])
 
 
 class Entity:
-    __slots__ = ["_id", "_registry", "_component_cache"]
+    __slots__ = [
+        "_id",
+        "_registry",
+        "_component_cache",
+        "_generation",
+        "_registry_token",
+    ]
 
-    def __init__(self, id: int, registry: "Registry"):
+    def __init__(
+        self, id: int, registry: "Registry", *, _generation: int | None = None
+    ):
         self._id = id
         self._registry = registry
         self._component_cache = {}
+        self._generation = (
+            _generation
+            if _generation is not None
+            else registry._generation_for_entity_id(id)
+            if registry is not None
+            else 0
+        )
+        self._registry_token = builtins.id(registry)
 
     def get_id(self) -> int:
         return self._id
@@ -72,7 +89,19 @@ class Entity:
     def __eq__(self, other: "Entity") -> bool:
         if not isinstance(other, Entity):
             return False
-        return self._id == other._id
+        return (
+            self._id == other._id
+            and self._generation == other._generation
+            and self._registry_token == other._registry_token
+        )
 
     def __hash__(self) -> int:
+        # Registries never contain two live generations of the same slot, so the
+        # compact entity ID remains the fastest useful hash for internal sets.
         return self._id
+
+    def _detach(self) -> None:
+        """Invalidate this handle after its registry slot is recycled."""
+
+        self._component_cache.clear()
+        self._registry = None

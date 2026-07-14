@@ -8,6 +8,78 @@ from typing import (
     Type,
     TypeVar,
 )
+from weakref import WeakKeyDictionary, WeakSet
+
+
+_VECTOR_ATTRIBUTE_EPOCHS: WeakKeyDictionary[type, dict[str, int]] = (
+    WeakKeyDictionary()
+)
+_VECTOR_ATTRIBUTE_NAMES: set[str] = set()
+_VECTOR_SETATTR_WATCHERS: WeakSet[type] = WeakSet()
+_VECTOR_DELATTR_WATCHERS: WeakSet[type] = WeakSet()
+
+
+def _bump_vector_attribute_epochs(instance: object, attribute_name: str) -> None:
+    for component_type, attributes in tuple(_VECTOR_ATTRIBUTE_EPOCHS.items()):
+        if attribute_name in attributes and isinstance(instance, component_type):
+            attributes[attribute_name] += 1
+
+
+def _find_special_method_owner(component_type: type, method_name: str) -> type:
+    for base in component_type.__mro__:
+        if method_name in base.__dict__:
+            return base
+    return object
+
+
+def _install_vector_setattr_watcher(component_type: type) -> None:
+    owner = _find_special_method_owner(component_type, "__setattr__")
+    if owner in _VECTOR_SETATTR_WATCHERS:
+        return
+
+    original_setattr = component_type.__setattr__
+
+    def watched_setattr(instance: object, name: str, value: object) -> None:
+        original_setattr(instance, name, value)
+        if name in _VECTOR_ATTRIBUTE_NAMES:
+            _bump_vector_attribute_epochs(instance, name)
+
+    type.__setattr__(component_type, "__setattr__", watched_setattr)
+    _VECTOR_SETATTR_WATCHERS.add(component_type)
+
+
+def _install_vector_delattr_watcher(component_type: type) -> None:
+    owner = _find_special_method_owner(component_type, "__delattr__")
+    if owner in _VECTOR_DELATTR_WATCHERS:
+        return
+
+    original_delattr = component_type.__delattr__
+
+    def watched_delattr(instance: object, name: str) -> None:
+        original_delattr(instance, name)
+        if name in _VECTOR_ATTRIBUTE_NAMES:
+            _bump_vector_attribute_epochs(instance, name)
+
+    type.__setattr__(component_type, "__delattr__", watched_delattr)
+    _VECTOR_DELATTR_WATCHERS.add(component_type)
+
+
+def watch_vector_attribute(component_type: type, attribute_name: str) -> int:
+    """Track replacements of a component attribute used by a vector batch."""
+
+    attributes = _VECTOR_ATTRIBUTE_EPOCHS.setdefault(component_type, {})
+    epoch = attributes.setdefault(attribute_name, 0)
+    _VECTOR_ATTRIBUTE_NAMES.add(attribute_name)
+    _install_vector_setattr_watcher(component_type)
+    _install_vector_delattr_watcher(component_type)
+    return epoch
+
+
+def get_vector_attribute_epoch(component_type: type, attribute_name: str) -> int:
+    attributes = _VECTOR_ATTRIBUTE_EPOCHS.get(component_type)
+    if attributes is None:
+        return 0
+    return attributes.get(attribute_name, 0)
 
 
 class ComponentIndex:
@@ -33,6 +105,15 @@ class ComponentIndex:
             setattr(component_type, "_arepy_component_id", component_id)
         return component_id
 
+    @classmethod
+    def try_get_type_id(cls, component_type: type) -> Optional[int]:
+        """Return an existing component ID without allocating a new one."""
+
+        component_id = component_type.__dict__.get("_arepy_component_id")
+        if component_id is not None:
+            return component_id
+        return cls.__id_counters.get(component_type.__name__)
+
 
 class Component:
     """A component is a data container that can be attached to an entity.
@@ -45,7 +126,13 @@ class Component:
 
     def get_id(self) -> int:
         """Return the unique id of the component."""
-        return self.id
+        try:
+            return self.id
+        except AttributeError:
+            # Some existing component classes intentionally skip
+            # ``Component.__init__``; keep them usable without changing the
+            # established behavior for instances that expose ``id``.
+            return ComponentIndex.get_type_id(type(self))
 
 
 TComponent = TypeVar("TComponent", bound=Component)
@@ -91,7 +178,7 @@ class ComponentPool(Generic[TComponent], IComponentPool):
         self._components: List[Optional[TComponent]] = list()
 
     def is_empty(self) -> bool:
-        return len(self._components) == 0
+        return all(component is None for component in self._components)
 
     def set(self, entity_id: int, component: TComponent) -> None:
         self._components[entity_id] = component

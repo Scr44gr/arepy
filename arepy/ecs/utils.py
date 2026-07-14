@@ -1,7 +1,4 @@
-# create a new logger
-import logging
-from os import getenv
-from sys import stdout
+"""Low-level ECS signature helpers without application-wide side effects."""
 
 try:
     from bitarray import bitarray
@@ -27,52 +24,39 @@ except ImportError:
             duplicate[:] = self
             return duplicate
 
-try:
-    from dotenv import find_dotenv, load_dotenv
-
-    # load environment variables from .env file
-    load_dotenv(find_dotenv())
-except ImportError:
-    ...
-
-logger_level = int(getenv("LOG_LEVEL", 50))
-
-log_color = {
-    0: "\033[0m",
-    10: "\033[33m",
-    20: "\033[32m",
-    30: "\033[33m",
-    40: "\033[31m",
-    50: "\033[35m",
-}
-logging.basicConfig(
-    # [2024-01-25T17:57:04Z INFO  arepita::systems::camera_movement_system] camera x: 798
-    format=f"[%(asctime)s [{log_color[logger_level]}%(levelname)s{log_color[logger_level].split('[')[0]}[0m] %(name)s::%(funcName)s] %(message)s",
-    level=logger_level,
-    handlers=[
-        logging.StreamHandler(stdout),
-        logging.StreamHandler(
-            open(
-                getenv("LOG_FILE", "arepy.log"),
-                "a" if getenv("LOG_APPEND", "0") == "1" else "w",
-            )
-        ),
-    ],
-)
-
-
 class Signature:
-    __slots__ = ["__bits", "__flipped", "__mask", "__size_mask"]
+    __slots__ = ["__bits", "__flipped", "__mask", "__size", "__size_mask"]
 
     def __init__(self, size: int):
-        self.__bits = bitarray(size)
-        self.__bits.setall(False)
+        # Matching is performed with the integer mask.  Most entity signatures
+        # never expose their bitarray, so materialize that compatibility view
+        # only when get_bits() is explicitly requested.
+        self.__bits = None
         self.__flipped = False
         self.__mask = 0
+        self.__size = size
         self.__size_mask = (1 << size) - 1
 
+    def __materialize_bits(self):
+        bits = self.__bits
+        if bits is not None:
+            return bits
+
+        bits = bitarray(self.__size)
+        bits.setall(False)
+        remaining = self.__mask
+        while remaining:
+            lowest_bit = remaining & -remaining
+            bits[lowest_bit.bit_length() - 1] = True
+            remaining ^= lowest_bit
+        self.__bits = bits
+        return bits
+
     def set(self, index, value: bool):
-        self.__bits[index] = value
+        if not 0 <= index < self.__size:
+            raise IndexError("signature index out of range")
+        if self.__bits is not None:
+            self.__bits[index] = value
         bit = 1 << index
         if value:
             self.__mask |= bit
@@ -81,18 +65,22 @@ class Signature:
 
     def flip(self):
         self.__flipped = not self.__flipped
-        self.__bits = ~self.__bits
+        if self.__bits is not None:
+            self.__bits = ~self.__bits
         self.__mask ^= self.__size_mask
 
     def clear_bit(self, index: int):
-        self.__bits[index] = False
+        if not 0 <= index < self.__size:
+            raise IndexError("signature index out of range")
+        if self.__bits is not None:
+            self.__bits[index] = False
         self.__mask &= ~(1 << index)
 
     def test(self, index: int):
         return bool(self.__mask & (1 << index))
 
     def get_bits(self):
-        return self.__bits
+        return self.__materialize_bits()
 
     def matches(self, other_signature: "Signature"):
         return (other_signature.__mask & self.__mask) == self.__mask
@@ -101,12 +89,14 @@ class Signature:
         return bool(self.__mask & other_signature.__mask)
 
     def clear(self):
-        self.__bits.setall(False)
+        if self.__bits is not None:
+            self.__bits.setall(False)
         self.__mask = 0
 
     def copy(self) -> "Signature":
-        signature = Signature(len(self.__bits))
-        signature.__bits = self.__bits.copy()
+        signature = Signature(self.__size)
+        if self.__bits is not None:
+            signature.__bits = self.__bits.copy()
         signature.__flipped = self.__flipped
         signature.__mask = self.__mask
         return signature

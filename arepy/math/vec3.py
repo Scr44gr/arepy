@@ -5,7 +5,14 @@ from numpy.typing import NDArray
 
 class Vec3:
 
-    __slots__ = ("_x", "_y", "_z", "_storage", "_index")
+    __slots__ = (
+        "_x",
+        "_y",
+        "_z",
+        "_storage",
+        "_index",
+    )
+    _storage_epoch = 0
 
     def __init__(self, x: float, y: float, z: float):
         self._x = x
@@ -26,9 +33,36 @@ class Vec3:
         vector._x = 0.0
         vector._y = 0.0
         vector._z = 0.0
-        vector._storage = (x_storage, y_storage, z_storage)
-        vector._index = index
+        vector._storage = None
+        vector._index = None
+        vector._bind_storage(x_storage, y_storage, z_storage, index)
         return vector
+
+    def _bind_storage(
+        self,
+        x_storage: NDArray[object],
+        y_storage: NDArray[object],
+        z_storage: NDArray[object],
+        index: int,
+    ) -> None:
+        """Bind this vector to array storage without replacing its identity."""
+
+        storage = self._storage
+        if (
+            self._index == index
+            and storage is not None
+            and storage[0] is x_storage
+            and storage[1] is y_storage
+            and storage[2] is z_storage
+        ):
+            return
+        self._storage = (x_storage, y_storage, z_storage)
+        self._index = index
+        Vec3._storage_epoch += 1
+
+    @classmethod
+    def _get_storage_epoch(cls) -> int:
+        return Vec3._storage_epoch
 
     @property
     def x(self) -> float:

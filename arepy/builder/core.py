@@ -13,9 +13,12 @@ class Builder:
     """Extensible orchestrator for Arepy platform exporters."""
 
     def __init__(self, targets: Iterable[TargetBuilder] | None = None) -> None:
-        implementations = targets or (WindowsTarget(), WebTarget())
+        implementations = (
+            (WindowsTarget(), WebTarget()) if targets is None else targets
+        )
         self._targets = {
-            implementation.target: implementation for implementation in implementations
+            implementation.target: implementation
+            for implementation in implementations
         }
 
     def register(self, target: TargetBuilder) -> None:

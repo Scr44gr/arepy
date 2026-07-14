@@ -21,14 +21,7 @@ def write_release_manifest(
         "name": name,
         "version": version,
         "target": target,
-        "files": [
-            {
-                "path": file.relative_to(root).as_posix(),
-                "size": file.stat().st_size,
-                "sha256": _sha256(file),
-            }
-            for file in sorted(files)
-        ],
+        "files": [_file_record(file, root) for file in sorted(files)],
     }
     output_path.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
@@ -37,9 +30,15 @@ def write_release_manifest(
     return output_path
 
 
-def _sha256(path: Path) -> str:
+def _file_record(path: Path, root: Path) -> dict[str, str | int]:
     digest = hashlib.sha256()
+    size = 0
     with path.open("rb") as source:
         for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            size += len(chunk)
             digest.update(chunk)
-    return digest.hexdigest()
+    return {
+        "path": path.relative_to(root).as_posix(),
+        "size": size,
+        "sha256": digest.hexdigest(),
+    }
