@@ -1,6 +1,14 @@
+import gc
+import weakref
+
 import pytest
 
-from arepy.ecs.components import Component, ComponentIndex, ComponentPool
+from arepy.ecs.components import (
+    Component,
+    ComponentIndex,
+    ComponentPool,
+    watch_vector_attribute,
+)
 from arepy.ecs.constants import MAX_COMPONENTS
 from arepy.ecs.utils import Signature
 
@@ -94,6 +102,39 @@ def test_component_pool_resize_with():
     # All elements should be None
     for i in range(len(pool)):
         assert pool.get(i) is None
+    assert pool.is_empty()
+
+
+def test_component_get_id_works_when_subclass_skips_super_init() -> None:
+    class ComponentWithoutSuper(Component):
+        def __init__(self) -> None:
+            self.value = 1
+
+    component = ComponentWithoutSuper()
+
+    assert component.get_id() == ComponentIndex.get_type_id(ComponentWithoutSuper)
+
+
+def test_vector_watcher_does_not_install_a_read_descriptor() -> None:
+    class SelectivelyWatchedComponent(Component):
+        pass
+
+    watch_vector_attribute(SelectivelyWatchedComponent, "value")
+
+    assert "value" not in SelectivelyWatchedComponent.__dict__
+
+
+def test_vector_watcher_does_not_retain_dynamic_component_classes() -> None:
+    class DynamicWatchedComponent(Component):
+        pass
+
+    watch_vector_attribute(DynamicWatchedComponent, "value")
+    component_type_ref = weakref.ref(DynamicWatchedComponent)
+
+    del DynamicWatchedComponent
+    gc.collect()
+
+    assert component_type_ref() is None
 
 
 def test_component_pool_iteration():

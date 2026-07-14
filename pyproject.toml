@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=72"]
-build-backend = "setuptools.build_meta"
+requires = ["maturin>=1.8,<2.0"]
+build-backend = "maturin"
 
 [project]
 name = "arepy"
@@ -20,42 +20,49 @@ classifiers = [
 ]
 keywords = ['ecs', 'game-engine', 'python-game-engine']
 requires-python = ">=3.11"
-dependencies = ["bitarray==3.8.1", "raylib==5.5.0.4"]
+dependencies = ["bitarray==3.8.1", "raylib==5.5.0.4", "numpy>=2.2.0,<3"]
 dynamic = ['version']
 readme = "README.md"
 
+[project.scripts]
+arepy = "arepy.builder.cli:main"
+arepy-build = "arepy.builder.cli:main"
+
 [project.optional-dependencies]
-imgui = [
-    "imgui-bundle==1.92.700",
-    "moderngl==5.12.0",
-    "PyOpenGL==3.1.10",
-    "numpy>=2.2.0",
+imgui = ["imgui-bundle==1.92.700", "zengl>=2.7.2", "PyOpenGL==3.1.10"]
+video = ["av>=18.0.0"]
+builder = [
+    "cryptography>=45.0.0",
+    "nuitka>=2.7.0",
+    "ordered-set>=4.1.0",
+    "zstandard>=0.23.0",
 ]
-testing = ["pytest>=8.0.0", "pytest-cov>=4.0.0", "pytest-mock>=3.12.0"]
+testing = ["cryptography>=45.0.0", "pytest>=8.0.0", "pytest-cov>=4.0.0"]
 docs = [
-    "mkdocs>=1.6.1",
+    "mkdocs>=1.6.1,<2",
     "mkdocs-material>=9.6.0",
     "mkdocs-api-autonav>=0.4.0",
     "mkdocstrings[python]>=0.28.0",
 ]
 
-[tool.uv]
-dev-dependencies = [
-    "python-dotenv==1.0.1",
+[dependency-groups]
+dev = [
+    "maturin>=1.8.2",
     "pytest>=8.0.0",
     "pytest-cov>=4.0.0",
-    "mkdocs>=1.6.1",
+    "mkdocs>=1.6.1,<2",
     "mkdocs-material>=9.6.0",
     "mkdocs-api-autonav>=0.4.0",
     "mkdocstrings[python]>=0.28.0",
 ]
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["arepy", "arepy.*"]
-
-[tool.setuptools.dynamic]
-version = { attr = "arepy.__version__" }
+[tool.maturin]
+bindings = "pyo3"
+manifest-path = "crates/arepy_renderer/Cargo.toml"
+python-source = "."
+python-packages = ["arepy"]
+module-name = "arepy.arepy_renderer"
+include = ["arepy/py.typed", "arepy/**/*.pyi"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

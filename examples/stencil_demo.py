@@ -5,7 +5,9 @@ This demonstrates using the stencil buffer to mask content.
 A circular mask is created and a texture is drawn through it.
 """
 
-from arepy import ArepyEngine, Renderer2D, SystemPipeline
+from dataclasses import dataclass
+
+from arepy import ArepyEngine, Renderer2D, SystemPipeline, WindowFlag
 from arepy.ecs.world import World
 from arepy.engine.renderer import Color, Rect
 
@@ -16,33 +18,35 @@ RED = Color(255, 0, 0, 255)
 BLUE = Color(0, 0, 255, 255)
 GREEN = Color(0, 255, 0, 255)
 DARK_GRAY = Color(40, 40, 40, 255)
+CENTER = (400, 300)
+MASK_CONTENT = Rect(200, 150, 400, 300)
+BLUE_BAR = Rect(250, 200, 100, 200)
+GREEN_BAR = Rect(450, 200, 100, 200)
 
 
-def render_system(renderer: Renderer2D) -> None:
+@dataclass(slots=True)
+class StencilState:
+    available: bool = False
+
+
+def render_system(renderer: Renderer2D, stencil: StencilState) -> None:
     """System that demonstrates stencil masking."""
-
-    # Initialize stencil on first frame (only runs once internally)
-    if not renderer.is_stencil_available():
-        renderer.init_stencil()
-
-    # Center of screen
-    cx, cy = 400, 300
     radius = 150
 
     renderer.start_frame()
     renderer.clear(DARK_GRAY)
 
-    if renderer.is_stencil_available():
+    if stencil.available:
         # 1. Begin stencil mask - draw shapes to define mask
         renderer.begin_stencil_mask()
-        renderer.draw_circle((cx, cy), radius, WHITE)  # Circle mask
+        renderer.draw_circle(CENTER, radius, WHITE)  # Circle mask
         renderer.end_stencil_mask()
 
         # 2. Draw content that will be masked
         # Only the part inside the circle will be visible
-        renderer.draw_rectangle(Rect(200, 150, 400, 300), RED)
-        renderer.draw_rectangle(Rect(250, 200, 100, 200), BLUE)
-        renderer.draw_rectangle(Rect(450, 200, 100, 200), GREEN)
+        renderer.draw_rectangle(MASK_CONTENT, RED)
+        renderer.draw_rectangle(BLUE_BAR, BLUE)
+        renderer.draw_rectangle(GREEN_BAR, GREEN)
 
         # 3. End stencil mode
         renderer.end_stencil_mode()
@@ -52,23 +56,31 @@ def render_system(renderer: Renderer2D) -> None:
         renderer.draw_text("Content is masked by a circle", (10, 40), 16, WHITE)
 
         # Draw circle outline to show mask boundary
-        renderer.draw_circle_lines((cx, cy), radius, WHITE)
+        renderer.draw_circle_lines(CENTER, radius, WHITE)
     else:
         renderer.draw_text("Stencil not available", (10, 10), 20, RED)
 
     renderer.end_frame()
 
 
-def main():
+def main() -> None:
     engine = ArepyEngine(
         title="Stencil Mask Demo",
         width=800,
         height=600,
-        vsync=True,
+        window_flags=WindowFlag.VSYNC_HINT,
     )
 
-    # Create a world with the demo system
+    stencil = StencilState()
+    engine.add_resource(stencil)
+    # Create a world with the demo system.
     world: World = engine.create_world("main")
+
+    @world.on_startup
+    def initialize_stencil() -> None:
+        # The graphics context exists here, so initialization is attempted once.
+        stencil.available = engine.renderer_2d.init_stencil()
+
     world.add_system(SystemPipeline.RENDER, render_system)
 
     engine.set_current_world("main")

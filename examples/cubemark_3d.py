@@ -5,7 +5,7 @@ from arepy import ArepyEngine, Color, Input, Renderer2D, Renderer3D, SystemPipel
 from arepy.bundle.components.camera import Camera3D
 from arepy.bundle.components.rigidbody import RigidBody3D
 from arepy.bundle.components.transform import Transform3D
-from arepy.ecs import Entities, Query, With
+from arepy.ecs import Entity, Query, With
 from arepy.ecs.components import Component
 from arepy.ecs.world import World
 from arepy.math import Vec3
@@ -17,6 +17,10 @@ BLUE_COLOR = Color(0, 0, 255, 255)
 YELLOW_COLOR = Color(255, 255, 0, 255)
 MAGENTA_COLOR = Color(255, 0, 255, 255)
 CYAN_COLOR = Color(0, 255, 255, 255)
+BACKGROUND_COLOR = Color(30, 30, 50, 255)
+WORLD_WIREFRAME_COLOR = Color(100, 100, 100, 255)
+HELP_COLOR = Color(200, 200, 200, 255)
+WORLD_CENTER = Vec3(0.0, 0.0, 0.0)
 
 CUBE_COLORS = [
     RED_COLOR,
@@ -59,7 +63,7 @@ class CachedInput(Component):
 
 
 def movement_system_3d(
-    query: Query[Entities, With[Transform3D, RigidBody3D]], renderer: Renderer3D
+    query: Query[Entity, With[Transform3D, RigidBody3D]], renderer: Renderer3D
 ) -> None:
     """3D movement system with bouncing physics - optimized version"""
     delta_time: float = renderer.get_delta_time()
@@ -102,7 +106,7 @@ def movement_system_3d(
 
 
 def camera_system_3d(
-    camera_query: Query[Entities, With[Camera3D, CachedInput]],
+    camera_query: Query[Entity, With[Camera3D, CachedInput]],
     renderer_3d: Renderer3D,
     input_device: Input,
     game: ArepyEngine,
@@ -202,15 +206,15 @@ def camera_system_3d(
 
 
 def render_system_3d(
-    query: Query[Entities, With[Transform3D]],
-    camera_query: Query[Entities, With[Camera3D]],
+    query: Query[Entity, With[Transform3D]],
+    camera_query: Query[Entity, With[Camera3D]],
     renderer: Renderer3D,
     renderer_2d: Renderer2D,
 ) -> None:
     """Optimized 3D rendering system"""
     # Start 2D frame
     renderer_2d.start_frame()
-    renderer_2d.clear(color=Color(30, 30, 50, 255))
+    renderer_2d.clear(color=BACKGROUND_COLOR)
 
     # Get camera
     camera = next(camera_query.iter_components(Camera3D), None)
@@ -225,11 +229,11 @@ def render_system_3d(
 
     # Draw world boundaries (wireframe cube) - using pre-calculated values
     renderer.draw_cube_wires(
-        Vec3(0.0, 0.0, 0.0),
+        WORLD_CENTER,
         WORLD_SIZE,
         WORLD_SIZE,
         WORLD_SIZE,
-        Color(100, 100, 100, 255),
+        WORLD_WIREFRAME_COLOR,
     )
 
     # Draw grid using pre-calculated values
@@ -245,12 +249,12 @@ def render_system_3d(
         # Use fast color cycling
         color = CUBE_COLORS[number_of_entities % color_count]
 
-        # Direct position access, reuse Vec3 creation
+        # Transform already owns a Vec3, so drawing does not allocate another one.
         pos = transform.position
         scale = transform.scale
 
         renderer.draw_cube(
-            Vec3(pos.x, pos.y, pos.z),
+            pos,
             scale.x,
             scale.y,
             scale.z,
@@ -274,7 +278,7 @@ def render_system_3d(
         "Mouse: rotate | Wheel: zoom | Smart centering",
         (10, 60),
         font_size=16,
-        color=Color(200, 200, 200, 255),
+        color=HELP_COLOR,
     )
 
     renderer_2d.draw_fps((10, 10))

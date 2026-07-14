@@ -23,6 +23,7 @@ It gives you a small but practical set of engine services out of the box: worlds
 - Raylib-backed 2D and 3D rendering
 - World-local `Timers` and `Animator` services
 - Optional Dear ImGui integration for tools, debug panels, and quick editors
+- Extensible Windows and web game builder with encrypted asset packs
 - Query filters with `With[...]` and `Without[...]`
 - Fluent entity builder API
 
@@ -42,6 +43,12 @@ If you also want Dear ImGui support:
 pip install "arepy[imgui]"
 ```
 
+The optional video streaming example uses PyAV:
+
+```bash
+pip install "arepy[video]"
+```
+
 ### Local setup with `uv`
 
 ```bash
@@ -50,17 +57,23 @@ cd arepy
 uv sync --extra docs
 ```
 
+Source installs from this repository use `maturin`, so `pip install .` builds the bundled native extension automatically. If no wheel is available, make sure Rust is installed.
+
 If you also want the optional ImGui extra:
 
 ```bash
-uv sync --extra docs --extra imgui
+uv sync --extra docs --extra imgui --extra video
 ```
 
 ---
 
 ## Quick Start
 
-This example creates a small world with one moving square.
+This example creates a small world with one moving square. The drawing
+rectangle is allocated once and reused, so the render loop does not create a
+new `Rect` for every entity on every frame. For a complete playable example
+with textures and input, see
+[`examples/getting_started.py`](examples/getting_started.py).
 
 ```python
 from arepy import ArepyEngine, Color, Rect, Renderer2D, SystemPipeline, Time
@@ -70,15 +83,17 @@ from arepy.math import Vec2
 
 WHITE = Color(255, 255, 255, 255)
 RED = Color(255, 0, 0, 255)
+SQUARE = Rect(0, 0, 32, 32)
 
 
 def movement_system(
     query: Query[Entity, With[Transform, RigidBody2D]],
     time: Time,
 ) -> None:
+    dt = time.delta_seconds
     for transform, rigid_body in query.iter_components(Transform, RigidBody2D):
-        transform.position.x += rigid_body.velocity.x * time.delta_seconds
-        transform.position.y += rigid_body.velocity.y * time.delta_seconds
+        transform.position.x += rigid_body.velocity.x * dt
+        transform.position.y += rigid_body.velocity.y * dt
 
 
 def render_system(
@@ -89,10 +104,9 @@ def render_system(
     renderer.clear(color=WHITE)
 
     for transform, in query.iter_components(Transform):
-        renderer.draw_rectangle(
-            Rect(transform.position.x, transform.position.y, 32, 32),
-            RED,
-        )
+        SQUARE.x = transform.position.x
+        SQUARE.y = transform.position.y
+        renderer.draw_rectangle(SQUARE, RED)
 
     renderer.end_frame()
 
@@ -151,19 +165,34 @@ See [docs/guide/imgui.md](docs/guide/imgui.md) and [examples/imgui_minimal.py](e
 
 ---
 
+## Exporting games
+
+Install the builder extra and export a configured game to Windows or web:
+
+```bash
+pip install "arepy[builder]"
+arepy --export windows web --config examples/bunnymark.build.toml
+```
+
+See [docs/guide/builder.md](docs/guide/builder.md) for configuration, asset
+protection, update manifests, and current web backend coverage.
+
 ## Core Concepts
 
 ### Entities
 
-Lightweight identifiers that represent objects in the game world:
+An `Entity` is a lightweight handle that identifies an object in a world.
+`world.create_entity()` returns an `EntityBuilder`; add the initial components
+to that builder and call `build()` to receive the `Entity` handle:
 
 ```python
-entity = world.create_entity()
-
-player = (world.create_entity()
-          .with_component(Transform(position=Vec2(100, 100)))
-          .with_component(PlayerController())
-          .build())
+player_builder = world.create_entity()
+player = (
+    player_builder
+    .with_component(Transform(position=Vec2(100, 100)))
+    .with_component(PlayerController())
+    .build()
+)
 
 empty_entity = world.create_entity().build()
 ```
@@ -232,6 +261,48 @@ def hud_system(renderer: Renderer2D, time: Time) -> None:
 
 That keeps function signatures explicit and avoids manual service lookup in most code.
 
+### Texture Atlas Batch Rendering
+
+If you want sprite rendering to go through the atlas path, first pack the loaded textures once:
+
+```python
+asset_store.load_texture(renderer, "bunny", "./assets/bunny.png")
+texture_atlas = asset_store.build_texture_atlas(renderer)
+```
+
+Then build a batch layout from your `Sprite` list and submit it with the destination, origin, and rotation views you want to feed into `DrawTexturePro`:
+
+```python
+import numpy as np
+
+position = batch.vec2(Transform, "position")
+origin = batch.vec2(Transform, "origin")
+rotation = batch.scalar(
+    Transform,
+    "rotation",
+    dtype=np.float64,
+    bind=True,
+)
+sprites = batch.components(Sprite)
+layout = texture_atlas.get_batch_layout(sprites)
+renderer.draw_texture_batch(
+    texture_atlas,
+    layout,
+    position.x,
+    position.y,
+    layout.default_dest_width,
+    layout.default_dest_height,
+    origin.x,
+    origin.y,
+    rotation,
+    WHITE,
+)
+```
+
+`layout.default_dest_width` and `layout.default_dest_height` are cached with the layout, so you do not need to rebuild those arrays every frame unless you want custom destination sizes.
+
+`draw_texture_batch(...)` requires at least one atlas page and the bundled native extension. Installs from PyPI include it, and `pip install .` builds it automatically from source. There is no Python fallback path.
+
 ---
 
 ## Learn More
@@ -270,7 +341,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the contributor workflow.
 
 ## Requirements
 
-- Python 3.11+
+- CPython 3.11, 3.12, 3.13, or 3.14
 - Raylib 5.5.0+
 - Bitarray 3.8.1
 

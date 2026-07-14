@@ -3,7 +3,8 @@
 These are the built-in pieces that help you get moving quickly.
 
 - `Transform` and `Transform3D` store position and orientation data.
-- `RigidBody2D` and `RigidBody3D` store movement data.
+- `RigidBody2D` stores the public 2D movement data. `RigidBody3D` currently
+  lives in the advanced `arepy.bundle.components.rigidbody` module.
 - `Sprite` connects a texture to a 2D entity.
 - `movement_system` and `render_system` are ready-to-use systems.
 

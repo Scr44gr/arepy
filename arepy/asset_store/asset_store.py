@@ -1,12 +1,12 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from os.path import exists
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict
 
 from ..engine.audio import ArepyMusic, ArepySound, AudioDevice
 from ..engine.renderer import ArepyTexture
 from ..engine.renderer.renderer_2d import Renderer2D
+from ..engine.renderer.texture_atlas import TextureAtlasCollection
+from ..runtime_assets import resolve_asset_path
 
 if TYPE_CHECKING:
     from ..engine.renderer.renderer_3d import (
@@ -22,7 +22,7 @@ class TextureFilter(Enum):
     LINEAR = 1
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class AssetStore:
     textures: Dict[str, ArepyTexture] = field(default_factory=dict)
     fonts: Dict[str, Any] = field(default_factory=dict)
@@ -32,6 +32,7 @@ class AssetStore:
     models: Dict[str, "ArepyModel"] = field(default_factory=dict)
     meshes: Dict[str, "ArepyMesh"] = field(default_factory=dict)
     materials: Dict[str, "ArepyMaterial"] = field(default_factory=dict)
+    texture_atlas: TextureAtlasCollection | None = None
 
     def create_render_texture(
         self,
@@ -40,6 +41,7 @@ class AssetStore:
         width: int,
         height: int,
     ) -> ArepyTexture:
+        self._invalidate_texture_atlas(renderer)
         texture = renderer.create_render_texture(width, height)
         self.textures[name] = texture
         return texture
@@ -50,10 +52,12 @@ class AssetStore:
         name: str,
         path: str,
     ) -> None:
-        if not exists(path):
+        resolved_path = resolve_asset_path(path)
+        if not resolved_path.exists():
             raise FileNotFoundError(f"Texture file not found: {path}")
 
-        self.textures[name] = renderer.create_texture(path=Path(path))
+        self._invalidate_texture_atlas(renderer)
+        self.textures[name] = renderer.create_texture(path=resolved_path)
 
     def load_font(self, name: str, path: str, size: int) -> None: ...
     def get_texture(self, name: str) -> ArepyTexture:
@@ -63,17 +67,53 @@ class AssetStore:
         return self.fonts[name]
 
     def unload_texture(self, renderer: Renderer2D, name: str) -> None:
+        self._invalidate_texture_atlas(renderer)
 
         texture = self.textures.pop(name)
         renderer.unload_texture(texture)
 
+    def build_texture_atlas(
+        self,
+        renderer: Renderer2D,
+        *,
+        max_size: tuple[int, int] = (2048, 2048),
+        padding: int = 1,
+    ) -> TextureAtlasCollection:
+        self._invalidate_texture_atlas(renderer)
+        atlas = renderer.build_texture_atlas(
+            self,
+            max_size=max_size,
+            padding=padding,
+        )
+        self.texture_atlas = atlas
+        return atlas
+
+    def clear_texture_atlas(self, renderer: Renderer2D | None = None) -> None:
+        atlas = self.texture_atlas
+        if atlas is None:
+            return
+        if renderer is not None:
+            atlas.unload(renderer)
+        self.texture_atlas = None
+
+    def get_texture_atlas(self) -> TextureAtlasCollection | None:
+        return self.texture_atlas
+
+    def _invalidate_texture_atlas(self, renderer: Renderer2D | None) -> None:
+        atlas = self.texture_atlas
+        if atlas is None:
+            return
+        if renderer is not None:
+            atlas.unload(renderer)
+        self.texture_atlas = None
+
     # Audio related methods
     def load_sound(self, audio_device: AudioDevice, name: str, path: str):
-        sound = audio_device.load_sound(Path(path))
+        sound = audio_device.load_sound(resolve_asset_path(path))
         self.sounds[name] = sound
 
     def load_music(self, audio_device: AudioDevice, name: str, path: str):
-        music = audio_device.load_music(Path(path))
+        music = audio_device.load_music(resolve_asset_path(path))
         self.musics[name] = music
 
     def get_sound(self, name: str) -> ArepySound:
@@ -93,10 +133,11 @@ class AssetStore:
     # 3D Asset methods
     def load_model(self, renderer: "Renderer3D", name: str, path: str) -> None:
         """Load a 3D model from file."""
-        if not exists(path):
+        resolved_path = resolve_asset_path(path)
+        if not resolved_path.exists():
             raise FileNotFoundError(f"Model file not found: {path}")
 
-        self.models[name] = renderer.load_model(Path(path))
+        self.models[name] = renderer.load_model(resolved_path)
 
     def create_mesh_cube(
         self,

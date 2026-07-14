@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from operator import attrgetter
 from typing import Callable, Dict, TypeAlias, cast, overload
 
 from ..math.vec2 import Vec2
@@ -45,6 +46,7 @@ class _CallbackStep:
 class _PropertyStep:
     target: object
     property_name: str
+    accessor: _PropertyAccessor
     end_value: InterpolatedValue
     duration_seconds: float
     easing: EasingFunction
@@ -60,6 +62,41 @@ class _InterpolationStep:
 _TimelineStep: TypeAlias = (
     _WaitStep | _CallbackStep | _PropertyStep | _InterpolationStep
 )
+
+
+@dataclass(frozen=True, slots=True)
+class _PropertyAccessor:
+    get: Callable[[object], object]
+    set: Callable[[object, object], None]
+
+
+_PROPERTY_ACCESSORS: dict[str, _PropertyAccessor] = {}
+
+
+def _build_property_accessor(property_name: str) -> _PropertyAccessor:
+    if "." in property_name:
+        def get(target: object) -> object:
+            return type(target).__getattribute__(target, property_name)
+    else:
+        getter = cast(Callable[[object], object], attrgetter(property_name))
+
+        def get(target: object) -> object:
+            return getter(target)
+
+    def set(target: object, value: object) -> None:
+        type(target).__setattr__(target, property_name, value)
+
+    return _PropertyAccessor(get=get, set=set)
+
+
+def _get_property_accessor(property_name: str) -> _PropertyAccessor:
+    accessor = _PROPERTY_ACCESSORS.get(property_name)
+    if accessor is not None:
+        return accessor
+
+    accessor = _build_property_accessor(property_name)
+    _PROPERTY_ACCESSORS[property_name] = accessor
+    return accessor
 
 
 class _TimelineState(Enum):
@@ -120,6 +157,7 @@ class Timeline:
             _PropertyStep(
                 target=target,
                 property_name=property_name,
+                accessor=_get_property_accessor(property_name),
                 end_value=_clone_value(end_value),
                 duration_seconds=duration_seconds,
                 easing=easing,
@@ -366,10 +404,10 @@ class Timeline:
             self._current_timed_step = step
             return step
 
-        start_value = getattr(step.target, step.property_name)
+        start_value = step.accessor.get(step.target)
         self._current_timed_step = _build_property_interpolation_step(
             target=step.target,
-            property_name=step.property_name,
+            accessor=step.accessor,
             start_value=start_value,
             end_value=step.end_value,
             duration_seconds=step.duration_seconds,
@@ -446,7 +484,7 @@ class Animator:
 
 def _build_property_interpolation_step(
     target: object,
-    property_name: str,
+    accessor: _PropertyAccessor,
     start_value: object,
     end_value: InterpolatedValue,
     duration_seconds: float,
@@ -458,9 +496,8 @@ def _build_property_interpolation_step(
 
         def apply(progress: float) -> None:
             eased_progress = easing(_clamp_unit(progress))
-            setattr(
+            accessor.set(
                 target,
-                property_name,
                 _interpolate_scalar(start_int, end_int, eased_progress),
             )
 
@@ -474,9 +511,8 @@ def _build_property_interpolation_step(
 
         def apply(progress: float) -> None:
             eased_progress = easing(_clamp_unit(progress))
-            setattr(
+            accessor.set(
                 target,
-                property_name,
                 _interpolate_scalar(start_float, end_float, eased_progress),
             )
 
@@ -490,7 +526,7 @@ def _build_property_interpolation_step(
 
         def apply(progress: float) -> None:
             eased_progress = easing(_clamp_unit(progress))
-            setattr(target, property_name, start_vec2.lerp(end_vec2, eased_progress))
+            accessor.set(target, start_vec2.lerp(end_vec2, eased_progress))
 
         return _InterpolationStep(
             duration_seconds=duration_seconds, easing=easing, apply=apply
@@ -502,9 +538,8 @@ def _build_property_interpolation_step(
 
         def apply(progress: float) -> None:
             eased_progress = easing(_clamp_unit(progress))
-            setattr(
+            accessor.set(
                 target,
-                property_name,
                 _interpolate_color(start_color, end_color, eased_progress),
             )
 

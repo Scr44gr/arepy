@@ -1,22 +1,17 @@
-# API Reference
+# Public API reference
 
-This section contains generated API pages for the most important public areas of the project.
+Use the guides when you are learning a workflow. Use this reference when you
+already know the type or method you need.
 
-It also includes an automatically generated module reference so the full package layout is easier to browse.
+## Curated entry points
 
-## Coverage
+- [Engine](engine.md): application, worlds, pipelines, and lifecycle.
+- [Core services](services.md): display, time, rendering, input, audio, assets,
+  and events.
+- [ECS](ecs.md): entities, components, systems, queries, and builders.
+- [Bundle](bundle.md): ready-to-use 2D and 3D components.
+- [Math](math.md): vectors and collision helpers.
 
-The initial reference focuses on:
-
-- engine entry points and pipelines
-- shared engine services such as rendering, input, audio, assets, and events
-- ECS primitives used in day-to-day game code
-- bundle components and bundled systems
-- math helpers
-- generated module-by-module reference pages under `api/reference/`
-
-## Notes
-
-- The guide pages are the best place to learn workflow and architecture
-- The API pages are best when you already know what symbol you want
-- This reference intentionally starts small and will grow as docstrings improve
+The generated module pages below this section are limited to supported public
+areas. Implementation modules are intentionally absent; their names and
+storage details are not a compatibility promise.

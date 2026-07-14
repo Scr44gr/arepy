@@ -1,164 +1,144 @@
-# Resources and Systems
+# Resources and system dependencies
 
-Besides queries, systems can receive services and state objects through typed resource injection.
+Components describe individual entities. Resources describe state or services
+shared by many entities: the renderer, input device, level score, settings, or
+spawn director.
 
-## How resource injection works
+```mermaid
+flowchart TB
+    Engine["ArepyEngine"] --> Global["Global resources<br/>Time, Input, Renderer, Audio, Assets"]
+    Engine --> Menu["World: menu"]
+    Engine --> Level["World: level_one"]
+    Menu --> MenuLocal["Menu resources"]
+    Level --> LevelLocal["Level resources<br/>Timers, Animator, Score"]
+```
 
-When the registry registers a system, it inspects the function annotations.
+## Ask for what a system needs
 
-Most of the time, a resource is a class-based object such as `Renderer2D`, `AssetStore`, `Time`, or your own `GameSettings` object.
-
-If a parameter is annotated with one of those class types, Arepy treats that annotation as a resource lookup.
-
-In practice, the type annotation is the lookup key. You do not pass a string like `"Renderer2D"`; you annotate the parameter with the class itself.
+Type annotations are dependencies, not decoration:
 
 ```python
-def render_system(renderer: Renderer2D, asset_store: AssetStore) -> None:
+from arepy import Input, Renderer2D, Time
+
+
+def player_system(
+    query: Query[Entity, With[Player, Transform]],
+    input_device: Input,
+    renderer: Renderer2D,
+    time: Time,
+) -> None:
     ...
 ```
 
-When `render_system` runs, Arepy looks for resources registered under `Renderer2D` and `AssetStore` and passes those instances for you.
+Arepy creates the query and supplies the three resources when it runs the
+system. The signature remains a useful summary when you return to the code
+months later.
 
-This keeps system signatures readable: the function tells you what it needs, and the engine provides it.
+## Global resources
 
-There is one optional special case: when the `imgui` extra is installed, Arepy also registers the `imgui` module as a global resource. In beginner code, it is usually simpler to import `imgui` directly and use it normally.
-
-## Engine-provided resources
-
-`ArepyEngine` registers these shared objects during initialization:
+The engine registers one shared instance of:
 
 - `Display`
 - `Time`
-- `Renderer2D`
-- `Renderer3D`
+- `Renderer2D` and `Renderer3D`
 - `AssetStore`
 - `Input`
-- `ArepyEngine`
 - `AudioDevice`
 - `EventManager`
-- `imgui` (optional)
+- `ArepyEngine`
+- `imgui`, when the optional extra is installed
 
-You can also fetch one manually with this call shape:
+Add your own application-wide object with `engine.add_resource()`:
+
+```python
+from dataclasses import dataclass
+
+
+@dataclass(slots=True)
+class GameSettings:
+    difficulty: str = "normal"
+    master_volume: float = 0.8
+
+
+engine.add_resource(GameSettings())
+```
+
+Any world's system can now request `GameSettings`.
+
+## World-local resources
+
+Use a local resource when its state belongs to one scene and should disappear
+with that scene:
+
+```python
+@dataclass(slots=True)
+class LevelState:
+    score: int = 0
+    remaining_bunnies: int = 12
+
+
+level = engine.create_world("level_one")
+level.add_resource(LevelState())
+
+
+def score_system(state: LevelState) -> None:
+    state.score += 10
+```
+
+Every world already has local `Timers` and `Animator` resources. When a local
+and global resource share the same type name, the local one is supplied to that
+world's systems.
+
+## Choosing the right home
+
+| Data | Put it in |
+| --- | --- |
+| Position or health of one entity | Component |
+| Score for one level | World resource |
+| Spawn settings for one scene | World resource |
+| Renderer, input, assets, audio | Engine resource (already registered) |
+| User settings shared by menus and levels | Engine resource |
+| Temporary local variable used by one function | Normal Python local |
+
+Avoid turning every value into a resource. A resource is useful when several
+systems need the same long-lived object or when it defines clear ownership.
+
+## Manual lookup during setup
+
+Outside systems, fetch by type:
 
 ```python
 renderer = engine.get_resource(Renderer2D)
+timers = world.get_world_resource(Timers)
+settings = world.get_resource(GameSettings)
 ```
 
-And if the optional ImGui extra is installed:
+`world.get_resource()` searches local resources first and then global ones.
+Use the more explicit `get_world_resource()` or `get_global_resource()` when
+you want to enforce where an object must live.
+
+Do not repeat these lookups for every entity inside a hot loop. Request the
+resource once as a system argument, then reuse that local reference.
+
+## Ownership and cleanup
+
+A resource can own loaded assets or external handles. Pair its lifetime with a
+world hook:
 
 ```python
-from arepy import imgui
+@world.on_startup
+def load_level_audio() -> None:
+    ...
 
 
-imgui_module = world.get_resource(imgui)
-```
-
-In normal gameplay code, the argument you pass is usually the class object, not an instance.
-
-## Global resources and world resources
-
-Arepy now distinguishes between two layers of resources:
-
-- **Global resources** live on `ArepyEngine` and are shared across every world.
-- **World resources** live on a specific `World` and are only visible inside that world.
-
-When a system asks for a resource, the lookup order is:
-
-1. the current world's local resources
-2. the engine's global resources
-
-That means a world can override a shared service or provide scene-specific state without affecting the rest of the application.
-
-Each world also starts with built-in local `Timers` and `Animator` resources. You do not need to register them yourself.
-
-That makes mixed timing injection possible:
-
-```python
-from arepy import Animator, Time, Timers
-
-
-def spawn_system(time: Time, timers: Timers, animator: Animator) -> None:
-    if timers.cooldown("spawn", 1.0):
-        print(f"spawn at {time.elapsed_seconds:.2f}s")
-        animator.create().call(lambda: print("spawn flash")).start()
-```
-
-```python
-class ScoreBoard:
-    def __init__(self) -> None:
-        self.total = 0
-
-
-world = engine.create_world("main")
-world.add_resource(ScoreBoard())
-
-
-def hud_system(scoreboard: ScoreBoard, renderer: Renderer2D) -> None:
+@world.on_shutdown
+def unload_level_audio() -> None:
     ...
 ```
 
-In that example, `ScoreBoard` exists only for `main`.
+The engine does not guess whether a custom resource belongs to one scene or the
+whole application. Choosing global versus world-local makes that lifetime
+explicit.
 
-## Example
-
-```python
-from arepy import Renderer2D
-from arepy.asset_store import AssetStore
-from arepy.bundle.components import Sprite, Transform
-from arepy.ecs import Entity, Query, With
-
-
-def render_system(
-    query: Query[Entity, With[Transform, Sprite]],
-    renderer: Renderer2D,
-    asset_store: AssetStore,
-) -> None:
-    for transform, sprite in query.iter_components(Transform, Sprite):
-        texture = asset_store.get_texture(sprite.asset_id)
-        ...
-```
-
-## Custom resources
-
-You can add your own objects either globally on the engine or locally on a world.
-
-The most common method shapes are:
-
-```python
-engine.add_resource(resource: object) -> None
-world.add_resource(resource: object) -> None
-engine.get_resource(Renderer2D)
-world.get_resource(GameSettings)
-world.get_world_resource(DialogueState)
-world.get_global_resource(Time)
-```
-
-Example:
-
-```python
-class GameSettings:
-    def __init__(self, difficulty: str) -> None:
-        self.difficulty = difficulty
-
-
-settings = GameSettings("normal")
-engine.add_resource(settings)
-
-same_settings = engine.get_resource(GameSettings)
-```
-
-And the world-scoped version looks like this:
-
-```python
-class DialogueState:
-    def __init__(self) -> None:
-        self.current_line = 0
-
-
-dialogue_world = engine.create_world("dialogue")
-dialogue_world.add_resource(DialogueState())
-
-state = dialogue_world.get_world_resource(DialogueState)
-```
-
-Use engine resources for things that should exist everywhere, such as services, configuration, global managers, or shared timing state like `Time`. Use world resources for scene state, temporary controllers, and data that should disappear when that world is no longer active, including the built-in `Timers` service.
+Next: review the built-in [engine services](engine-services.md) or learn how
+[queries](queries.md) select entity data.

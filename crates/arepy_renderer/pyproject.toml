@@ -1,0 +1,14 @@
+[build-system]
+requires = ["maturin>=1.8,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "arepy_renderer"
+requires-python = ">=3.11"
+dynamic = ["version"]
+
+[tool.maturin]
+bindings = "pyo3"
+python-source = "../.."
+python-packages = ["arepy"]
+module-name = "arepy.arepy_renderer"

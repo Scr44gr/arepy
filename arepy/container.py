@@ -1,19 +1,20 @@
 # dependency injection container
 from dataclasses import dataclass
+from os import getenv
 from typing import Any, Callable
 
-from .arepy_imgui import imgui as bundled_imgui
 from .engine.audio import AudioDevice
 from .engine.display import Display
 from .engine.input import Input
-from .engine.integrations.raylib.audio import audio_device
-from .engine.integrations.raylib.display import display_repository
-from .engine.integrations.raylib.input import input_repository
-from .engine.integrations.raylib.renderer import renderer_2d, renderer_3d
 from .engine.renderer.renderer_2d import Renderer2D
 from .engine.renderer.renderer_3d import Renderer3D
+from .platform import is_web
 
-imgui_module = bundled_imgui
+if getenv("AREPY_DISABLE_IMGUI") == "1" or is_web():
+    imgui_module = None
+else:
+    from .arepy_imgui import imgui as imgui_module
+
 imgui_backend_factory: Callable[[], Any] | None = None
 
 if imgui_module is not None:
@@ -41,6 +42,20 @@ class Dependencies:
 
 def _build_dependencies() -> Callable[[], Dependencies]:
     """Build the dependency container."""
+
+    if is_web():
+        from .engine.integrations.web import (
+            audio_device,
+            display_repository,
+            input_repository,
+            renderer_2d,
+            renderer_3d,
+        )
+    else:
+        from .engine.integrations.raylib.audio import audio_device
+        from .engine.integrations.raylib.display import display_repository
+        from .engine.integrations.raylib.input import input_repository
+        from .engine.integrations.raylib.renderer import renderer_2d, renderer_3d
 
     deps = Dependencies(
         display_repository=display_repository,

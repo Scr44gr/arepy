@@ -1,0 +1,8 @@
+[build]
+entrypoint = "bunnymark.py"
+name = "arepy-bunnymark"
+version = "0.5.5"
+output_dir = "../dist/bunnymark"
+assets = ["assets"]
+embed_assets = false
+web_title = "Arepy BunnyMark"

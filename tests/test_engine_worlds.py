@@ -125,6 +125,63 @@ def make_fake_dependencies(with_imgui: bool = True):
 
 
 class TestEngineWorldLifecycle:
+    def test_web_input_edges_are_finished_after_the_complete_frame(
+        self, monkeypatch
+    ):
+        calls: list[str] = []
+
+        class TrackingInput(FakeInput):
+            def _finish_frame(self) -> None:
+                calls.append("finish")
+
+        dependencies = make_fake_dependencies()
+        dependencies.input_repository = TrackingInput()
+        monkeypatch.setattr("arepy.container.dependencies", lambda: dependencies)
+        monkeypatch.setattr("arepy.engine.engine._IS_WEB", True)
+
+        engine = ArepyEngine()
+        world = engine.create_world("main")
+
+        def consume_input() -> None:
+            calls.append("input")
+
+        def update_game() -> None:
+            calls.append("update")
+
+        def render_game() -> None:
+            calls.append("render")
+
+        from arepy.ecs.systems import SystemPipeline
+
+        world.add_system(SystemPipeline.INPUT, consume_input)
+        world.add_system(SystemPipeline.UPDATE, update_game)
+        world.add_system(SystemPipeline.RENDER, render_game)
+        engine.set_current_world("main")
+        engine._ArepyEngine__check_and_set_world()
+
+        engine._ArepyEngine__next_frame()
+
+        assert calls == ["input", "update", "render", "finish"]
+
+    def test_web_input_edges_are_finished_without_an_active_world(
+        self, monkeypatch
+    ):
+        calls: list[str] = []
+
+        class TrackingInput(FakeInput):
+            def _finish_frame(self) -> None:
+                calls.append("finish")
+
+        dependencies = make_fake_dependencies()
+        dependencies.input_repository = TrackingInput()
+        monkeypatch.setattr("arepy.container.dependencies", lambda: dependencies)
+        monkeypatch.setattr("arepy.engine.engine._IS_WEB", True)
+
+        engine = ArepyEngine()
+        engine._ArepyEngine__next_frame()
+
+        assert calls == ["finish"]
+
     def test_world_switch_triggers_startup_and_shutdown(self, monkeypatch):
         monkeypatch.setattr(
             "arepy.container.dependencies", lambda: make_fake_dependencies()
@@ -247,12 +304,12 @@ class TestEngineWorldLifecycle:
 
     def test_imgui_backend_preserves_renderer_texture_flag(self, monkeypatch):
         pytest.importorskip("imgui_bundle")
-        pytest.importorskip("moderngl")
+        pytest.importorskip("zengl")
         pytest.importorskip("OpenGL.GL")
 
         from arepy.engine.integrations.imgui import backend as backend_module
 
-        original_backend_init = backend_module.ModernGLRenderer.__init__
+        original_backend_init = backend_module.ZenglRenderer.__init__
         original_get_platform_io = backend_module.imgui.get_platform_io
 
         fake_platform_io = SimpleNamespace(
@@ -270,14 +327,9 @@ class TestEngineWorldLifecycle:
             )
 
         monkeypatch.setattr(
-            backend_module.ModernGLRenderer,
+            backend_module.ZenglRenderer,
             "__init__",
             fake_renderer_init,
-        )
-        monkeypatch.setattr(
-            backend_module.moderngl,
-            "get_context",
-            lambda: object(),
         )
         monkeypatch.setattr(
             backend_module.imgui,
@@ -288,7 +340,7 @@ class TestEngineWorldLifecycle:
         backend = backend_module.ImguiBackend()
 
         monkeypatch.setattr(
-            backend_module.ModernGLRenderer,
+            backend_module.ZenglRenderer,
             "__init__",
             original_backend_init,
         )

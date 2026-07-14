@@ -1,14 +1,17 @@
 from collections.abc import Sequence
 from numbers import Integral, Real
 from os import PathLike
-from typing import Optional, cast
+from typing import TYPE_CHECKING, Optional
 
+import numpy as np
 import raylib as rl
+from numpy.typing import NDArray
 from pyray import Camera2D as rlCamera2D
 from pyray import Matrix as rlMatrix
 from pyray import Vector2 as rlVector2
 
 from arepy.bundle.components.camera import Camera2D
+from arepy.engine.integrations.raylib.renderer import native_batch as _native_batch
 from arepy.engine.integrations.raylib.renderer import stencil as _stencil
 from arepy.engine.integrations.raylib.renderer import streaming as _streaming
 from arepy.engine.renderer import (
@@ -21,6 +24,14 @@ from arepy.engine.renderer import (
     ShaderValue,
     TextureFilter,
 )
+from arepy.engine.renderer.texture_atlas import (
+    TextureAtlasCollection,
+    TextureBatchLayout,
+    build_texture_atlas as build_raylib_texture_atlas,
+)
+
+if TYPE_CHECKING:
+    from arepy.asset_store import AssetStore
 
 _SHADER_UNIFORM_TYPE_MAP = {
     ShaderUniformType.FLOAT: rl.SHADER_UNIFORM_FLOAT,
@@ -64,7 +75,11 @@ def _encode_optional_text(value: Optional[str | PathLike[str]]) -> object:
 
 
 def _wrap_shader(shader_ref: object) -> ArepyShader:
-    arepy_shader = ArepyShader(getattr(shader_ref, "id", 0))
+    try:
+        shader_id = shader_ref.id
+    except AttributeError:
+        shader_id = 0
+    arepy_shader = ArepyShader(shader_id)
     arepy_shader._ref_shader = shader_ref
     return arepy_shader
 
@@ -297,6 +312,32 @@ def unload_texture(texture: ArepyTexture) -> None:
         texture._ref_texture = None
 
 
+def build_texture_atlas(
+    asset_store: "AssetStore",
+    *,
+    max_size: tuple[int, int] = (2048, 2048),
+    padding: int = 1,
+) -> TextureAtlasCollection:
+    return build_raylib_texture_atlas(
+        asset_store,
+        renderer=_RAYLIB_ATLAS_BUILDER,  # type: ignore[arg-type]
+        max_size=max_size,
+        padding=padding,
+    )
+
+
+class _RaylibAtlasBuilder:
+    def set_texture_filter(
+        self,
+        texture: ArepyTexture,
+        filter: TextureFilter,
+    ) -> None:
+        set_texture_filter(texture, filter)
+
+
+_RAYLIB_ATLAS_BUILDER = _RaylibAtlasBuilder()
+
+
 def set_max_framerate(max_frame_rate: int) -> None:
     """
     Set the maximum framerate.
@@ -364,6 +405,52 @@ def draw_texture_ex(
         rotation,
         (color.r, color.g, color.b, color.a),
     )
+
+
+def draw_texture_batch(
+    atlases: TextureAtlasCollection,
+    layout: TextureBatchLayout,
+    dest_x: NDArray[np.float64],
+    dest_y: NDArray[np.float64],
+    dest_width: NDArray[np.float64],
+    dest_height: NDArray[np.float64],
+    origin_x: NDArray[np.float64],
+    origin_y: NDArray[np.float64],
+    rotation: NDArray[np.float64],
+    color: Color,
+) -> None:
+    if not atlases.atlases:
+        raise RuntimeError("draw_texture_batch requires at least one texture atlas.")
+    entity_count = layout.default_dest_height.shape[0]
+    if (
+        len(dest_x) != entity_count
+        or len(dest_y) != entity_count
+        or len(dest_width) != entity_count
+        or len(dest_height) != entity_count
+        or len(origin_x) != entity_count
+        or len(origin_y) != entity_count
+        or len(rotation) != entity_count
+    ):
+        raise ValueError(
+            "draw_texture_batch requires destination, origin, and rotation views with the same length."
+        )
+    if not layout.groups:
+        return
+
+    for group in layout.groups:
+        _native_batch.draw_texture_batch_group(
+            group,
+            dest_x,
+            dest_y,
+            dest_width,
+            dest_height,
+            origin_x,
+            origin_y,
+            rotation,
+            color,
+        )
+
+    rl.rlDrawRenderBatchActive()
 
 
 def draw_unfilled_circle(

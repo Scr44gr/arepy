@@ -41,8 +41,120 @@ ACCENTS = [
     Color(88, 151, 255, 255),
 ]
 
+GAMEPAD_BUTTON_LABELS = (
+    (GamepadButton.DPAD_UP, "DPAD_UP"),
+    (GamepadButton.DPAD_RIGHT, "DPAD_RIGHT"),
+    (GamepadButton.DPAD_DOWN, "DPAD_DOWN"),
+    (GamepadButton.DPAD_LEFT, "DPAD_LEFT"),
+    (GamepadButton.FACE_UP, "FACE_UP"),
+    (GamepadButton.FACE_RIGHT, "FACE_RIGHT"),
+    (GamepadButton.FACE_DOWN, "FACE_DOWN"),
+    (GamepadButton.FACE_LEFT, "FACE_LEFT"),
+    (GamepadButton.LEFT_SHOULDER, "LB"),
+    (GamepadButton.RIGHT_SHOULDER, "RB"),
+    (GamepadButton.BACK, "BACK"),
+    (GamepadButton.START, "START"),
+    (GamepadButton.LEFT_STICK, "L3"),
+    (GamepadButton.RIGHT_STICK, "R3"),
+)
 
-@dataclass
+PLAYFIELD_RECT = Rect(PLAY_LEFT, PLAY_TOP, PLAY_WIDTH, PLAY_HEIGHT)
+HUD_RECT = Rect(PLAY_RIGHT + 18, PLAY_TOP, HUD_WIDTH, PLAY_HEIGHT)
+GRID_LINES = tuple(
+    ((PLAY_LEFT + offset, PLAY_TOP), (PLAY_LEFT + offset, PLAY_BOTTOM))
+    for offset in range(64, int(PLAY_WIDTH), 64)
+) + tuple(
+    ((PLAY_LEFT, PLAY_TOP + offset), (PLAY_RIGHT, PLAY_TOP + offset))
+    for offset in range(64, int(PLAY_HEIGHT), 64)
+)
+
+TITLE_POSITION = (PLAY_LEFT + 18, PLAY_TOP + 14)
+SUBTITLE_POSITION = (PLAY_LEFT + 18, PLAY_TOP + 48)
+NO_GAMEPAD_TITLE_POSITION = (PLAY_LEFT + 28, PLAY_TOP + 112)
+NO_GAMEPAD_HINT_POSITION = (PLAY_LEFT + 28, PLAY_TOP + 152)
+NO_GAMEPAD_XBOX_POSITION = (PLAY_LEFT + 28, PLAY_TOP + 192)
+NO_GAMEPAD_PLAYSTATION_POSITION = (PLAY_LEFT + 28, PLAY_TOP + 220)
+NO_GAMEPAD_BACKEND_POSITION = (PLAY_LEFT + 28, PLAY_TOP + 248)
+
+HUD_LEFT = PLAY_RIGHT + 38
+ACTIVE_PAD_POSITION = (HUD_LEFT, PLAY_TOP + 18)
+DEVICE_TYPE_POSITION = (HUD_LEFT, PLAY_TOP + 52)
+DEVICE_NAME_POSITION = (HUD_LEFT, PLAY_TOP + 78)
+CONNECTED_SLOTS_POSITION = (HUD_LEFT, PLAY_TOP + 110)
+RUMBLE_STATUS_POSITION = (HUD_LEFT, PLAY_TOP + 132)
+HELD_BUTTONS_TITLE_POSITION = (HUD_LEFT, PLAY_TOP + 418)
+HELD_BUTTONS_POSITION = (HUD_LEFT, PLAY_TOP + 444)
+HELP_HIDDEN_POSITION = (HUD_LEFT, PLAY_TOP + 496)
+FPS_POSITION = (HUD_LEFT, PLAY_BOTTOM - 30)
+
+HELP_LINES_WITH_RUMBLE = (
+    "FACE_DOWN / RIGHT / LEFT / UP: switch color",
+    "START: center the player",
+    "L3: short rumble | R3: strong rumble",
+    "BACK: hide this help",
+    "LB / RB: switch active pad when multiple are connected",
+)
+HELP_LINES_WITHOUT_RUMBLE = (
+    "FACE_DOWN / RIGHT / LEFT / UP: switch color",
+    "START: center the player",
+    "Rumble is unavailable on this raylib build",
+    "BACK: hide this help",
+    "LB / RB: switch active pad when multiple are connected",
+)
+HELP_LINE_POSITIONS = tuple(
+    (HUD_LEFT, PLAY_TOP + 496 + index * 24)
+    for index in range(len(HELP_LINES_WITH_RUMBLE))
+)
+HELP_ROWS_WITH_RUMBLE = tuple(zip(HELP_LINES_WITH_RUMBLE, HELP_LINE_POSITIONS))
+HELP_ROWS_WITHOUT_RUMBLE = tuple(zip(HELP_LINES_WITHOUT_RUMBLE, HELP_LINE_POSITIONS))
+
+
+@dataclass(slots=True)
+class TriggerBarGeometry:
+    label_position: tuple[float, float]
+    track: Rect
+    fill: Rect
+
+
+@dataclass(slots=True)
+class StickWidgetGeometry:
+    label_position: tuple[float, float]
+    box: Rect
+    horizontal_start: tuple[float, float]
+    horizontal_end: tuple[float, float]
+    vertical_start: tuple[float, float]
+    vertical_end: tuple[float, float]
+    center: tuple[float, float]
+    cursor: list[float]
+
+
+def make_trigger_bar_geometry(x: float, y: float, width: int) -> TriggerBarGeometry:
+    return TriggerBarGeometry(
+        label_position=(x, y - 20),
+        track=Rect(x, y, width, 12),
+        fill=Rect(x, y, 0, 12),
+    )
+
+
+def make_stick_widget_geometry(
+    center_x: float,
+    center_y: float,
+) -> StickWidgetGeometry:
+    box_size = 86
+    half = box_size * 0.5
+    return StickWidgetGeometry(
+        label_position=(center_x - half, center_y - half - 22),
+        box=Rect(center_x - half, center_y - half, box_size, box_size),
+        horizontal_start=(center_x - half, center_y),
+        horizontal_end=(center_x + half, center_y),
+        vertical_start=(center_x, center_y - half),
+        vertical_end=(center_x, center_y + half),
+        center=(center_x, center_y),
+        cursor=[center_x, center_y],
+    )
+
+
+@dataclass(slots=True)
 class DemoState:
     player_x: float = PLAY_LEFT + PLAY_WIDTH * 0.5
     player_y: float = PLAY_TOP + PLAY_HEIGHT * 0.5
@@ -51,15 +163,70 @@ class DemoState:
     accent_index: int = 0
     active_gamepad_id: int | None = None
     connected_ids: tuple[int, ...] = ()
+    connected_label: str = ""
     active_name: str = "No controller detected"
     active_type: GamepadDeviceType = GamepadDeviceType.UNKNOWN
-    left_stick: tuple[float, float] = (0.0, 0.0)
-    right_stick: tuple[float, float] = (0.0, 0.0)
+    active_type_label: str = "Unknown"
+    left_stick: list[float] = field(default_factory=lambda: [0.0, 0.0])
+    right_stick: list[float] = field(default_factory=lambda: [0.0, 0.0])
     left_trigger: float = 0.0
     right_trigger: float = 0.0
-    held_buttons: tuple[str, ...] = field(default_factory=tuple)
+    held_buttons: list[str] = field(default_factory=list)
+    held_buttons_label: str = "none"
     vibration_supported: bool = False
     show_help: bool = True
+    player_position: list[float] = field(
+        default_factory=lambda: [
+            PLAY_LEFT + PLAY_WIDTH * 0.5,
+            PLAY_TOP + PLAY_HEIGHT * 0.5,
+        ],
+        init=False,
+        repr=False,
+    )
+    aim_end: list[float] = field(
+        default_factory=lambda: [0.0, 0.0],
+        init=False,
+        repr=False,
+    )
+    left_trigger_geometry: TriggerBarGeometry = field(
+        default_factory=lambda: make_trigger_bar_geometry(
+            HUD_LEFT,
+            PLAY_TOP + 166,
+            252,
+        ),
+        init=False,
+        repr=False,
+    )
+    right_trigger_geometry: TriggerBarGeometry = field(
+        default_factory=lambda: make_trigger_bar_geometry(
+            HUD_LEFT,
+            PLAY_TOP + 216,
+            252,
+        ),
+        init=False,
+        repr=False,
+    )
+    left_stick_geometry: StickWidgetGeometry = field(
+        default_factory=lambda: make_stick_widget_geometry(
+            PLAY_RIGHT + 104,
+            PLAY_TOP + 342,
+        ),
+        init=False,
+        repr=False,
+    )
+    right_stick_geometry: StickWidgetGeometry = field(
+        default_factory=lambda: make_stick_widget_geometry(
+            PLAY_RIGHT + 242,
+            PLAY_TOP + 342,
+        ),
+        init=False,
+        repr=False,
+    )
+    held_buttons_scratch: list[str] = field(
+        default_factory=list,
+        init=False,
+        repr=False,
+    )
 
 
 def clamp(value: float, minimum: float, maximum: float) -> float:
@@ -91,28 +258,25 @@ def cycle_active_gamepad(state: DemoState, direction: int) -> None:
     state.active_gamepad_id = state.connected_ids[next_index]
 
 
-def collect_held_buttons(input_device: Input, gamepad_id: int) -> tuple[str, ...]:
-    labels = (
-        (GamepadButton.DPAD_UP, "DPAD_UP"),
-        (GamepadButton.DPAD_RIGHT, "DPAD_RIGHT"),
-        (GamepadButton.DPAD_DOWN, "DPAD_DOWN"),
-        (GamepadButton.DPAD_LEFT, "DPAD_LEFT"),
-        (GamepadButton.FACE_UP, "FACE_UP"),
-        (GamepadButton.FACE_RIGHT, "FACE_RIGHT"),
-        (GamepadButton.FACE_DOWN, "FACE_DOWN"),
-        (GamepadButton.FACE_LEFT, "FACE_LEFT"),
-        (GamepadButton.LEFT_SHOULDER, "LB"),
-        (GamepadButton.RIGHT_SHOULDER, "RB"),
-        (GamepadButton.BACK, "BACK"),
-        (GamepadButton.START, "START"),
-        (GamepadButton.LEFT_STICK, "L3"),
-        (GamepadButton.RIGHT_STICK, "R3"),
+def collect_held_buttons(
+    state: DemoState,
+    input_device: Input,
+    gamepad_id: int,
+) -> None:
+    held_buttons = state.held_buttons_scratch
+    held_buttons.clear()
+    for button, label in GAMEPAD_BUTTON_LABELS:
+        if input_device.is_gamepad_button_down(button, gamepad_id):
+            held_buttons.append(label)
+
+    if held_buttons == state.held_buttons:
+        return
+
+    state.held_buttons, state.held_buttons_scratch = (
+        held_buttons,
+        state.held_buttons,
     )
-    return tuple(
-        label
-        for button, label in labels
-        if input_device.is_gamepad_button_down(button, gamepad_id)
-    )
+    state.held_buttons_label = ", ".join(held_buttons) if held_buttons else "none"
 
 
 def format_device_type(device_type: GamepadDeviceType) -> str:
@@ -121,56 +285,93 @@ def format_device_type(device_type: GamepadDeviceType) -> str:
 
 def draw_trigger_bar(
     renderer: Renderer2D,
-    x: float,
-    y: float,
-    width: int,
+    geometry: TriggerBarGeometry,
     value: float,
     label: str,
     color: Color,
 ) -> None:
-    fill_width = max(0, min(int(round(width * value)), width))
+    track = geometry.track
+    geometry.fill.width = max(
+        0,
+        min(int(round(track.width * value)), track.width),
+    )
 
-    renderer.draw_text(label, (x, y - 20), 16, MUTED)
-    renderer.draw_rectangle(Rect(x, y, width, 12), PLAYFIELD)
-    renderer.draw_rectangle(Rect(x, y, fill_width, 12), color)
-    renderer.draw_rectangle_lines_ex(Rect(x, y, width, 12), 2.0, OUTLINE)
+    renderer.draw_text(label, geometry.label_position, 16, MUTED)
+    renderer.draw_rectangle(track, PLAYFIELD)
+    renderer.draw_rectangle(geometry.fill, color)
+    renderer.draw_rectangle_lines_ex(track, 2.0, OUTLINE)
 
 
 def draw_stick_widget(
     renderer: Renderer2D,
-    center_x: float,
-    center_y: float,
+    geometry: StickWidgetGeometry,
     label: str,
-    vector: tuple[float, float],
+    vector: list[float],
     color: Color,
 ) -> None:
-    box_size = 86
-    half = box_size * 0.5
-    renderer.draw_text(label, (center_x - half, center_y - half - 22), 16, MUTED)
-    renderer.draw_rectangle(Rect(center_x - half, center_y - half, box_size, box_size), PLAYFIELD)
-    renderer.draw_rectangle_lines_ex(
-        Rect(center_x - half, center_y - half, box_size, box_size),
-        2.0,
-        OUTLINE,
+    center = geometry.center
+    cursor = geometry.cursor
+    cursor[0] = center[0] + vector[0] * 30.0
+    cursor[1] = center[1] + vector[1] * 30.0
+
+    renderer.draw_text(label, geometry.label_position, 16, MUTED)
+    renderer.draw_rectangle(geometry.box, PLAYFIELD)
+    renderer.draw_rectangle_lines_ex(geometry.box, 2.0, OUTLINE)
+    renderer.draw_line_ex(
+        geometry.horizontal_start,
+        geometry.horizontal_end,
+        1.5,
+        GRID,
     )
-    renderer.draw_line_ex((center_x - half, center_y), (center_x + half, center_y), 1.5, GRID)
-    renderer.draw_line_ex((center_x, center_y - half), (center_x, center_y + half), 1.5, GRID)
-    renderer.draw_circle((center_x + vector[0] * 30.0, center_y + vector[1] * 30.0), 8.0, color)
-    renderer.draw_circle_lines((center_x, center_y), 32.0, OUTLINE)
+    renderer.draw_line_ex(
+        geometry.vertical_start,
+        geometry.vertical_end,
+        1.5,
+        GRID,
+    )
+    renderer.draw_circle(cursor, 8.0, color)
+    renderer.draw_circle_lines(center, 32.0, OUTLINE)
+
+
+def rumble(
+    input_device: Input,
+    state: DemoState,
+    gamepad_id: int,
+    left_motor: float,
+    right_motor: float,
+    duration_seconds: float,
+) -> None:
+    if state.vibration_supported:
+        input_device.set_gamepad_vibration(
+            left_motor,
+            right_motor,
+            duration_seconds,
+            gamepad_id,
+        )
 
 
 def gamepad_input_system(state: DemoState, input_device: Input, time: Time) -> None:
-    state.connected_ids = input_device.get_available_gamepads()
+    connected_ids = input_device.get_available_gamepads()
+    if connected_ids != state.connected_ids:
+        state.connected_ids = connected_ids
+        state.connected_label = ", ".join(
+            str(gamepad_id) for gamepad_id in connected_ids
+        )
 
     if not state.connected_ids:
         state.active_gamepad_id = None
         state.active_name = "No controller detected"
         state.active_type = GamepadDeviceType.UNKNOWN
-        state.left_stick = (0.0, 0.0)
-        state.right_stick = (0.0, 0.0)
+        state.active_type_label = "Unknown"
+        state.left_stick[0] = 0.0
+        state.left_stick[1] = 0.0
+        state.right_stick[0] = 0.0
+        state.right_stick[1] = 0.0
         state.left_trigger = 0.0
         state.right_trigger = 0.0
-        state.held_buttons = ()
+        state.held_buttons.clear()
+        state.held_buttons_scratch.clear()
+        state.held_buttons_label = "none"
         state.vibration_supported = False
         return
 
@@ -189,17 +390,11 @@ def gamepad_input_system(state: DemoState, input_device: Input, time: Time) -> N
         gamepad_id = state.active_gamepad_id or gamepad_id
 
     state.active_name = input_device.get_gamepad_name(gamepad_id) or "Unknown controller"
-    state.active_type = input_device.get_gamepad_device_type(gamepad_id)
+    active_type = input_device.get_gamepad_device_type(gamepad_id)
+    if active_type is not state.active_type:
+        state.active_type = active_type
+        state.active_type_label = format_device_type(active_type)
     state.vibration_supported = input_device.is_gamepad_vibration_supported(gamepad_id)
-
-    def rumble(left_motor: float, right_motor: float, duration_seconds: float) -> None:
-        if state.vibration_supported:
-            input_device.set_gamepad_vibration(
-                left_motor,
-                right_motor,
-                duration_seconds,
-                gamepad_id,
-            )
 
     left_x = apply_deadzone(
         input_device.get_gamepad_axis_movement(GamepadAxis.LEFT_X, gamepad_id)
@@ -220,33 +415,35 @@ def gamepad_input_system(state: DemoState, input_device: Input, time: Time) -> N
     state.right_trigger = normalize_trigger(
         input_device.get_gamepad_axis_movement(GamepadAxis.RIGHT_TRIGGER, gamepad_id)
     )
-    state.left_stick = (left_x, left_y)
-    state.right_stick = (right_x, right_y)
+    state.left_stick[0] = left_x
+    state.left_stick[1] = left_y
+    state.right_stick[0] = right_x
+    state.right_stick[1] = right_y
 
     if input_device.is_gamepad_button_pressed(GamepadButton.BACK, gamepad_id):
         state.show_help = not state.show_help
     if input_device.is_gamepad_button_pressed(GamepadButton.START, gamepad_id):
         state.player_x = PLAY_LEFT + PLAY_WIDTH * 0.5
         state.player_y = PLAY_TOP + PLAY_HEIGHT * 0.5
-        rumble(0.2, 0.75, 0.1)
+        rumble(input_device, state, gamepad_id, 0.2, 0.75, 0.1)
 
     if input_device.is_gamepad_button_pressed(GamepadButton.FACE_DOWN, gamepad_id):
         state.accent_index = 0
-        rumble(0.18, 0.45, 0.08)
+        rumble(input_device, state, gamepad_id, 0.18, 0.45, 0.08)
     elif input_device.is_gamepad_button_pressed(GamepadButton.FACE_RIGHT, gamepad_id):
         state.accent_index = 1
-        rumble(0.18, 0.45, 0.08)
+        rumble(input_device, state, gamepad_id, 0.18, 0.45, 0.08)
     elif input_device.is_gamepad_button_pressed(GamepadButton.FACE_LEFT, gamepad_id):
         state.accent_index = 2
-        rumble(0.18, 0.45, 0.08)
+        rumble(input_device, state, gamepad_id, 0.18, 0.45, 0.08)
     elif input_device.is_gamepad_button_pressed(GamepadButton.FACE_UP, gamepad_id):
         state.accent_index = 3
-        rumble(0.18, 0.45, 0.08)
+        rumble(input_device, state, gamepad_id, 0.18, 0.45, 0.08)
 
     if input_device.is_gamepad_button_pressed(GamepadButton.LEFT_STICK, gamepad_id):
-        rumble(0.35, 0.85, 0.12)
+        rumble(input_device, state, gamepad_id, 0.35, 0.85, 0.12)
     elif input_device.is_gamepad_button_pressed(GamepadButton.RIGHT_STICK, gamepad_id):
-        rumble(1.0, 1.0, 0.2)
+        rumble(input_device, state, gamepad_id, 1.0, 1.0, 0.2)
 
     dpad_x = float(
         input_device.is_gamepad_button_down(GamepadButton.DPAD_RIGHT, gamepad_id)
@@ -276,156 +473,158 @@ def gamepad_input_system(state: DemoState, input_device: Input, time: Time) -> N
         state.aim_x = right_x / length
         state.aim_y = right_y / length
 
-    state.held_buttons = collect_held_buttons(input_device, gamepad_id)
+    collect_held_buttons(state, input_device, gamepad_id)
 
 
 def render_demo(state: DemoState, renderer: Renderer2D) -> None:
     renderer.start_frame()
     renderer.clear(BACKGROUND)
 
-    renderer.draw_rectangle(Rect(PLAY_LEFT, PLAY_TOP, PLAY_WIDTH, PLAY_HEIGHT), PLAYFIELD)
-    renderer.draw_rectangle_lines_ex(
-        Rect(PLAY_LEFT, PLAY_TOP, PLAY_WIDTH, PLAY_HEIGHT), 2.0, OUTLINE
-    )
-    renderer.draw_rectangle(Rect(PLAY_RIGHT + 18, PLAY_TOP, HUD_WIDTH, PLAY_HEIGHT), HUD)
-    renderer.draw_rectangle_lines_ex(
-        Rect(PLAY_RIGHT + 18, PLAY_TOP, HUD_WIDTH, PLAY_HEIGHT), 2.0, OUTLINE
-    )
+    renderer.draw_rectangle(PLAYFIELD_RECT, PLAYFIELD)
+    renderer.draw_rectangle_lines_ex(PLAYFIELD_RECT, 2.0, OUTLINE)
+    renderer.draw_rectangle(HUD_RECT, HUD)
+    renderer.draw_rectangle_lines_ex(HUD_RECT, 2.0, OUTLINE)
 
-    for offset_x in range(64, int(PLAY_WIDTH), 64):
-        x = PLAY_LEFT + offset_x
-        renderer.draw_line_ex((x, PLAY_TOP), (x, PLAY_BOTTOM), 1.0, GRID)
-    for offset_y in range(64, int(PLAY_HEIGHT), 64):
-        y = PLAY_TOP + offset_y
-        renderer.draw_line_ex((PLAY_LEFT, y), (PLAY_RIGHT, y), 1.0, GRID)
+    for start, end in GRID_LINES:
+        renderer.draw_line_ex(start, end, 1.0, GRID)
 
     accent = ACCENTS[state.accent_index]
     pulse_radius = PLAYER_RADIUS + 14.0 + state.right_trigger * 18.0
     player_radius = PLAYER_RADIUS + state.left_trigger * 14.0
     aim_distance = 90.0 + state.right_trigger * 70.0
-    aim_end = (
-        state.player_x + state.aim_x * aim_distance,
-        state.player_y + state.aim_y * aim_distance,
-    )
+    player_position = state.player_position
+    player_position[0] = state.player_x
+    player_position[1] = state.player_y
+    aim_end = state.aim_end
+    aim_end[0] = state.player_x + state.aim_x * aim_distance
+    aim_end[1] = state.player_y + state.aim_y * aim_distance
 
-    renderer.draw_circle((state.player_x, state.player_y), player_radius, accent)
-    renderer.draw_circle_lines((state.player_x, state.player_y), pulse_radius, OUTLINE)
-    renderer.draw_line_ex((state.player_x, state.player_y), aim_end, 3.0, TEXT)
+    renderer.draw_circle(player_position, player_radius, accent)
+    renderer.draw_circle_lines(player_position, pulse_radius, OUTLINE)
+    renderer.draw_line_ex(player_position, aim_end, 3.0, TEXT)
     renderer.draw_circle(aim_end, 7.0, TEXT)
     renderer.draw_circle_lines(aim_end, 15.0, accent)
 
-    renderer.draw_text("Arepy Gamepad Demo", (PLAY_LEFT + 18, PLAY_TOP + 14), 28, TEXT)
+    renderer.draw_text("Arepy Gamepad Demo", TITLE_POSITION, 28, TEXT)
     renderer.draw_text(
         "Left stick + dpad move | Right stick aims | Face buttons recolor",
-        (PLAY_LEFT + 18, PLAY_TOP + 48),
+        SUBTITLE_POSITION,
         18,
         MUTED,
     )
 
     if state.active_gamepad_id is None:
-        renderer.draw_text("No gamepad connected", (PLAY_LEFT + 28, PLAY_TOP + 112), 30, TEXT)
-        renderer.draw_text("Connect a controller and move a stick or press a button.", (PLAY_LEFT + 28, PLAY_TOP + 152), 20, MUTED)
-        renderer.draw_text("Xbox pads usually work by USB or Bluetooth.", (PLAY_LEFT + 28, PLAY_TOP + 192), 18, MUTED)
-        renderer.draw_text("For DualSense/DualShock on Windows, USB is the safest first test.", (PLAY_LEFT + 28, PLAY_TOP + 220), 18, MUTED)
-        renderer.draw_text("This demo uses raylib directly, with no SDL layer in between.", (PLAY_LEFT + 28, PLAY_TOP + 248), 18, MUTED)
+        renderer.draw_text("No gamepad connected", NO_GAMEPAD_TITLE_POSITION, 30, TEXT)
+        renderer.draw_text(
+            "Connect a controller and move a stick or press a button.",
+            NO_GAMEPAD_HINT_POSITION,
+            20,
+            MUTED,
+        )
+        renderer.draw_text(
+            "Xbox pads usually work by USB or Bluetooth.",
+            NO_GAMEPAD_XBOX_POSITION,
+            18,
+            MUTED,
+        )
+        renderer.draw_text(
+            "For DualSense/DualShock on Windows, USB is the safest first test.",
+            NO_GAMEPAD_PLAYSTATION_POSITION,
+            18,
+            MUTED,
+        )
+        renderer.draw_text(
+            "This demo uses raylib directly, with no SDL layer in between.",
+            NO_GAMEPAD_BACKEND_POSITION,
+            18,
+            MUTED,
+        )
     else:
         renderer.draw_text(
             f"Active pad: {state.active_gamepad_id}",
-            (PLAY_RIGHT + 38, PLAY_TOP + 18),
+            ACTIVE_PAD_POSITION,
             22,
             TEXT,
         )
         renderer.draw_text(
-            f"Type: {format_device_type(state.active_type)}",
-            (PLAY_RIGHT + 38, PLAY_TOP + 52),
+            f"Type: {state.active_type_label}",
+            DEVICE_TYPE_POSITION,
             18,
             MUTED,
         )
         renderer.draw_text(
             state.active_name,
-            (PLAY_RIGHT + 38, PLAY_TOP + 78),
+            DEVICE_NAME_POSITION,
             18,
             TEXT,
         )
 
-        connected_label = ", ".join(str(gamepad_id) for gamepad_id in state.connected_ids)
         renderer.draw_text(
-            f"Connected slots: {connected_label}",
-            (PLAY_RIGHT + 38, PLAY_TOP + 110),
+            f"Connected slots: {state.connected_label}",
+            CONNECTED_SLOTS_POSITION,
             16,
             MUTED,
         )
         renderer.draw_text(
-            "Rumble: available" if state.vibration_supported else "Rumble: unavailable on this backend",
-            (PLAY_RIGHT + 38, PLAY_TOP + 132),
+            (
+                "Rumble: available"
+                if state.vibration_supported
+                else "Rumble: unavailable on this backend"
+            ),
+            RUMBLE_STATUS_POSITION,
             16,
             MUTED,
         )
 
         draw_trigger_bar(
             renderer,
-            PLAY_RIGHT + 38,
-            PLAY_TOP + 166,
-            252,
+            state.left_trigger_geometry,
             state.left_trigger,
             "LT precision",
             ACCENTS[2],
         )
         draw_trigger_bar(
             renderer,
-            PLAY_RIGHT + 38,
-            PLAY_TOP + 216,
-            252,
+            state.right_trigger_geometry,
             state.right_trigger,
             "RT boost",
             ACCENTS[1],
         )
         draw_stick_widget(
             renderer,
-            PLAY_RIGHT + 104,
-            PLAY_TOP + 342,
+            state.left_stick_geometry,
             "Left stick",
             state.left_stick,
             ACCENTS[0],
         )
         draw_stick_widget(
             renderer,
-            PLAY_RIGHT + 242,
-            PLAY_TOP + 342,
+            state.right_stick_geometry,
             "Right stick",
             state.right_stick,
             ACCENTS[3],
         )
 
-        buttons_text = ", ".join(state.held_buttons) if state.held_buttons else "none"
-        renderer.draw_text("Held buttons", (PLAY_RIGHT + 38, PLAY_TOP + 418), 18, TEXT)
-        renderer.draw_text(buttons_text, (PLAY_RIGHT + 38, PLAY_TOP + 444), 16, MUTED)
+        renderer.draw_text("Held buttons", HELD_BUTTONS_TITLE_POSITION, 18, TEXT)
+        renderer.draw_text(state.held_buttons_label, HELD_BUTTONS_POSITION, 16, MUTED)
 
         if state.show_help:
-            help_lines = [
-                "FACE_DOWN / RIGHT / LEFT / UP: switch color",
-                "START: center the player",
-                (
-                    "L3: short rumble | R3: strong rumble"
-                    if state.vibration_supported
-                    else "Rumble is unavailable on this raylib build"
-                ),
-                "BACK: hide this help",
-                "LB / RB: switch active pad when multiple are connected",
-            ]
-            y = PLAY_TOP + 496
-            for line in help_lines:
-                renderer.draw_text(line, (PLAY_RIGHT + 38, y), 16, MUTED)
-                y += 24
+            help_rows = (
+                HELP_ROWS_WITH_RUMBLE
+                if state.vibration_supported
+                else HELP_ROWS_WITHOUT_RUMBLE
+            )
+            for line, position in help_rows:
+                renderer.draw_text(line, position, 16, MUTED)
         else:
             renderer.draw_text(
                 "Press BACK to show help again",
-                (PLAY_RIGHT + 38, PLAY_TOP + 496),
+                HELP_HIDDEN_POSITION,
                 16,
                 MUTED,
             )
 
-    renderer.draw_fps((PLAY_RIGHT + 38, PLAY_BOTTOM - 30))
+    renderer.draw_fps(FPS_POSITION)
     renderer.end_frame()
 
 

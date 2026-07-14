@@ -1,184 +1,113 @@
-# Engine Lifecycle
+# Engine lifecycle and pipelines
 
-`ArepyEngine` is the high-level entry point for creating windows, worlds, renderers, input, audio, and shared resources.
+A game frame is easier to reason about when input, simulation, drawing, and
+debug UI happen in a predictable order.
 
-## Creating an engine
-
-Creating an engine is usually the first thing you do. In many cases, a title and the default settings are enough to get going.
-
-```python
-engine = ArepyEngine(title="My Game")
+```mermaid
+flowchart LR
+    Time["Advance Time"] --> Input["INPUT"]
+    Input --> Sync["Timers, Animator,<br/>events and ECS sync"]
+    Sync --> Update["UPDATE"]
+    Update --> Render["RENDER"]
+    Render --> UI["RENDER_UI"]
+    UI --> Present["Present frame"]
+    Present --> Time
 ```
 
-The constructor signature is:
+## The four pipelines in the normal loop
+
+| Pipeline | Put this here | Typical dependencies |
+| --- | --- | --- |
+| `INPUT` | Read controls and turn them into intent. | `Input`, player state. |
+| `UPDATE` | Movement, rules, AI, spawning, damage. | `Query`, `Time`, resources. |
+| `RENDER` | Start, clear, draw, and end the game frame. | `Renderer2D` or `Renderer3D`. |
+| `RENDER_UI` | Describe optional ImGui tools. | `imgui`, debug resources. |
+
+Register systems individually when their order matters:
 
 ```python
-ArepyEngine(
-   title: str = "Arepy Engine",
-   width: int = 1920 // 3,
-   height: int = 1080 // 3,
-   max_frame_rate: int = 800,
-   fullscreen: bool = False,
-   icon_path: PathLike[str] | None = None,
-   window_flags: WindowFlag | None = None,
-)
+world.add_system(SystemPipeline.INPUT, read_controls)
+world.add_system(SystemPipeline.UPDATE, move_player)
+world.add_system(SystemPipeline.UPDATE, resolve_collisions)
+world.add_system(SystemPipeline.RENDER, draw_scene)
 ```
 
-If you want more control, you can also pass:
+The enum also exposes `PHYSICS` and `ASYNC_UPDATE`, but the standard engine loop
+does not execute those two pipelines automatically. Treat them as extension
+points, not normal beginner phases.
 
-- `title: str` sets the window title shown in the title bar
-- `width: int` sets the window width in pixels when the window is created
-- `height: int` sets the window height in pixels when the window is created
-- `max_frame_rate: int` is passed to `Renderer2D.set_max_framerate(...)` during engine startup
-- `fullscreen: bool` decides whether `Display.toggle_fullscreen()` is called right after the window opens
-- `icon_path: PathLike[str] | None` is passed to `Display.set_window_icon(...)` when you want a custom window icon
-- `window_flags: WindowFlag | None` is passed to `Display.set_window_state(...)` before the window is created
-
-Here is a more explicit example:
+## Creating the application
 
 ```python
-from pathlib import Path
-
 from arepy import ArepyEngine, WindowFlag
 
 
 engine = ArepyEngine(
-   title="Space Garden",
-   width=1280,
-   height=720,
-   max_frame_rate=144,
-   fullscreen=False,
-   icon_path=Path("assets/icon.png"),
-   window_flags=WindowFlag.VSYNC_HINT,
+    title="Space Garden",
+    width=1280,
+    height=720,
+    max_frame_rate=144,
+    window_flags=WindowFlag.WINDOW_RESIZABLE,
 )
+world = engine.create_world("level_one")
+
+engine.set_current_world("level_one")
+engine.run()
 ```
 
-All of these values are passed as normal Python keyword arguments when you create the engine instance.
+The constructor opens the window and initializes the renderer, input, audio,
+asset store, clock, and optional ImGui integration. Create long-lived resources
+and load assets before `run()` whenever possible.
 
-When the engine starts, it opens the window and makes these shared services available across the app:
+## World lifecycle callbacks
 
-- `Display`
-- `Time`
-- `Renderer2D`
-- `Renderer3D`
-- `AssetStore`
-- `Input`
-- `ArepyEngine`
-- `AudioDevice`
-- `EventManager`
-- `imgui` (optional)
-
-That lets you create a world and start adding systems without having to wire every subsystem by hand.
-
-If you install the optional ImGui extra, the engine also exposes `imgui` and manages its frame lifecycle automatically.
-
-Each new world also starts with a local `Timers` resource.
-
-## Worlds
-
-A world is a named container around an ECS `Registry`.
-
-The methods you usually call are:
+World hooks are good ownership boundaries for setup and cleanup:
 
 ```python
-world = engine.create_world(name: str)
-engine.set_current_world(name: str)
-```
-
-```python
-engine = ArepyEngine(title="My Game")
-world = engine.create_world("main")
-engine.set_current_world("main")
-```
-
-`create_world(name: str)` expects the world name as a string and returns a new `World`.
-
-`set_current_world(name: str)` also expects the world name as a string. You pass the name of a world that was already created.
-
-`create_world(name)` creates a `World` that can see the engine's shared services, while still keeping room for world-specific resources and callbacks. That world also receives a built-in `Timers` resource, so delayed and repeating callbacks are available immediately.
-
-## Current frame order
-
-The runtime loop implemented in `ArepyEngine.run()` currently works like this:
-
-1. call `on_startup()` once
-2. while the window stays open:
-   - process the next frame
-   - apply any deferred world switch
-3. call `on_shutdown()` once
-
-Inside a frame, the order is:
-
-1. advance `Time` from `Display.get_time()`
-2. `INPUT` pipeline
-3. tick the current world's `Timers`
-4. tick the current world's `Animator`
-5. process queued `EventManager` events
-6. registry `update()`
-7. `UPDATE` pipeline
-8. world `on_update()` hooks
-9. engine `on_update()` hook
-10. process queued `EventManager` events again
-11. start a new ImGui frame if ImGui is enabled
-12. `RENDER` pipeline
-13. `RENDER_UI` pipeline
-14. world `on_render()` hooks
-15. engine `on_render()` hook
-16. finish ImGui and draw it if ImGui is enabled
-17. renderer buffer swap
-
-If you are using ImGui, the main idea is simple: write widgets in `RENDER_UI` and let the engine handle the setup and final draw.
-
-## World lifecycle hooks
-
-Besides the engine-level hooks, each world can register its own lifecycle callbacks.
-
-```python
-world = engine.create_world("main")
-
-
 @world.on_startup
-def load_scene() -> None:
-   ...
-
-
-@world.on_update
-def update_hud() -> None:
-   ...
-
-
-@world.on_render
-def draw_debug_overlay() -> None:
-   ...
+def enter_level() -> None:
+    start_level_music()
 
 
 @world.on_shutdown
-def release_scene() -> None:
-   ...
+def leave_level() -> None:
+    unload_level_assets()
 ```
 
-These hooks are useful when you want a little world-specific setup or teardown without creating a dedicated ECS system for it.
+Available hooks are:
 
-- `on_startup` runs when that world becomes the current world
-- `on_update` runs once per frame after the `UPDATE` pipeline
-- `on_render` runs once per frame after `RENDER` and `RENDER_UI`
-- `on_shutdown` runs when you leave that world or when the engine closes
+- `on_startup`: when the world becomes active;
+- `on_update`: after its `UPDATE` systems;
+- `on_render`: after `RENDER` and `RENDER_UI` systems;
+- `on_shutdown`: before switching away or closing.
 
-`on_update` and `on_render` are optional. They are most useful for glue code, scene orchestration, UI state, or one-off world behaviors that do not fit naturally into a regular ECS system.
+Prefer ECS systems for work over many entities. Use hooks for scene ownership,
+orchestration, and one-time actions.
 
-## Pipeline meanings
+## World switching is deferred
 
-The enum currently defines these phases:
+```python
+engine.create_world("menu")
+engine.create_world("level_one")
 
-- `UPDATE`
-- `RENDER`
-- `INPUT`
-- `PHYSICS`
-- `ASYNC_UPDATE`
-- `RENDER_UI`
+engine.set_current_world("menu")
+```
 
-Only the phases explicitly called by `ArepyEngine` are part of the default frame loop today. If you depend on an additional pipeline such as `PHYSICS`, you currently need to orchestrate it through your own systems or engine customization.
+Calling `set_current_world()` requests the next world. The engine completes the
+current frame boundary, sends `on_shutdown` to the old world, then sends
+`on_startup` to the new one. Code already running does not suddenly change
+world halfway through a system.
 
-## World switching
+## Structural ECS changes are synchronized
 
-`set_current_world(name)` does not switch immediately. It stores the next world name and applies the change after the current frame step. When the switch happens, the previous world receives `on_shutdown`, and the new world receives `on_startup`.
+Entity creation, component changes, and `entity.kill()` update query membership
+at an ECS synchronization point. In the standard loop that synchronization
+happens before `UPDATE` systems.
+
+This means a killed entity should not be assumed to disappear from every query
+in the middle of the same pipeline. Mark it with data if later systems in that
+frame must ignore it immediately; let the registry finalize the structural
+change at the next synchronization.
+
+For the memory-reuse details, continue to [ECS basics](ecs.md). For typed
+services, see [Engine services](engine-services.md).

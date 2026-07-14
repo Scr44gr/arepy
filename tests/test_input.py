@@ -25,6 +25,10 @@ class FakeRaylib:
             (2, GamepadAxis.RIGHT_TRIGGER.value): -0.25,
         }
         self.vibration_calls: list[tuple[int, float, float, float]] = []
+        self.poll_input_calls = 0
+
+    def PollInputEvents(self) -> None:
+        self.poll_input_calls += 1
 
     def IsGamepadAvailable(self, gamepad_id: int) -> bool:
         return gamepad_id in self.available
@@ -112,6 +116,15 @@ def test_gamepad_types_are_exported_from_public_api() -> None:
     assert GamepadButton.FACE_DOWN.value == 7
     assert GamepadAxis.LEFT_X.value == 0
     assert GamepadDeviceType.PLAYSTATION.value == "playstation"
+
+
+def test_pool_events_polls_the_desktop_backend(monkeypatch) -> None:
+    fake_rl = FakeRaylib()
+
+    monkeypatch.setattr(input_repository, "rl", fake_rl)
+
+    assert input_repository.pool_events() is None
+    assert fake_rl.poll_input_calls == 1
 
 
 def test_get_available_gamepads_returns_connected_slots(monkeypatch) -> None:

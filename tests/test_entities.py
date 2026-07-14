@@ -183,7 +183,7 @@ def test_entity_component_cache_invalidation(entity):
     entity.add_component(pos)
 
     # Access component to cache it
-    cached_pos = entity.get_component(Position)
+    entity.get_component(Position)
     assert Position in entity._component_cache
 
     # Remove component
@@ -191,6 +191,18 @@ def test_entity_component_cache_invalidation(entity):
 
     # Cache should be invalidated
     assert Position not in entity._component_cache
+
+
+def test_registry_component_replacement_refreshes_entity_cache(entity):
+    original = Position(10.0, 20.0)
+    replacement = Position(30.0, 40.0)
+    entity._registry.add_component(entity, Position, original)
+
+    assert entity.get_component(Position) is original
+
+    entity._registry.add_component(entity, Position, replacement)
+
+    assert entity.get_component(Position) is replacement
 
 
 def test_entity_in_set_and_dict(registry):
@@ -206,3 +218,26 @@ def test_entity_in_set_and_dict(registry):
     # Test as dictionary key
     entity_dict = {entity1: "first", entity2: "second"}
     assert entity_dict[entity3] == "first"  # entity3 has same ID as entity1
+
+
+def test_entities_with_same_id_from_different_registries_are_distinct() -> None:
+    first = Registry().create_entity()
+    second = Registry().create_entity()
+
+    assert first.get_id() == second.get_id()
+    assert first != second
+    assert len({first, second}) == 2
+
+
+def test_recycled_entity_generation_is_distinct_from_stale_handle() -> None:
+    registry = Registry()
+    stale = registry.create_entity()
+    registry.update()
+    stale.kill()
+    registry.update()
+
+    recycled = registry.create_entity()
+
+    assert stale.get_id() == recycled.get_id()
+    assert stale != recycled
+    assert len({stale, recycled}) == 2

@@ -10,5 +10,10 @@
         },
     },
     "python.languageServer": "Pylance",
+    "python.analysis.extraPaths": [
+        "."
+    ],
+    "python.analysis.inlayHints.variableTypes": true,
     "python.analysis.typeCheckingMode": "basic",
+    "ty.inlayHints.variableTypes": false,
 }

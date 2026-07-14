@@ -5,21 +5,20 @@ from __future__ import absolute_import
 
 from typing import Dict
 
-import moderngl
 import raylib as rl
 from imgui_bundle import ImVec2, imgui
 from imgui_bundle.python_backends import compute_fb_scale
 
-from .moderngl_renderer import ModernGLRenderer
+from .zengl_renderer import ZenglRenderer
 
 RaylibKey = int
 
 
-class ImguiBackend(ModernGLRenderer):
+class ImguiBackend(ZenglRenderer):
     key_map: Dict[RaylibKey, imgui.Key]
 
     def __init__(self):
-        super(ImguiBackend, self).__init__(ctx=moderngl.get_context())
+        super(ImguiBackend, self).__init__()
 
         def get_clipboard_text(_ctx: imgui.internal.Context) -> str:
             return rl.ffi.string(rl.GetClipboardText()).decode("utf-8")  # type: ignore

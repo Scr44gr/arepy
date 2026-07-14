@@ -85,8 +85,16 @@ def _is_gamepad_vibration_backend_supported() -> bool:
     ):
         return _gamepad_vibration_support_cache[1]
 
-    ffi = getattr(rl, "ffi", None)
-    set_trace_log_callback = getattr(rl, "SetTraceLogCallback", None)
+    try:
+        ffi = rl.ffi
+    except AttributeError:
+        ffi = None
+
+    try:
+        set_trace_log_callback = rl.SetTraceLogCallback
+    except AttributeError:
+        set_trace_log_callback = None
+
     if ffi is None or set_trace_log_callback is None:
         _gamepad_vibration_support_cache = (current_backend_id, True)
         return True
@@ -292,5 +300,5 @@ def set_exit_key(key: Key) -> None:
 
 
 def pool_events() -> None:
-    """Pool the events."""
+    """Poll the events."""
     rl.PollInputEvents()
