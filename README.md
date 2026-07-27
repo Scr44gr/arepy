@@ -206,13 +206,11 @@ from arepy.ecs import Component
 
 class Health(Component):
     def __init__(self, value: int = 100):
-        super().__init__()
         self.value = value
         self.max_value = value
 
 class Weapon(Component):
     def __init__(self, damage: int = 10, range: float = 100.0):
-        super().__init__()
         self.damage = damage
         self.range = range
 ```
@@ -357,6 +355,7 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE).
 
 - [Raylib](https://www.raylib.com/)
 - [ImGui](https://github.com/ocornut/imgui)
+- [Imgui-Bundle](https://github.com/pthom/imgui_bundle)
 - [EnTT](https://github.com/skypjack/entt)
 - [Bevy Engine](https://github.com/bevyengine/bevy)
 - [Pikuma](https://pikuma.com/courses/cpp-2d-game-engine-development)
